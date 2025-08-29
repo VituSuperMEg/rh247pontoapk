@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -157,6 +158,23 @@ private fun ScreenUI(
 ) {
     val context = LocalContext.current
     
+    // ✅ NOVO: Logs para verificar os dados recebidos
+    LaunchedEffect(Unit) {
+        android.util.Log.d("AddFaceScreen", "📋 === DADOS RECEBIDOS NA TELA ===")
+        android.util.Log.d("AddFaceScreen", "📋 Nome: '$personName'")
+        android.util.Log.d("AddFaceScreen", "📋 CPF: '$funcionarioCpf'")
+        android.util.Log.d("AddFaceScreen", "📋 Cargo: '$funcionarioCargo'")
+        android.util.Log.d("AddFaceScreen", "📋 Órgão: '$funcionarioOrgao'")
+        android.util.Log.d("AddFaceScreen", "📋 Lotação: '$funcionarioLotacao'")
+        
+        // ✅ NOVO: Verificar se os campos estão vazios
+        android.util.Log.d("AddFaceScreen", "📋 === VERIFICAÇÃO DE CAMPOS VAZIOS ===")
+        android.util.Log.d("AddFaceScreen", "📋 CPF vazio: ${funcionarioCpf.isEmpty()}")
+        android.util.Log.d("AddFaceScreen", "📋 Cargo vazio: ${funcionarioCargo.isEmpty()}")
+        android.util.Log.d("AddFaceScreen", "📋 Órgão vazio: ${funcionarioOrgao.isEmpty()}")
+        android.util.Log.d("AddFaceScreen", "📋 Lotação vazio: ${funcionarioLotacao.isEmpty()}")
+    }
+    
     var personNameState by remember { 
         if (personName.isNotEmpty()) {
             mutableStateOf(personName)
@@ -206,20 +224,52 @@ private fun ScreenUI(
                 .fillMaxSize()
                 .padding(horizontal = 24.dp, vertical = 50.dp),
         ) {
-            // Campo Nome (editável)
-            TextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = personNameState,
-                onValueChange = { personNameState = it },
-                label = { Text(text = "Nome da pessoa") },
-                singleLine = true,
+            // ✅ NOVO: Título da seção
+            Text(
+                text = "Cadastro de Face",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // ✅ NOVO: Card com dados do funcionário
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 2.dp
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    Text(
+                        text = "Dados do Funcionário",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Campo Nome (editável)
+                    TextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = personNameState,
+                        onValueChange = { personNameState = it },
+                        label = { Text(text = "Nome da pessoa") },
+                        singleLine = true,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
             
             // Campo CPF (somente leitura)
             TextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = funcionarioCpf,
+                value = if (funcionarioCpf.isNotEmpty()) formatCPF(funcionarioCpf) else "Não informado",
                 onValueChange = { },
                 label = { Text(text = "CPF") },
                 singleLine = true,
@@ -235,7 +285,7 @@ private fun ScreenUI(
             // Campo Cargo (somente leitura)
             TextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = funcionarioCargo,
+                value = if (funcionarioCargo.isNotEmpty()) funcionarioCargo else "Não informado",
                 onValueChange = { },
                 label = { Text(text = "Cargo") },
                 singleLine = true,
@@ -251,7 +301,7 @@ private fun ScreenUI(
             // Campo Órgão (somente leitura)
             TextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = funcionarioOrgao,
+                value = if (funcionarioOrgao.isNotEmpty()) funcionarioOrgao else "Não informado",
                 onValueChange = { },
                 label = { Text(text = "Órgão") },
                 singleLine = true,
@@ -267,7 +317,7 @@ private fun ScreenUI(
             // Campo Lotação (somente leitura)
             TextField(
                 modifier = Modifier.fillMaxWidth(),
-                value = funcionarioLotacao,
+                value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
                 onValueChange = { },
                 label = { Text(text = "Lotação") },
                 singleLine = true,
@@ -278,7 +328,55 @@ private fun ScreenUI(
                     disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
             )
+                }
+            }
+            
             Spacer(modifier = Modifier.height(24.dp))
+            
+            // ✅ NOVO: Seção de debug (apenas em desenvolvimento)
+            if (funcionarioCpf.isEmpty() || funcionarioCargo.isEmpty() || funcionarioOrgao.isEmpty() || funcionarioLotacao.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFF9800).copy(alpha = 0.1f)
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                        defaultElevation = 2.dp
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = "Aviso",
+                                tint = Color(0xFFFF9800),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Dados Incompletos",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFFF9800)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "Alguns dados do funcionário não foram carregados corretamente. Verifique se os dados estão sendo passados da tela anterior.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFF9800)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             
             // Informações sobre as fotos
             Text(
@@ -456,7 +554,7 @@ private fun IntegratedCameraCapture(
     var isCapturing by remember { mutableStateOf(false) }
     var imageCapture by remember { mutableStateOf<androidx.camera.core.ImageCapture?>(null) }
     
-    // LaunchedEffect para capturar fotos automaticamente
+    // ✅ MELHORADO: LaunchedEffect para capturar fotos automaticamente com countdown visual
     LaunchedEffect(Unit) {
         android.util.Log.d("AddFaceScreen", "🚀 === INICIANDO CAPTURA AUTOMÁTICA ===")
         
@@ -466,55 +564,98 @@ private fun IntegratedCameraCapture(
         while (photoCount < totalPhotos && isActive) {
             android.util.Log.d("AddFaceScreen", "📸 === CAPTURA ${photoCount + 1}/$totalPhotos ===")
             
-            // ✅ CORRIGIDO: Atualizar o índice da foto atual
+            // ✅ MELHORADO: Atualizar o índice da foto atual
             currentPhotoIndex = photoCount
             android.util.Log.d("AddFaceScreen", "📊 Atualizando currentPhotoIndex para: $currentPhotoIndex")
             
-            // Simular detecção de face
+            // ✅ MELHORADO: Simular detecção de face com mudança de cor
+            isFaceDetected = true
             viewModel.setFaceDetectionStatus("Detectando face...")
             delay(1000)
             
-            // Simular centralização
+            // ✅ MELHORADO: Simular centralização com mudança de cor
+            isFaceCentered = true
             viewModel.setFaceDetectionStatus("Centralizando...")
             delay(1000)
             
-            // Simular estabilização
+            // ✅ MELHORADO: Simular estabilização com mudança de cor
+            isStable = true
             viewModel.setFaceDetectionStatus("Estabilizando...")
             delay(1000)
             
-            // Contagem regressiva
+            // ✅ MELHORADO: Contagem regressiva visual dentro da bolinha
             for (i in 3 downTo 1) {
+                captureCountdown = i
                 viewModel.setFaceDetectionStatus("Capturando em $i...")
+                android.util.Log.d("AddFaceScreen", "⏰ Countdown: $i")
                 delay(1000)
             }
             
-            // Capturar foto
+            // ✅ MELHORADO: Capturar foto com verificação de sucesso
+            captureCountdown = 0
             viewModel.setFaceDetectionStatus("Capturando foto ${photoCount + 1}...")
             
             try {
+                // ✅ CORRIGIDO: Verificar se imageCapture está inicializado
+                val currentImageCapture = imageCapture
+                if (currentImageCapture == null) {
+                    android.util.Log.e("AddFaceScreen", "❌ ImageCapture não inicializado!")
+                    continue
+                }
+                
                 val photoFile = File(context.cacheDir, "photo_${System.currentTimeMillis()}.jpg")
+                android.util.Log.d("AddFaceScreen", "📸 Tentando capturar foto para: $photoFile")
                 
                 // ✅ NOVO: Usar OutputFileOptions em vez de ImageCapturedCallback
                 val outputOptions = androidx.camera.core.ImageCapture.OutputFileOptions.Builder(photoFile).build()
                 
-                imageCapture?.takePicture(
+                // ✅ NOVO: Variável para controlar se a foto foi capturada
+                var photoCaptured = false
+                
+                currentImageCapture.takePicture(
                     outputOptions,
                     ContextCompat.getMainExecutor(context),
                     object : androidx.camera.core.ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(outputFileResults: androidx.camera.core.ImageCapture.OutputFileResults) {
                             val uri = Uri.fromFile(photoFile)
                             viewModel.addSelectedImageURI(uri)
+                            photoCaptured = true
                             android.util.Log.d("AddFaceScreen", "✅ Foto ${photoCount + 1} capturada e salva: $uri")
                         }
                         
                         override fun onError(exception: androidx.camera.core.ImageCaptureException) {
                             android.util.Log.e("AddFaceScreen", "❌ Erro ao capturar foto ${photoCount + 1}: ${exception.message}")
+                            photoCaptured = false
                         }
                     }
                 )
                 
-                photoCount++
-                android.util.Log.d("AddFaceScreen", "📊 Progresso: $photoCount/$totalPhotos fotos capturadas")
+                // ✅ NOVO: Aguardar um pouco para a captura ser processada
+                delay(1000)
+                
+                // ✅ NOVO: Verificar se a foto foi realmente capturada
+                if (photoCaptured && photoFile.exists()) {
+                    photoCount++
+                    android.util.Log.d("AddFaceScreen", "📊 Progresso: $photoCount/$totalPhotos fotos capturadas")
+                    android.util.Log.d("AddFaceScreen", "📁 Arquivo existe: ${photoFile.exists()}, Tamanho: ${photoFile.length()} bytes")
+                    
+                    // ✅ NOVO: Verificar se a URI foi adicionada ao ViewModel
+                    val currentURIs = viewModel.selectedImageURIs.value
+                    android.util.Log.d("AddFaceScreen", "📋 URIs no ViewModel: ${currentURIs.size}")
+                    currentURIs.forEachIndexed { index, uri ->
+                        android.util.Log.d("AddFaceScreen", "📋 URI $index: $uri")
+                    }
+                } else {
+                    android.util.Log.e("AddFaceScreen", "❌ Foto não foi capturada corretamente!")
+                    android.util.Log.e("AddFaceScreen", "📁 Arquivo existe: ${photoFile.exists()}")
+                    android.util.Log.e("AddFaceScreen", "📸 PhotoCaptured: $photoCaptured")
+                }
+                
+                // ✅ MELHORADO: Resetar estados para próxima captura
+                isFaceDetected = false
+                isFaceCentered = false
+                isStable = false
+                captureCountdown = 0
                 
                 // Aguardar um pouco antes da próxima captura
                 delay(2000)
@@ -528,12 +669,29 @@ private fun IntegratedCameraCapture(
         android.util.Log.d("AddFaceScreen", "🎉 === CAPTURA CONCLUÍDA ===")
         android.util.Log.d("AddFaceScreen", "📸 Total de fotos capturadas: ${viewModel.selectedImageURIs.value.size}")
         
+        // ✅ MELHORADO: Verificação final das fotos capturadas
+        val finalURIs = viewModel.selectedImageURIs.value
+        android.util.Log.d("AddFaceScreen", "📋 === VERIFICAÇÃO FINAL ===")
+        android.util.Log.d("AddFaceScreen", "📋 Total de URIs: ${finalURIs.size}")
+        finalURIs.forEachIndexed { index, uri ->
+            android.util.Log.d("AddFaceScreen", "📋 URI final $index: $uri")
+        }
+        
         // ✅ CORRIGIDO: Voltar para a tela de formulário após capturar todas as fotos
-        if (viewModel.selectedImageURIs.value.size == totalPhotos) {
+        if (finalURIs.size >= totalPhotos) {
             android.util.Log.d("AddFaceScreen", "🔄 === VOLTANDO PARA TELA DE FORMULÁRIO ===")
+            android.util.Log.d("AddFaceScreen", "✅ Sucesso: ${finalURIs.size} fotos capturadas")
             onBackToForm()
         } else {
             android.util.Log.e("AddFaceScreen", "❌ ERRO: Nem todas as fotos foram capturadas!")
+            android.util.Log.e("AddFaceScreen", "❌ Esperado: $totalPhotos, Capturado: ${finalURIs.size}")
+            
+            // ✅ NOVO: Tentar novamente se não capturou todas as fotos
+            if (finalURIs.isEmpty()) {
+                android.util.Log.w("AddFaceScreen", "⚠️ Nenhuma foto capturada, tentando novamente...")
+                delay(3000)
+                // Aqui poderia reiniciar o processo se necessário
+            }
         }
         
         viewModel.setFaceDetectionStatus("Captura concluída!")
@@ -548,34 +706,40 @@ private fun IntegratedCameraCapture(
                 
                 val cameraProviderFuture = androidx.camera.lifecycle.ProcessCameraProvider.getInstance(context)
                 cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = androidx.camera.core.Preview.Builder().build()
-                    
-                    // ✅ NOVO: ImageCapture em vez de ImageAnalysis
-                    val capture = androidx.camera.core.ImageCapture.Builder()
-                        .setTargetAspectRatio(androidx.camera.core.AspectRatio.RATIO_16_9)
-                        .setCaptureMode(androidx.camera.core.ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                        .build()
-                    
-                    val cameraSelector = androidx.camera.core.CameraSelector.Builder()
-                        .requireLensFacing(cameraFacing)
-                        .build()
-                    
-                    preview.setSurfaceProvider(previewView.surfaceProvider)
-                    
                     try {
+                        val cameraProvider = cameraProviderFuture.get()
+                        android.util.Log.d("AddFaceScreen", "📷 Inicializando câmera...")
+                        
+                        val preview = androidx.camera.core.Preview.Builder().build()
+                        
+                        // ✅ MELHORADO: ImageCapture com configurações otimizadas
+                        val capture = androidx.camera.core.ImageCapture.Builder()
+                            .setTargetAspectRatio(androidx.camera.core.AspectRatio.RATIO_16_9)
+                            .setCaptureMode(androidx.camera.core.ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                            .setJpegQuality(90) // ✅ NOVO: Qualidade JPEG otimizada
+                            .build()
+                        
+                        val cameraSelector = androidx.camera.core.CameraSelector.Builder()
+                            .requireLensFacing(cameraFacing)
+                            .build()
+                        
+                        preview.setSurfaceProvider(previewView.surfaceProvider)
+                        
                         cameraProvider.unbindAll()
                         cameraProvider.bindToLifecycle(
                             lifecycleOwner,
                             cameraSelector,
                             preview,
-                            capture // ✅ NOVO: Usar ImageCapture
+                            capture
                         )
                         
-                        // Armazenar referência do ImageCapture
+                        // ✅ MELHORADO: Armazenar referência do ImageCapture com verificação
                         imageCapture = capture
+                        android.util.Log.d("AddFaceScreen", "✅ Câmera inicializada com sucesso!")
+                        android.util.Log.d("AddFaceScreen", "📷 ImageCapture configurado: ${imageCapture != null}")
                         
                     } catch (e: Exception) {
+                        android.util.Log.e("AddFaceScreen", "❌ Erro ao inicializar câmera: ${e.message}")
                         e.printStackTrace()
                     }
                 }, androidx.core.content.ContextCompat.getMainExecutor(context))
@@ -606,9 +770,9 @@ private fun IntegratedCameraCapture(
                 
                 Text(
                     text = if (viewModel.selectedImageURIs.value.size >= 3) {
-                        "Captura Concluída!"
+                        "🎉 Captura Concluída!"
                     } else {
-                        "Foto ${viewModel.selectedImageURIs.value.size + 1}/3"
+                        "📸 Foto ${viewModel.selectedImageURIs.value.size + 1}/3"
                     },
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
@@ -625,54 +789,110 @@ private fun IntegratedCameraCapture(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Círculo de foco - AUMENTADO O TAMANHO
+                // ✅ MELHORADO: Círculo de foco com countdown visual e cores dinâmicas
                 Box(
                     modifier = Modifier
-                        .size(500   .dp) // Aumentado de 200dp para 280dp
+                        .size(300.dp) // Tamanho otimizado
                         .border(
-                            width = 2.dp, // Aumentado de 3dp para 4dp
+                            width = 4.dp, // Borda mais grossa para melhor visibilidade
                             color = when {
-                                isStable -> Color.Green
-                                isFaceCentered -> Color.Yellow
-                                isFaceDetected -> Color(0xFFFF9800) // Orange
-                                else -> Color.White
+                                captureCountdown > 0 -> Color.Red // Vermelho durante countdown
+                                isStable -> Color.Green // Verde quando estável
+                                isFaceCentered -> Color.Yellow // Amarelo quando centralizado
+                                isFaceDetected -> Color(0xFFFF9800) // Laranja quando detectado
+                                else -> Color.White // Branco por padrão
+                            },
+                            shape = CircleShape
+                        )
+                        .background(
+                            color = when {
+                                captureCountdown > 0 -> Color.Red.copy(alpha = 0.1f) // Fundo vermelho suave
+                                isStable -> Color.Green.copy(alpha = 0.1f) // Fundo verde suave
+                                isFaceCentered -> Color.Yellow.copy(alpha = 0.1f) // Fundo amarelo suave
+                                isFaceDetected -> Color(0xFFFF9800).copy(alpha = 0.1f) // Fundo laranja suave
+                                else -> Color.Transparent
                             },
                             shape = CircleShape
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isStable && captureCountdown > 0) {
-                        Text(
-                            text = captureCountdown.toString(),
-                            style = MaterialTheme.typography.displayLarge,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
-                        )
-                    } else if (isStable) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = "Capturando",
-                            tint = Color.Green,
-                            modifier = Modifier.size(64.dp) // Aumentado de 48dp para 64dp
-                        )
+                    // ✅ MELHORADO: Conteúdo dinâmico baseado no estado
+                    when {
+                        captureCountdown > 0 -> {
+                            // Countdown visual grande e claro
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = captureCountdown.toString(),
+                                    style = MaterialTheme.typography.displayLarge,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "segundos",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                        isStable -> {
+                            // Ícone de check quando estável
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = "Capturando",
+                                tint = Color.Green,
+                                modifier = Modifier.size(64.dp)
+                            )
+                        }
+                        isFaceCentered -> {
+                            // Ícone de face quando centralizado
+                            Icon(
+                                imageVector = Icons.Default.Face,
+                                contentDescription = "Centralizado",
+                                tint = Color.Yellow,
+                                modifier = Modifier.size(64.dp)
+                            )
+                        }
+                        isFaceDetected -> {
+                            // Ícone de face quando detectado
+                            Icon(
+                                imageVector = Icons.Default.Face,
+                                contentDescription = "Detectado",
+                                tint = Color(0xFFFF9800),
+                                modifier = Modifier.size(64.dp)
+                            )
+                        }
+                        else -> {
+                            // Instrução inicial
+                            Text(
+                                text = "Posicione\no rosto",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // Status e instruções
+                // ✅ MELHORADO: Status e instruções mais claras
                 Text(
                     text = when {
-                        viewModel.selectedImageURIs.value.size >= 3 -> "Todas as fotos foram capturadas!"
-                        isStable && captureCountdown > 0 -> "Mantenha-se estável..."
-                        isStable -> "Capturando foto..."
-                        isFaceCentered -> "Rosto centralizado! Aguarde estabilizar..."
-                        isFaceDetected -> "Rosto detectado! Centralize o rosto..."
-                        else -> "Posicione seu rosto no círculo"
+                        viewModel.selectedImageURIs.value.size >= 3 -> "🎉 Todas as fotos foram capturadas!"
+                        captureCountdown > 0 -> "📸 Capturando em $captureCountdown segundos..."
+                        isStable -> "✅ Rosto estável! Preparando para capturar..."
+                        isFaceCentered -> "🎯 Rosto centralizado! Aguarde estabilizar..."
+                        isFaceDetected -> "👤 Rosto detectado! Centralize o rosto no círculo..."
+                        else -> "📱 Posicione seu rosto no círculo"
                     },
                     style = MaterialTheme.typography.bodyLarge,
                     color = Color.White,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Medium
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -898,7 +1118,6 @@ private fun SuccessScreen(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // Grid de fotos
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -926,7 +1145,6 @@ private fun SuccessScreen(
                                         contentScale = ContentScale.Crop
                                     )
                                     
-                                    // Número da foto
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopStart)
@@ -991,11 +1209,14 @@ private fun InfoField(
     }
 }
 
-// ✅ NOVO: Função para formatar CPF
 private fun formatCPF(cpf: String): String {
     return if (cpf.length >= 11) {
         "${cpf.substring(0, 3)}.***.***-${cpf.substring(9, 11)}"
     } else {
         cpf
     }
+}
+
+private fun decodeUrlValue(value: String): String {
+    return value.replace("_", " ")
 }

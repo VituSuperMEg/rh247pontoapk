@@ -87,6 +87,15 @@ fun EmployeeDetailScreen(
         Log.d("EmployeeDetailScreen", "🔍 Lotação: ${funcionario.lotacao}")
         Log.d("EmployeeDetailScreen", "🔍 Status: ${if (funcionario.ativo == 1) "Ativo" else "Inativo"}")
         Log.d("EmployeeDetailScreen", "🔍 API ID: ${funcionario.apiId}")
+        Log.d("EmployeeDetailScreen", "🔍 Código: ${funcionario.codigo}")
+        
+        // ✅ NOVO: Verificar se os campos estão vazios
+        Log.d("EmployeeDetailScreen", "🔍 === VERIFICAÇÃO DE CAMPOS VAZIOS ===")
+        Log.d("EmployeeDetailScreen", "🔍 CPF vazio: ${funcionario.cpf.isEmpty()}")
+        Log.d("EmployeeDetailScreen", "🔍 Cargo vazio: ${funcionario.cargo.isEmpty()}")
+        Log.d("EmployeeDetailScreen", "🔍 Órgão vazio: ${funcionario.secretaria.isEmpty()}")
+        Log.d("EmployeeDetailScreen", "🔍 Lotação vazio: ${funcionario.lotacao.isEmpty()}")
+        Log.d("EmployeeDetailScreen", "🔍 Matrícula vazio: ${funcionario.matricula.isEmpty()}")
         
         try {
             CoroutineScope(Dispatchers.IO).launch {
@@ -190,18 +199,73 @@ fun EmployeeDetailScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         
-                        // Dados do funcionário
-                        InfoRow("ID do Funcionário", funcionario.id.toString())
-                        InfoRow("Código", funcionario.codigo)
+                        // ✅ NOVO: Dados principais destacados
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = 2.dp
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Dados Principais",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
+                                InfoRow("CPF", if (funcionario.cpf.isNotEmpty()) formatCPF(funcionario.cpf) else "Não informado")
+                                InfoRow("Matrícula", if (funcionario.matricula.isNotEmpty()) funcionario.matricula else "Não informado")
+                                InfoRow("Cargo", if (funcionario.cargo.isNotEmpty()) funcionario.cargo else "Não informado")
+                                InfoRow("Órgão", if (funcionario.secretaria.isNotEmpty()) funcionario.secretaria else "Não informado")
+                                InfoRow("Lotação", if (funcionario.lotacao.isNotEmpty()) funcionario.lotacao else "Não informado")
+                                
+                                // ✅ NOVO: Aviso se os dados principais estão vazios
+                                if (funcionario.cpf.isEmpty() || funcionario.cargo.isEmpty() || funcionario.secretaria.isEmpty() || funcionario.lotacao.isEmpty()) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Aviso",
+                                            tint = Color(0xFFFF9800),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Alguns dados podem estar incompletos",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFFF9800)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Dados do funcionário (todos os campos)
+                        Text(
+                            text = "Informações Completas",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         InfoRow("Nome", funcionario.nome)
-                        InfoRow("CPF", formatCPF(funcionario.cpf))
-                        InfoRow("Matrícula", funcionario.matricula)
-                        InfoRow("Cargo", funcionario.cargo)
-                        InfoRow("Órgão", funcionario.secretaria)
-                        InfoRow("Lotação", funcionario.lotacao)
                         InfoRow("Status", if (funcionario.ativo == 1) "Ativo" else "Inativo")
+                        InfoRow("Código", funcionario.codigo)
+                        InfoRow("ID do Funcionário", funcionario.id.toString())
                         InfoRow("ID da API", funcionario.apiId.toString())
                         
                         // ✅ NOVO: Informações das faces cadastradas

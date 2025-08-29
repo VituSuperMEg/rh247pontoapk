@@ -168,17 +168,36 @@ class DetectScreenViewModel(
                     Log.d("DetectScreenViewModel", "📋 Funcionário no banco: ${funcionario.nome}")
                 }
                 
-                // Buscar o funcionário correspondente no banco
+                // ✅ MELHORADO: Buscar o funcionário correspondente no banco com comparação mais flexível
                 val funcionario = funcionarios.find { funcionario ->
-                    funcionario.nome == recognizedPersonName
+                    // Comparação exata
+                    funcionario.nome == recognizedPersonName ||
+                    // Comparação ignorando case
+                    funcionario.nome.equals(recognizedPersonName, ignoreCase = true) ||
+                    // Comparação removendo espaços extras
+                    funcionario.nome.trim() == recognizedPersonName.trim()
                 }
                 
                 if (funcionario != null) {
                     Log.d("DetectScreenViewModel", "✅ Funcionário encontrado no banco: ${funcionario.nome}")
+                    Log.d("DetectScreenViewModel", "✅ ID do funcionário: ${funcionario.id}")
+                    Log.d("DetectScreenViewModel", "✅ CPF do funcionário: ${funcionario.cpf}")
                     return funcionario
                 } else {
                     Log.w("DetectScreenViewModel", "⚠️ Pessoa reconhecida mas não encontrada no banco: $recognizedPersonName")
                     Log.w("DetectScreenViewModel", "⚠️ Funcionários disponíveis: ${funcionarios.map { it.nome }}")
+                    
+                    // ✅ NOVO: Log detalhado para debug
+                    Log.w("DetectScreenViewModel", "🔍 === DEBUG DE COMPARAÇÃO ===")
+                    Log.w("DetectScreenViewModel", "🔍 Nome reconhecido: '$recognizedPersonName'")
+                    Log.w("DetectScreenViewModel", "🔍 Tamanho do nome reconhecido: ${recognizedPersonName.length}")
+                    funcionarios.forEach { func ->
+                        Log.w("DetectScreenViewModel", "🔍 Comparando com: '${func.nome}' (tamanho: ${func.nome.length})")
+                        Log.w("DetectScreenViewModel", "🔍 Igual exato: ${func.nome == recognizedPersonName}")
+                        Log.w("DetectScreenViewModel", "🔍 Igual ignore case: ${func.nome.equals(recognizedPersonName, ignoreCase = true)}")
+                        Log.w("DetectScreenViewModel", "🔍 Igual trim: ${func.nome.trim() == recognizedPersonName.trim()}")
+                    }
+                    
                     return null
                 }
             } else {

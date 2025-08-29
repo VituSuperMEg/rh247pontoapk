@@ -43,4 +43,17 @@ class ImagesVectorDB {
             .build()
             .find()
     }
+    
+    // ✅ NOVO: Função para obter o total de faces no banco
+    fun getTotalFaceCount(): Long {
+        return imagesBox.count()
+    }
+    
+    // ✅ NOVO: Função para obter todas as faces no banco
+    fun getAllFaceRecords(): List<FaceImageRecord> {
+        return imagesBox
+            .query()
+            .build()
+            .find()
+    }
 }

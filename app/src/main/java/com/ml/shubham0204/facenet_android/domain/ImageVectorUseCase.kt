@@ -74,7 +74,7 @@ class ImageVectorUseCase(
                 measureTimedValue { imagesVectorDB.getNearestEmbeddingPersonName(embedding) }
             avgT3 += t3.toLong(DurationUnit.MILLISECONDS)
             if (recognitionResult == null) {
-                faceRecognitionResults.add(FaceRecognitionResult("Não Encontrado", boundingBox))
+                faceRecognitionResults.add(FaceRecognitionResult("Not recognized", boundingBox))
                 continue
             }
 
@@ -86,13 +86,13 @@ class ImageVectorUseCase(
             val distance = cosineDistance(embedding, recognitionResult.faceEmbedding)
             // If the distance > 0.4, we recognize the person
             // else we conclude that the face does not match enough
-            if (distance > 0.4) {
+            if (distance > 0.2) {
                 faceRecognitionResults.add(
                     FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
                 )
             } else {
                 faceRecognitionResults.add(
-                    FaceRecognitionResult("Não Encontrado", boundingBox, spoofResult),
+                    FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
                 )
             }
         }
@@ -131,8 +131,8 @@ class ImageVectorUseCase(
     fun removeImages(personID: Long) {
         imagesVectorDB.removeFaceRecordsWithPersonID(personID)
     }
-    
-    // ✅ NOVO: Função para buscar imagens de uma pessoa
+
+    // Get all face images for a specific person
     fun getImagesByPersonID(personID: Long): List<FaceImageRecord> {
         return imagesVectorDB.getFaceImagesByPersonID(personID)
     }

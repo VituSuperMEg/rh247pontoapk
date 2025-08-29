@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 composable(
-                    route = "add-face/{personName}/{funcionarioId}",
+                    route = "add-face/{personName}/{funcionarioId}/{funcionarioCpf}/{funcionarioCargo}/{funcionarioOrgao}/{funcionarioLotacao}",
                     arguments = listOf(
                         androidx.navigation.navArgument("personName") {
                             type = androidx.navigation.NavType.StringType
@@ -61,14 +61,48 @@ class MainActivity : ComponentActivity() {
                         androidx.navigation.navArgument("funcionarioId") {
                             type = androidx.navigation.NavType.LongType
                             defaultValue = 0L
+                        },
+                        androidx.navigation.navArgument("funcionarioCpf") {
+                            type = androidx.navigation.NavType.StringType
+                            defaultValue = ""
+                        },
+                        androidx.navigation.navArgument("funcionarioCargo") {
+                            type = androidx.navigation.NavType.StringType
+                            defaultValue = ""
+                        },
+                        androidx.navigation.navArgument("funcionarioOrgao") {
+                            type = androidx.navigation.NavType.StringType
+                            defaultValue = ""
+                        },
+                        androidx.navigation.navArgument("funcionarioLotacao") {
+                            type = androidx.navigation.NavType.StringType
+                            defaultValue = ""
                         }
                     )
                 ) { backStackEntry ->
-                    val personName = backStackEntry.arguments?.getString("personName") ?: ""
+                    val personName = backStackEntry.arguments?.getString("personName")?.replace("_", " ") ?: ""
                     val funcionarioId = backStackEntry.arguments?.getLong("funcionarioId") ?: 0L
+                    val funcionarioCpf = backStackEntry.arguments?.getString("funcionarioCpf")?.replace("_", "") ?: ""
+                    val funcionarioCargo = backStackEntry.arguments?.getString("funcionarioCargo")?.replace("_", " ") ?: ""
+                    val funcionarioOrgao = backStackEntry.arguments?.getString("funcionarioOrgao")?.replace("_", " ") ?: ""
+                    val funcionarioLotacao = backStackEntry.arguments?.getString("funcionarioLotacao")?.replace("_", " ") ?: ""
+                    
+                    // ✅ NOVO: Logs para verificar os dados passados
+                    android.util.Log.d("MainActivity", "🚀 === NAVEGAÇÃO PARA ADD FACE SCREEN ===")
+                    android.util.Log.d("MainActivity", "🚀 Nome: '$personName'")
+                    android.util.Log.d("MainActivity", "🚀 ID: $funcionarioId")
+                    android.util.Log.d("MainActivity", "🚀 CPF: '$funcionarioCpf'")
+                    android.util.Log.d("MainActivity", "🚀 Cargo: '$funcionarioCargo'")
+                    android.util.Log.d("MainActivity", "🚀 Órgão: '$funcionarioOrgao'")
+                    android.util.Log.d("MainActivity", "🚀 Lotação: '$funcionarioLotacao'")
+                    
                     AddFaceScreen(
                         personName = personName,
                         funcionarioId = funcionarioId,
+                        funcionarioCpf = funcionarioCpf,
+                        funcionarioCargo = funcionarioCargo,
+                        funcionarioOrgao = funcionarioOrgao,
+                        funcionarioLotacao = funcionarioLotacao,
                         onNavigateBack = { navHostController.navigateUp() }
                     )
                 }
@@ -144,8 +178,32 @@ class MainActivity : ComponentActivity() {
                     ImportedEmployeesScreen(
                         onNavigateBack = { navHostController.navigateUp() },
                         onAddFaceClick = { funcionario ->
-                            // ✅ NOVO: Navegar para AddFaceScreen com nome e ID do funcionário
-                            navHostController.navigate("add-face/${funcionario.nome}/${funcionario.id}")
+                            // ✅ NOVO: Navegar para AddFaceScreen com todos os dados do funcionário
+                            val encodedNome = funcionario.nome.replace("/", "_").replace(" ", "_")
+                            val encodedCpf = funcionario.cpf.replace("/", "_")
+                            val encodedCargo = funcionario.cargo.replace("/", "_").replace(" ", "_")
+                            val encodedOrgao = funcionario.secretaria.replace("/", "_").replace(" ", "_")
+                            val encodedLotacao = funcionario.lotacao.replace("/", "_").replace(" ", "_")
+                            
+                            // ✅ NOVO: Logs para verificar os dados originais e codificados
+                            android.util.Log.d("MainActivity", "📤 === DADOS ORIGINAIS DO FUNCIONÁRIO ===")
+                            android.util.Log.d("MainActivity", "📤 Nome original: '${funcionario.nome}'")
+                            android.util.Log.d("MainActivity", "📤 CPF original: '${funcionario.cpf}'")
+                            android.util.Log.d("MainActivity", "📤 Cargo original: '${funcionario.cargo}'")
+                            android.util.Log.d("MainActivity", "📤 Órgão original: '${funcionario.secretaria}'")
+                            android.util.Log.d("MainActivity", "📤 Lotação original: '${funcionario.lotacao}'")
+                            
+                            android.util.Log.d("MainActivity", "📤 === DADOS CODIFICADOS ===")
+                            android.util.Log.d("MainActivity", "📤 Nome codificado: '$encodedNome'")
+                            android.util.Log.d("MainActivity", "📤 CPF codificado: '$encodedCpf'")
+                            android.util.Log.d("MainActivity", "📤 Cargo codificado: '$encodedCargo'")
+                            android.util.Log.d("MainActivity", "📤 Órgão codificado: '$encodedOrgao'")
+                            android.util.Log.d("MainActivity", "📤 Lotação codificada: '$encodedLotacao'")
+                            
+                            val route = "add-face/$encodedNome/${funcionario.id}/$encodedCpf/$encodedCargo/$encodedOrgao/$encodedLotacao"
+                            android.util.Log.d("MainActivity", "📤 Rota completa: '$route'")
+                            
+                            navHostController.navigate(route)
                         }
                     )
                 }

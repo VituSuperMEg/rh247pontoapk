@@ -184,6 +184,17 @@ class FaceDetectionOverlay(
                 val totalPessoas = viewModel.getNumPeople()
                 android.util.Log.d("FaceDetectionOverlay", "📊 Total de pessoas no banco: $totalPessoas")
                 
+                // ✅ NOVO: Verificar se há pessoas antes de tentar reconhecer
+                if (totalPessoas == 0L) {
+                    android.util.Log.w("FaceDetectionOverlay", "⚠️ NENHUMA PESSOA CADASTRADA - pulando reconhecimento")
+                    withContext(Dispatchers.Main) {
+                        this@FaceDetectionOverlay.predictions = emptyArray()
+                        boundingBoxOverlay.invalidate()
+                        isProcessing = false
+                    }
+                    return@launch
+                }
+                
                 val (metrics, results) =
                     viewModel.imageVectorUseCase.getNearestPersonName(
                         frameBitmap,
@@ -195,9 +206,11 @@ class FaceDetectionOverlay(
                     android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: ${result.personName}")
                 }
                 
-                // Capturar a pessoa reconhecida
+                // ✅ CORRIGIDO: Capturar a pessoa reconhecida com verificação mais rigorosa
                 val recognizedPerson = results.find { result ->
-                    result.personName != "Not recognized" && result.personName.isNotEmpty()
+                    result.personName != "Not recognized" && 
+                    result.personName != "Não Encontrado" && 
+                    result.personName.isNotEmpty()
                 }
                 
                 if (recognizedPerson != null) {
@@ -214,12 +227,18 @@ class FaceDetectionOverlay(
                 results.forEach { (name, boundingBox, spoofResult) ->
                     val box = boundingBox.toRectF()
                     var personName = name
+                    
+                    // ✅ CORRIGIDO: Verificação mais rigorosa para exibição
                     if (viewModel.getNumPeople().toInt() == 0) {
-                        personName = ""
+                        personName = "Nenhuma pessoa cadastrada"
+                    } else if (name == "Not recognized" || name == "Não Encontrado") {
+                        personName = "Pessoa não reconhecida"
                     }
+                    
                     if (spoofResult != null && spoofResult.isSpoof) {
                         personName = "$personName (Spoof: ${spoofResult.score})"
                     }
+                    
                     boundingBoxTransform.mapRect(box)
                     predictions.add(Prediction(box, personName))
                 }
