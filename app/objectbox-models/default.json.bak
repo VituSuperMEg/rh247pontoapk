@@ -38,7 +38,7 @@
     },
     {
       "id": "2:5724033975412775664",
-      "lastPropertyId": "4:1955098665124372966",
+      "lastPropertyId": "7:4545446768262110938",
       "name": "PersonRecord",
       "properties": [
         {
@@ -58,15 +58,133 @@
           "type": 6
         },
         {
-          "id": "4:1955098665124372966",
-          "name": "personImage",
-          "type": 23
+          "id": "5:6214334937147888472",
+          "name": "addTime",
+          "type": 6
+        },
+        {
+          "id": "6:1999375987687004308",
+          "name": "funcionarioId",
+          "type": 6
+        },
+        {
+          "id": "7:4545446768262110938",
+          "name": "funcionarioApiId",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "3:9098141876724603289",
+      "lastPropertyId": "10:1461990508988855259",
+      "name": "FuncionariosEntity",
+      "properties": [
+        {
+          "id": "1:8816276975738124809",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:4500628323092108949",
+          "name": "codigo",
+          "type": 9
+        },
+        {
+          "id": "3:5570866853565196684",
+          "name": "nome",
+          "type": 9
+        },
+        {
+          "id": "4:8008951265079608027",
+          "name": "ativo",
+          "type": 5
+        },
+        {
+          "id": "5:1651778683328466774",
+          "name": "matricula",
+          "type": 9
+        },
+        {
+          "id": "6:887110162594674737",
+          "name": "cpf",
+          "type": 9
+        },
+        {
+          "id": "7:5609485818668272108",
+          "name": "cargo",
+          "type": 9
+        },
+        {
+          "id": "8:604775419771986983",
+          "name": "secretaria",
+          "type": 9
+        },
+        {
+          "id": "9:6480886629094541952",
+          "name": "lotacao",
+          "type": 9
+        },
+        {
+          "id": "10:1461990508988855259",
+          "name": "apiId",
+          "type": 6
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "4:6070835639547591035",
+      "lastPropertyId": "8:3054810561394905485",
+      "name": "ConfiguracoesEntity",
+      "properties": [
+        {
+          "id": "1:5634113563878145180",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:38279152164374932",
+          "name": "entidadeId",
+          "type": 9
+        },
+        {
+          "id": "3:4919115274808381094",
+          "name": "localizacaoId",
+          "type": 9
+        },
+        {
+          "id": "4:218794701839293103",
+          "name": "codigoSincronizacao",
+          "type": 9
+        },
+        {
+          "id": "5:3123875560430432656",
+          "name": "horaSincronizacao",
+          "type": 5
+        },
+        {
+          "id": "6:6953326904329501167",
+          "name": "minutoSincronizacao",
+          "type": 5
+        },
+        {
+          "id": "7:1547482013454509851",
+          "name": "sincronizacaoAtiva",
+          "type": 1
+        },
+        {
+          "id": "8:3054810561394905485",
+          "name": "intervaloSincronizacao",
+          "type": 5
         }
       ],
       "relations": []
     }
   ],
-  "lastEntityId": "2:5724033975412775664",
+  "lastEntityId": "4:6070835639547591035",
   "lastIndexId": "2:1210613089703466990",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",
@@ -74,7 +192,9 @@
   "modelVersionParserMinimum": 5,
   "retiredEntityUids": [],
   "retiredIndexUids": [],
-  "retiredPropertyUids": [],
+  "retiredPropertyUids": [
+    1955098665124372966
+  ],
   "retiredRelationUids": [],
   "version": 1
 }

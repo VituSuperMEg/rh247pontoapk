@@ -1,18 +1,208 @@
 package com.ml.shubham0204.facenet_android.presentation.screens.detect_screen
 
+import android.graphics.Bitmap
+import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.ml.shubham0204.facenet_android.data.FuncionariosDao
+import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
+import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
+import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
 import com.ml.shubham0204.facenet_android.data.RecognitionMetrics
+import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionOverlay
 import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import com.ml.shubham0204.facenet_android.domain.PersonUseCase
+import com.ml.shubham0204.facenet_android.utils.BitmapUtils
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 
 @KoinViewModel
 class DetectScreenViewModel(
     val personUseCase: PersonUseCase,
     val imageVectorUseCase: ImageVectorUseCase,
+    private val pontosGenericosDao: PontosGenericosDao,
+    private val funcionariosDao: FuncionariosDao
 ) : ViewModel() {
     val faceDetectionMetricsState = mutableStateOf<RecognitionMetrics?>(null)
+    val isProcessingRecognition = mutableStateOf(false)
+    val currentFaceBitmap = mutableStateOf<Bitmap?>(null)
+    val recognizedPerson = mutableStateOf<FuncionariosEntity?>(null)
+    val showSuccessScreen = mutableStateOf(false)
+    val savedPonto = mutableStateOf<PontosGenericosEntity?>(null)
+    val lastRecognizedPersonName = mutableStateOf<String?>(null)
 
     fun getNumPeople(): Long = personUseCase.getCount()
+    
+    fun setCurrentFaceBitmap(bitmap: Bitmap?) {
+        currentFaceBitmap.value = bitmap
+    }
+    
+    fun setLastRecognizedPersonName(name: String?) {
+        lastRecognizedPersonName.value = name
+    }
+    
+    fun processFaceRecognition() {
+        if (isProcessingRecognition.value) return
+        
+        viewModelScope.launch {
+            try {
+                isProcessingRecognition.value = true
+                Log.d("DetectScreenViewModel", "🔄 Iniciando reconhecimento facial...")
+                
+                // Aguardar até que uma pessoa seja reconhecida
+                var attempts = 0
+                val maxAttempts = 20 // 10 segundos (20 * 500ms)
+                
+                while (attempts < maxAttempts) {
+                    delay(500)
+                    attempts++
+                    
+                    val recognizedPersonName = lastRecognizedPersonName.value
+                    Log.d("DetectScreenViewModel", "🔍 Tentativa $attempts - Pessoa reconhecida: $recognizedPersonName")
+                    
+                    if (recognizedPersonName != null && recognizedPersonName != "Not recognized" && recognizedPersonName.isNotEmpty()) {
+                        Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida! Processando...")
+                        
+                        // Aguardar um pouco mais para garantir que a informação está estável
+                        delay(1000)
+                        
+                        // Buscar funcionários reconhecidos
+                        val funcionario = findRecognizedEmployee()
+                        
+                        if (funcionario != null) {
+                            Log.d("DetectScreenViewModel", "✅ Funcionário reconhecido: ${funcionario.nome}")
+                            recognizedPerson.value = funcionario
+                            
+                            // Registrar ponto
+                            val ponto = registerPonto(funcionario)
+                            if (ponto != null) {
+                                savedPonto.value = ponto
+                                showSuccessScreen.value = true
+                                Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso")
+                            }
+                        } else {
+                            Log.w("DetectScreenViewModel", "⚠️ Nenhum funcionário reconhecido")
+                        }
+                        
+                        return@launch
+                    }
+                }
+                
+                Log.w("DetectScreenViewModel", "⚠️ Timeout - Nenhuma pessoa reconhecida após $maxAttempts tentativas")
+                
+            } catch (e: Exception) {
+                Log.e("DetectScreenViewModel", "❌ Erro no reconhecimento: ${e.message}")
+            } finally {
+                isProcessingRecognition.value = false
+            }
+        }
+    }
+    
+    private fun findRecognizedEmployee(): FuncionariosEntity? {
+        return try {
+            Log.d("DetectScreenViewModel", "🔍 Buscando pessoa reconhecida...")
+            
+            // Buscar todos os funcionários importados
+            val funcionarios = funcionariosDao.getAll()
+            Log.d("DetectScreenViewModel", "📊 Total de funcionários no banco: ${funcionarios.size}")
+            
+            // Listar todos os funcionários para debug
+            funcionarios.forEach { funcionario ->
+                Log.d("DetectScreenViewModel", "📋 Funcionário no banco: ${funcionario.nome}")
+            }
+            
+            // Obter a pessoa que está sendo reconhecida
+            val recognizedPersonName = lastRecognizedPersonName.value
+            Log.d("DetectScreenViewModel", "🔍 Nome da pessoa reconhecida: $recognizedPersonName")
+            
+            if (recognizedPersonName != null && recognizedPersonName != "Not recognized") {
+                Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida: $recognizedPersonName")
+                
+                // Buscar o funcionário correspondente no banco
+                val funcionario = funcionarios.find { funcionario ->
+                    funcionario.nome == recognizedPersonName
+                }
+                
+                if (funcionario != null) {
+                    Log.d("DetectScreenViewModel", "✅ Funcionário encontrado no banco: ${funcionario.nome}")
+                    return funcionario
+                } else {
+                    Log.w("DetectScreenViewModel", "⚠️ Pessoa reconhecida mas não encontrada no banco: $recognizedPersonName")
+                    Log.w("DetectScreenViewModel", "⚠️ Funcionários disponíveis: ${funcionarios.map { it.nome }}")
+                    return null
+                }
+            } else {
+                Log.w("DetectScreenViewModel", "⚠️ Nenhuma pessoa reconhecida")
+                return null
+            }
+            
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao buscar pessoa reconhecida: ${e.message}")
+            return null
+        }
+    }
+    
+
+    
+    private fun registerPonto(funcionario: FuncionariosEntity): PontosGenericosEntity? {
+        return try {
+            Log.d("DetectScreenViewModel", "💾 Registrando ponto para: ${funcionario.nome}")
+            
+            val horarioAtual = System.currentTimeMillis()
+            
+            // ✅ NOVO: Capturar foto do momento do registro
+            val fotoBase64 = currentFaceBitmap.value?.let { bitmap ->
+                if (BitmapUtils.isValidBitmap(bitmap)) {
+                    val base64 = BitmapUtils.bitmapToBase64(bitmap, 80)
+                    Log.d("DetectScreenViewModel", "📸 Foto capturada e convertida para base64 (${base64.length} chars)")
+                    base64
+                } else {
+                    Log.w("DetectScreenViewModel", "⚠️ Bitmap inválido para conversão")
+                    null
+                }
+            } ?: run {
+                Log.w("DetectScreenViewModel", "⚠️ Nenhuma foto disponível para captura")
+                null
+            }
+            
+            // Criar ponto com foto
+            val ponto = PontosGenericosEntity(
+                funcionarioId = funcionario.id.toString(),
+                funcionarioNome = funcionario.nome,
+                funcionarioMatricula = funcionario.matricula,
+                funcionarioCpf = funcionario.cpf,
+                funcionarioCargo = funcionario.cargo,
+                funcionarioSecretaria = funcionario.secretaria,
+                funcionarioLotacao = funcionario.lotacao,
+                tipoPonto = "PONTO",
+                dataHora = horarioAtual,
+                latitude = -6.377917793252374, // Simular coordenadas
+                longitude = -39.316891286420876,
+                fotoBase64 = fotoBase64, // ✅ NOVO: Incluir foto base64
+                synced = false
+            )
+            
+            // Salvar no banco
+            val pontoId = pontosGenericosDao.insert(ponto)
+            Log.d("DetectScreenViewModel", "✅ Ponto salvo com ID: $pontoId")
+            if (fotoBase64 != null) {
+                Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso")
+            }
+            
+            ponto
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao registrar ponto: ${e.message}")
+            null
+        }
+    }
+    
+    fun resetRecognition() {
+        isProcessingRecognition.value = false
+        currentFaceBitmap.value = null
+        recognizedPerson.value = null
+        showSuccessScreen.value = false
+        savedPonto.value = null
+    }
 }

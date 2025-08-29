@@ -29,6 +29,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -44,14 +45,17 @@ import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddFaceScreen(onNavigateBack: (() -> Unit)) {
+fun AddFaceScreen(
+    personName: String = "",
+    onNavigateBack: (() -> Unit)
+) {
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(text = "Add Faces", style = MaterialTheme.typography.headlineSmall)
+                        Text(text = "Cadastrar Faces", style = MaterialTheme.typography.headlineSmall)
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
@@ -66,7 +70,7 @@ fun AddFaceScreen(onNavigateBack: (() -> Unit)) {
         ) { innerPadding ->
             Column(modifier = Modifier.padding(innerPadding)) {
                 val viewModel: AddFaceScreenViewModel = koinViewModel()
-                ScreenUI(viewModel)
+                ScreenUI(viewModel, personName)
                 ImageReadProgressDialog(viewModel, onNavigateBack)
             }
         }
@@ -74,14 +78,20 @@ fun AddFaceScreen(onNavigateBack: (() -> Unit)) {
 }
 
 @Composable
-private fun ScreenUI(viewModel: AddFaceScreenViewModel) {
+private fun ScreenUI(viewModel: AddFaceScreenViewModel, personName: String) {
     val pickVisualMediaLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.PickMultipleVisualMedia(),
         ) {
             viewModel.selectedImageURIs.value = it
         }
-    var personName by remember { viewModel.personNameState }
+    var personNameState by remember { 
+        if (personName.isNotEmpty()) {
+            mutableStateOf(personName)
+        } else {
+            viewModel.personNameState
+        }
+    }
     Column(
         modifier =
             Modifier
@@ -90,9 +100,9 @@ private fun ScreenUI(viewModel: AddFaceScreenViewModel) {
     ) {
         TextField(
             modifier = Modifier.fillMaxWidth(),
-            value = personName,
-            onValueChange = { personName = it },
-            label = { Text(text = "Enter the person's name") },
+            value = personNameState,
+            onValueChange = { personNameState = it },
+            label = { Text(text = "Nome da pessoa") },
             singleLine = true,
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -101,18 +111,24 @@ private fun ScreenUI(viewModel: AddFaceScreenViewModel) {
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             Button(
-                enabled = viewModel.personNameState.value.isNotEmpty(),
+                enabled = personNameState.isNotEmpty(),
                 onClick = {
                     pickVisualMediaLauncher.launch(
                         PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
                     )
                 },
             ) {
-                Icon(imageVector = Icons.Default.Photo, contentDescription = "Choose photos")
-                Text(text = "Choose photos")
+                Icon(imageVector = Icons.Default.Photo, contentDescription = "Escolher fotos")
+                Text(text = "Escolher fotos")
             }
             DelayedVisibility(viewModel.selectedImageURIs.value.isNotEmpty()) {
-                Button(onClick = { viewModel.addImages() }) { Text(text = "Add to database") }
+                Button(onClick = { 
+                    // Atualizar o nome no ViewModel antes de adicionar
+                    viewModel.updatePersonName(personNameState)
+                    viewModel.addImages() 
+                }) { 
+                    Text(text = "Adicionar ao banco") 
+                }
             }
         }
         DelayedVisibility(viewModel.selectedImageURIs.value.isNotEmpty()) {

@@ -51,7 +51,7 @@ fun FaceListScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(text = "Face List", style = MaterialTheme.typography.headlineSmall)
+                        Text(text = "Lista de Funcionários", style = MaterialTheme.typography.headlineSmall)
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {

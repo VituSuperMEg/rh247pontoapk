@@ -114,6 +114,12 @@ dependencies {
     // Mediapipe Face Detection
     implementation(libs.tasks.vision)
 
+    // Retrofit for API calls
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("com.squareup.retrofit2:converter-scalars:2.9.0") // ✅ NOVO: Para respostas string
+    implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

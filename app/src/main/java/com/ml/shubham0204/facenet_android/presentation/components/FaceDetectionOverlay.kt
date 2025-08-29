@@ -51,6 +51,7 @@ class FaceDetectionOverlay(
     private lateinit var previewView: PreviewView
 
     var predictions: Array<Prediction> = arrayOf()
+    private var lastRecognizedPerson: String? = null
 
     init {
         initializeCamera(cameraFacing)
@@ -58,6 +59,18 @@ class FaceDetectionOverlay(
             overlayHeight = it.measuredHeight
             overlayWidth = it.measuredWidth
         }
+    }
+    
+    fun getCurrentFrameBitmap(): Bitmap? {
+        return if (::frameBitmap.isInitialized) {
+            frameBitmap.copy(frameBitmap.config, false)
+        } else {
+            null
+        }
+    }
+    
+    fun getLastRecognizedPerson(): String? {
+        return lastRecognizedPerson
     }
 
     fun initializeCamera(cameraFacing: Int) {
@@ -170,6 +183,22 @@ class FaceDetectionOverlay(
                     viewModel.imageVectorUseCase.getNearestPersonName(
                         frameBitmap,
                     )
+                
+                // Capturar a pessoa reconhecida
+                val recognizedPerson = results.find { result ->
+                    result.personName != "Not recognized" && result.personName.isNotEmpty()
+                }
+                
+                if (recognizedPerson != null) {
+                    lastRecognizedPerson = recognizedPerson.personName
+                    // Chamar diretamente o ViewModel para atualizar o estado
+                    viewModel.setLastRecognizedPersonName(recognizedPerson.personName)
+                    android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: ${recognizedPerson.personName}")
+                } else {
+                    lastRecognizedPerson = null
+                    viewModel.setLastRecognizedPersonName(null)
+                }
+                
                 results.forEach { (name, boundingBox, spoofResult) ->
                     val box = boundingBox.toRectF()
                     var personName = name

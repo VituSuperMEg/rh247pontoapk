@@ -31,6 +31,10 @@ data class PersonRecord(
     var numImages: Long = 0,
     // time when the record was added
     var addTime: Long = 0,
+    // ID do funcionário no banco local
+    var funcionarioId: Long = 0,
+    // ID original da API do funcionário
+    var funcionarioApiId: Long = 0,
 )
 
 data class RecognitionMetrics(

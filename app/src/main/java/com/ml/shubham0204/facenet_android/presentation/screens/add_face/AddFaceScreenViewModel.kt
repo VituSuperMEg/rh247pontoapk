@@ -25,6 +25,10 @@ class AddFaceScreenViewModel(
     val isProcessingImages: MutableState<Boolean> = mutableStateOf(false)
     val numImagesProcessed: MutableState<Int> = mutableIntStateOf(0)
 
+    fun updatePersonName(name: String) {
+        personNameState.value = name
+    }
+
     fun addImages() {
         isProcessingImages.value = true
         CoroutineScope(Dispatchers.Default).launch {
