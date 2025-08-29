@@ -15,6 +15,7 @@ import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import com.ml.shubham0204.facenet_android.domain.PersonUseCase
 import com.ml.shubham0204.facenet_android.utils.BitmapUtils
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 
@@ -32,8 +33,34 @@ class DetectScreenViewModel(
     val showSuccessScreen = mutableStateOf(false)
     val savedPonto = mutableStateOf<PontosGenericosEntity?>(null)
     val lastRecognizedPersonName = mutableStateOf<String?>(null)
+    
+    // ✅ NOVO: Job para controlar o reconhecimento
+    private var recognitionJob: kotlinx.coroutines.Job? = null
 
     fun getNumPeople(): Long = personUseCase.getCount()
+    
+    // ✅ NOVO: Função para verificar e limpar o banco se necessário
+    fun checkAndClearDatabase() {
+        val totalPessoas = personUseCase.getCount()
+        Log.d("DetectScreenViewModel", "🔍 Verificando banco de dados...")
+        Log.d("DetectScreenViewModel", "📊 Total de pessoas no banco: $totalPessoas")
+        
+        if (totalPessoas > 0) {
+            Log.d("DetectScreenViewModel", "✅ Banco de dados OK - $totalPessoas pessoa(s) cadastrada(s)")
+            
+            // ✅ NOVO: Listar todas as pessoas cadastradas
+            try {
+                val pessoas = personUseCase.getAll()
+                Log.d("DetectScreenViewModel", "📋 Pessoas cadastradas:")
+                // Como é um Flow, vamos apenas logar que existe
+                Log.d("DetectScreenViewModel", "📋 Flow de pessoas disponível")
+            } catch (e: Exception) {
+                Log.e("DetectScreenViewModel", "❌ Erro ao listar pessoas: ${e.message}")
+            }
+        } else {
+            Log.w("DetectScreenViewModel", "⚠️ Banco de dados vazio - nenhuma pessoa cadastrada")
+        }
+    }
     
     fun setCurrentFaceBitmap(bitmap: Bitmap?) {
         currentFaceBitmap.value = bitmap
@@ -44,9 +71,25 @@ class DetectScreenViewModel(
     }
     
     fun processFaceRecognition() {
-        if (isProcessingRecognition.value) return
+        // ✅ CORRIGIDO: Cancelar job anterior se existir
+        recognitionJob?.cancel()
         
-        viewModelScope.launch {
+        if (isProcessingRecognition.value) {
+            Log.d("DetectScreenViewModel", "⚠️ Reconhecimento já em andamento, ignorando...")
+            return
+        }
+        
+        // ✅ NOVO: Verificar quantas pessoas estão cadastradas
+        val totalPessoas = personUseCase.getCount()
+        Log.d("DetectScreenViewModel", "📊 Total de pessoas cadastradas no FaceNet: $totalPessoas")
+        
+        // ✅ NOVO: Se não há pessoas cadastradas, não tentar reconhecer
+        if (totalPessoas == 0L) {
+            Log.w("DetectScreenViewModel", "⚠️ NENHUMA PESSOA CADASTRADA NO BANCO! Cadastre faces primeiro.")
+            return
+        }
+        
+        recognitionJob = viewModelScope.launch {
             try {
                 isProcessingRecognition.value = true
                 Log.d("DetectScreenViewModel", "🔄 Iniciando reconhecimento facial...")
@@ -55,14 +98,14 @@ class DetectScreenViewModel(
                 var attempts = 0
                 val maxAttempts = 20 // 10 segundos (20 * 500ms)
                 
-                while (attempts < maxAttempts) {
+                while (attempts < maxAttempts && !showSuccessScreen.value && isActive) {
                     delay(500)
                     attempts++
                     
                     val recognizedPersonName = lastRecognizedPersonName.value
                     Log.d("DetectScreenViewModel", "🔍 Tentativa $attempts - Pessoa reconhecida: $recognizedPersonName")
                     
-                    if (recognizedPersonName != null && recognizedPersonName != "Not recognized" && recognizedPersonName.isNotEmpty()) {
+                    if (recognizedPersonName != null && recognizedPersonName != "Not recognized" && recognizedPersonName != "Não Encontrado") {
                         Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida! Processando...")
                         
                         // Aguardar um pouco mais para garantir que a informação está estável
@@ -81,21 +124,26 @@ class DetectScreenViewModel(
                                 savedPonto.value = ponto
                                 showSuccessScreen.value = true
                                 Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso")
+                                break // ✅ CORRIGIDO: Sair do loop após sucesso
                             }
                         } else {
                             Log.w("DetectScreenViewModel", "⚠️ Nenhum funcionário reconhecido")
                         }
-                        
-                        return@launch
                     }
                 }
                 
-                Log.w("DetectScreenViewModel", "⚠️ Timeout - Nenhuma pessoa reconhecida após $maxAttempts tentativas")
+                if (!showSuccessScreen.value && isActive) {
+                    Log.w("DetectScreenViewModel", "⚠️ Timeout - Nenhuma pessoa reconhecida após $maxAttempts tentativas")
+                }
                 
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                Log.d("DetectScreenViewModel", "🔄 Reconhecimento cancelado: ${e.message}")
+                // Não é um erro, apenas cancelamento normal
             } catch (e: Exception) {
                 Log.e("DetectScreenViewModel", "❌ Erro no reconhecimento: ${e.message}")
             } finally {
                 isProcessingRecognition.value = false
+                recognitionJob = null
             }
         }
     }
@@ -104,21 +152,21 @@ class DetectScreenViewModel(
         return try {
             Log.d("DetectScreenViewModel", "🔍 Buscando pessoa reconhecida...")
             
-            // Buscar todos os funcionários importados
-            val funcionarios = funcionariosDao.getAll()
-            Log.d("DetectScreenViewModel", "📊 Total de funcionários no banco: ${funcionarios.size}")
-            
-            // Listar todos os funcionários para debug
-            funcionarios.forEach { funcionario ->
-                Log.d("DetectScreenViewModel", "📋 Funcionário no banco: ${funcionario.nome}")
-            }
-            
             // Obter a pessoa que está sendo reconhecida
             val recognizedPersonName = lastRecognizedPersonName.value
             Log.d("DetectScreenViewModel", "🔍 Nome da pessoa reconhecida: $recognizedPersonName")
             
-            if (recognizedPersonName != null && recognizedPersonName != "Not recognized") {
+            if (recognizedPersonName != null && recognizedPersonName != "Not recognized" && recognizedPersonName != "Não Encontrado") {
                 Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida: $recognizedPersonName")
+                
+                // ✅ SIMPLIFICADO: Buscar por nome no banco de funcionários
+                val funcionarios = funcionariosDao.getAll()
+                Log.d("DetectScreenViewModel", "📊 Total de funcionários no banco: ${funcionarios.size}")
+                
+                // Listar todos os funcionários para debug
+                funcionarios.forEach { funcionario ->
+                    Log.d("DetectScreenViewModel", "📋 Funcionário no banco: ${funcionario.nome}")
+                }
                 
                 // Buscar o funcionário correspondente no banco
                 val funcionario = funcionarios.find { funcionario ->
@@ -199,10 +247,16 @@ class DetectScreenViewModel(
     }
     
     fun resetRecognition() {
+        // ✅ CORRIGIDO: Cancelar job de reconhecimento
+        recognitionJob?.cancel()
+        recognitionJob = null
+        
         isProcessingRecognition.value = false
         currentFaceBitmap.value = null
         recognizedPerson.value = null
         showSuccessScreen.value = false
         savedPonto.value = null
+        lastRecognizedPersonName.value = null // ✅ CORRIGIDO: Resetar o nome da pessoa reconhecida
+        Log.d("DetectScreenViewModel", "🔄 Estados resetados para nova captura")
     }
 }

@@ -27,4 +27,12 @@ class PersonDB {
             .build()
             .flow()
             .flowOn(Dispatchers.IO)
+            
+    // ✅ NOVO: Função para buscar pessoa por funcionarioId
+    suspend fun getPersonByFuncionarioId(funcionarioId: Long): PersonRecord? {
+        return personBox
+            .query(PersonRecord_.funcionarioId.equal(funcionarioId))
+            .build()
+            .findFirst()
+    }
 }

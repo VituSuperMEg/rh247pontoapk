@@ -61,9 +61,10 @@ fun PontoSuccessScreen(
                 // Card principal
                 Card(
                     modifier = Modifier
-                        .fillMaxWidth()
+                        .width(300.dp)
                         .padding(16.dp)
-                        .align(Alignment.Center),
+                        .align(Alignment.Center)
+                        .height(700.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White
@@ -75,57 +76,8 @@ fun PontoSuccessScreen(
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Seção ilustrativa (frames de foto)
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(120.dp)
-                                .background(Color(0xFFF0F0F0), RoundedCornerShape(12.dp))
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Frames sobrepostos simulando fotos
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .background(Color(0xFFE3F2FD), RoundedCornerShape(8.dp))
-                                    .offset(x = (-20).dp, y = (-10).dp)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(60.dp)
-                                    .background(Color(0xFFBBDEFB), RoundedCornerShape(6.dp))
-                                    .offset(x = 20.dp, y = 10.dp)
-                            )
-                            // Ícone de pessoa
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Pessoa",
-                                modifier = Modifier.size(40.dp),
-                                tint = Color(0xFF1976D2)
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        // Ícone de sucesso
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .background(Color(0xFF4CAF50), RoundedCornerShape(40.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Sucesso",
-                                modifier = Modifier.size(40.dp),
-                                tint = Color.White
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        // Mensagem de sucesso
+                      
+                                               
                         Text(
                             text = "Ponto Registrado com sucesso!",
                             style = MaterialTheme.typography.headlineSmall,
@@ -136,7 +88,6 @@ fun PontoSuccessScreen(
                         
                         Spacer(modifier = Modifier.height(24.dp))
                         
-                        // Informações do usuário
                         Text(
                             text = "Olá,",
                             style = MaterialTheme.typography.bodyLarge,
@@ -153,7 +104,6 @@ fun PontoSuccessScreen(
                         
                         Spacer(modifier = Modifier.height(24.dp))
                         
-                        // Detalhes do ponto
                         val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
                         val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
                         val date = Date(ponto.dataHora)
@@ -193,7 +143,6 @@ fun PontoSuccessScreen(
                         
                         Spacer(modifier = Modifier.height(16.dp))
                         
-                        // Coordenadas
                         if (ponto.latitude != null && ponto.longitude != null) {
                             Column(
                                 modifier = Modifier.fillMaxWidth()
@@ -213,26 +162,13 @@ fun PontoSuccessScreen(
                             }
                         }
                         
-                        // ✅ NOVO: Indicador de foto capturada
                         if (ponto.fotoBase64?.isNotEmpty() == true) {
                             Spacer(modifier = Modifier.height(16.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Foto capturada",
-                                    tint = Color(0xFF4CAF50),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Foto capturada e salva",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF4CAF50),
-                                    fontWeight = FontWeight.Medium
-                                )
+                               
                             }
                         }
                         

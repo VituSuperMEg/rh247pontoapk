@@ -141,17 +141,16 @@ class PontoSincronizacaoService {
                 val entidadeId = configuracoes.entidadeId
                 val response = apiService.sincronizarPontosCompleto(entidadeId, requestCompleto)
                 
-                // ✅ NOVO: Tratar resposta como string, não como JSON
+                // ✅ CORRIGIDO: Tratar resposta como string, não como JSON
                 if (response.isSuccessful) {
-                    val responseBody = response.body()
-                    val rawResponse = response.raw().body?.string() ?: ""
+                    val responseBody = response.body() ?: ""
                     
-                    Log.d(TAG, "📡 Resposta da API (raw): $rawResponse")
+                    Log.d(TAG, "📡 Resposta da API: $responseBody")
                     
                     // Verificar se contém mensagem de sucesso
-                    val isSuccess = rawResponse.contains("Pontos Sincronizado com Sucesso") || 
-                                   rawResponse.contains("success") || 
-                                   rawResponse.contains("Sucesso")
+                    val isSuccess = responseBody.contains("Pontos Sincronizado com Sucesso") || 
+                                   responseBody.contains("success") || 
+                                   responseBody.contains("Sucesso")
                     
                     if (isSuccess) {
                         Log.d(TAG, "✅ Sincronização realizada com sucesso!")
@@ -169,13 +168,13 @@ class PontoSincronizacaoService {
                             mensagem = "Pontos sincronizados com sucesso!"
                         )
                     } else {
-                        Log.e(TAG, "❌ API retornou erro: $rawResponse")
+                        Log.e(TAG, "❌ API retornou erro: $responseBody")
                         val duracaoSegundos = (System.currentTimeMillis() - tempoInicio) / 1000
                         SincronizacaoResult(
                             sucesso = false,
                             quantidadePontos = 0,
                             duracaoSegundos = duracaoSegundos,
-                            mensagem = "Erro na API: $rawResponse"
+                            mensagem = "Erro na API: $responseBody"
                         )
                     }
                 } else {

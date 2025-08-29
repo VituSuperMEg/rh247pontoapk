@@ -12,20 +12,27 @@ class PersonUseCase(
     fun addPerson(
         name: String,
         numImages: Long,
+        funcionarioId: Long = 0, // ✅ NOVO: Parâmetro opcional
     ): Long =
         personDB.addPerson(
             PersonRecord(
                 personName = name,
                 numImages = numImages,
                 addTime = System.currentTimeMillis(),
+                funcionarioId = funcionarioId, // ✅ NOVO: Salvar o funcionarioId
             ),
         )
 
-    fun removePerson(id: Long) {
-        personDB.removePerson(id)
+    fun removePerson(personID: Long) {
+        personDB.removePerson(personID)
     }
 
     fun getAll(): Flow<List<PersonRecord>> = personDB.getAll()
 
     fun getCount(): Long = personDB.getCount()
+    
+    // ✅ NOVO: Função para buscar pessoa por funcionarioId
+    suspend fun getPersonByFuncionarioId(funcionarioId: Long): PersonRecord? {
+        return personDB.getPersonByFuncionarioId(funcionarioId)
+    }
 }

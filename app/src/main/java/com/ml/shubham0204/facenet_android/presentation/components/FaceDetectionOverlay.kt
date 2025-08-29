@@ -179,10 +179,21 @@ class FaceDetectionOverlay(
             }
             CoroutineScope(Dispatchers.Default).launch {
                 val predictions = ArrayList<Prediction>()
+                
+                // ✅ NOVO: Log para verificar se há pessoas cadastradas
+                val totalPessoas = viewModel.getNumPeople()
+                android.util.Log.d("FaceDetectionOverlay", "📊 Total de pessoas no banco: $totalPessoas")
+                
                 val (metrics, results) =
                     viewModel.imageVectorUseCase.getNearestPersonName(
                         frameBitmap,
                     )
+                
+                // ✅ NOVO: Log dos resultados
+                android.util.Log.d("FaceDetectionOverlay", "🔍 Resultados do reconhecimento: ${results.size}")
+                results.forEachIndexed { index, result ->
+                    android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: ${result.personName}")
+                }
                 
                 // Capturar a pessoa reconhecida
                 val recognizedPerson = results.find { result ->
@@ -197,6 +208,7 @@ class FaceDetectionOverlay(
                 } else {
                     lastRecognizedPerson = null
                     viewModel.setLastRecognizedPersonName(null)
+                    android.util.Log.d("FaceDetectionOverlay", "❌ Nenhuma pessoa reconhecida")
                 }
                 
                 results.forEach { (name, boundingBox, spoofResult) ->

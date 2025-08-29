@@ -41,6 +41,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,6 +60,7 @@ import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionO
 import com.ml.shubham0204.facenet_android.presentation.components.createAlertDialog
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
+import androidx.compose.ui.text.font.FontWeight
 
 private val cameraPermissionStatus = mutableStateOf(false)
 private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_BACK)
@@ -74,47 +76,47 @@ fun DetectScreen(
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(),
-                    title = {
-                        Text(
-                            text = "Registrar Ponto",
-                            style = MaterialTheme.typography.headlineSmall,
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Default.ArrowBack,
-                                contentDescription = "Voltar",
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = onOpenFaceListClick) {
-                            Icon(
-                                imageVector = Icons.Default.Face,
-                                contentDescription = "Open Face List",
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                if (cameraFacing.intValue == CameraSelector.LENS_FACING_BACK) {
-                                    cameraFacing.intValue = CameraSelector.LENS_FACING_FRONT
-                                } else {
-                                    cameraFacing.intValue = CameraSelector.LENS_FACING_BACK
-                                }
-                            },
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Cameraswitch,
-                                contentDescription = "Switch Camera",
-                            )
-                        }
-                    },
-                )
-            },
+             topBar = {
+                  TopAppBar(
+                      colors = TopAppBarDefaults.topAppBarColors(),
+                      title = {
+                          Text(
+                              text = "Registrar Ponto",
+                              style = MaterialTheme.typography.headlineSmall,
+                          )
+                      },
+                      navigationIcon = {
+                          IconButton(onClick = onNavigateBack) {
+                              Icon(
+                                  imageVector = Icons.AutoMirrored.Default.ArrowBack,
+                                  contentDescription = "Voltar",
+                              )
+                          }
+                      },
+                      actions = {
+                           IconButton(onClick = onOpenFaceListClick) {
+                               Icon(
+                                   imageVector = Icons.Default.Face,
+                                   contentDescription = "Open Face List",
+                               )
+                           }
+                           IconButton(
+                               onClick = {
+                                   if (cameraFacing.intValue == CameraSelector.LENS_FACING_BACK) {
+                                       cameraFacing.intValue = CameraSelector.LENS_FACING_FRONT
+                                   } else {
+                                       cameraFacing.intValue = CameraSelector.LENS_FACING_BACK
+                                   }
+                               },
+                           ) {
+                               Icon(
+                                   imageVector = Icons.Default.Cameraswitch,
+                                   contentDescription = "Switch Camera",
+                               )
+                           }
+                      },
+                  )
+             },
         ) { innerPadding ->
             Column(modifier = Modifier.padding(innerPadding)) { 
                 ScreenUI(onPontoSuccess = onPontoSuccess) 
@@ -127,7 +129,6 @@ fun DetectScreen(
 private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     val viewModel: DetectScreenViewModel = koinViewModel()
     
-    // Observar mudanças no estado de sucesso
     val showSuccessScreen by remember { viewModel.showSuccessScreen }
     val savedPonto by remember { viewModel.savedPonto }
     val isProcessingRecognition by remember { viewModel.isProcessingRecognition }
@@ -137,13 +138,28 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         if (showSuccessScreen && savedPonto != null) {
             onPontoSuccess(savedPonto!!)
             viewModel.resetRecognition()
+            // ✅ CORRIGIDO: Aguardar um pouco e reiniciar o reconhecimento
+            delay(3000) // Aumentado para 3 segundos
+            viewModel.processFaceRecognition()
         }
     }
     
     // LaunchedEffect para iniciar reconhecimento automaticamente
     LaunchedEffect(Unit) {
-        delay(1000) // Aguardar 1 segundo para a câmera inicializar
+        delay(2000) // Aumentado para 2 segundos para a câmera inicializar
+        
+        // ✅ NOVO: Verificar banco de dados
+        viewModel.checkAndClearDatabase()
+        
         viewModel.processFaceRecognition()
+    }
+    
+    // ✅ CORRIGIDO: LaunchedEffect para reiniciar reconhecimento quando não está processando
+    LaunchedEffect(isProcessingRecognition) {
+        if (!isProcessingRecognition && !showSuccessScreen) {
+            delay(2000) // Aumentado para 2 segundos
+            viewModel.processFaceRecognition()
+        }
     }
     
     var faceDetectionOverlay by remember { mutableStateOf<FaceDetectionOverlay?>(null) }
@@ -155,68 +171,84 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         
         // Indicador de processamento
         if (isProcessingRecognition) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(64.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Reconhecendo rosto...",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                }
-            }
+            // Box(
+            //     modifier = Modifier
+            //         .fillMaxSize()
+            //         .background(Color.Black.copy(alpha = 0.7f)),
+            //     contentAlignment = Alignment.Center
+            // ) {
+            //     Column(
+            //         horizontalAlignment = Alignment.CenterHorizontally
+            //     ) {
+            //         // CircularProgressIndicator(
+            //         //     color = Color.White,
+            //         //     modifier = Modifier.size(64.dp)
+            //         // )
+            //         // Spacer(modifier = Modifier.height(16.dp))
+            //         // Text(
+            //         //     text = "Reconhecendo rosto...",
+            //         //     color = Color.White,
+            //         //     style = MaterialTheme.typography.bodyLarge
+            //         // )
+            //     }
+            // }
         }
         
-        DelayedVisibility(viewModel.getNumPeople() > 0) {
+        DelayedVisibility(viewModel.getNumPeople() > 0L) {
             val metrics by remember { viewModel.faceDetectionMetricsState }
             Column {
-                Text(
-                    text = "Recognition on ${viewModel.getNumPeople()} face(s)",
-                    color = Color.White,
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                metrics?.let {
+                // ✅ NOVO: Mostrar quantas pessoas estão cadastradas
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(
+                            color = Color.Green.copy(alpha = 0.8f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
                     Text(
-                        text =
-                            "face detection: ${it.timeFaceDetection} ms" +
-                                "\nface embedding: ${it.timeFaceEmbedding} ms" +
-                                "\nvector search: ${it.timeVectorSearch} ms\n" +
-                                "spoof detection: ${it.timeFaceSpoofDetection} ms",
+                        text = "✅ ${viewModel.getNumPeople()} pessoa(s) cadastrada(s) no sistema",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = Color.White,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 24.dp),
-                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
         DelayedVisibility(viewModel.getNumPeople() == 0L) {
-            Text(
-                text = "No images in database",
-                color = Color.White,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .background(Color.Blue, RoundedCornerShape(16.dp))
-                        .padding(8.dp),
-                textAlign = TextAlign.Center,
-            )
+            // ✅ NOVO: Mostrar aviso quando não há faces cadastradas
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .background(
+                        color = Color.Red.copy(alpha = 0.8f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "⚠️ NENHUMA FACE CADASTRADA",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Cadastre faces na tela de Funcionários Importados",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
         }
         AppAlertDialog()
     }
@@ -224,21 +256,26 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     // LaunchedEffect para monitorar pessoa reconhecida
     LaunchedEffect(faceDetectionOverlay) {
         if (faceDetectionOverlay != null) {
-            while (true) {
-                delay(500) // Verificar a cada 500ms
-                val recognizedPerson = faceDetectionOverlay?.getLastRecognizedPerson()
-                
-                // Log para debug
-                if (recognizedPerson != null && recognizedPerson != "Not recognized") {
-                    android.util.Log.d("DetectScreen", "🔄 Monitorando pessoa: $recognizedPerson")
-                    viewModel.setLastRecognizedPersonName(recognizedPerson)
+            while (isActive) { // ✅ CORRIGIDO: Usar isActive para verificar se o job ainda está ativo
+                try {
+                    delay(500) // Verificar a cada 500ms
+                    val recognizedPerson = faceDetectionOverlay?.getLastRecognizedPerson()
                     
-                    // ✅ NOVO: Capturar foto atual quando pessoa for reconhecida
-                    val currentBitmap = faceDetectionOverlay?.getCurrentFrameBitmap()
-                    if (currentBitmap != null) {
-                        viewModel.setCurrentFaceBitmap(currentBitmap)
-                        android.util.Log.d("DetectScreen", "📸 Foto capturada do frame atual")
+                    // Log para debug
+                    if (recognizedPerson != null && recognizedPerson != "Not recognized") {
+                        android.util.Log.d("DetectScreen", "🔄 Monitorando pessoa: $recognizedPerson")
+                        viewModel.setLastRecognizedPersonName(recognizedPerson)
+                        
+                        // ✅ NOVO: Capturar foto atual quando pessoa for reconhecida
+                        val currentBitmap = faceDetectionOverlay?.getCurrentFrameBitmap()
+                        if (currentBitmap != null) {
+                            viewModel.setCurrentFaceBitmap(currentBitmap)
+                            android.util.Log.d("DetectScreen", "📸 Foto capturada do frame atual")
+                        }
                     }
+                } catch (e: Exception) {
+                    android.util.Log.e("DetectScreen", "❌ Erro no monitoramento: ${e.message}")
+                    break // Sair do loop em caso de erro
                 }
             }
         }

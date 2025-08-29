@@ -74,7 +74,7 @@ class ImageVectorUseCase(
                 measureTimedValue { imagesVectorDB.getNearestEmbeddingPersonName(embedding) }
             avgT3 += t3.toLong(DurationUnit.MILLISECONDS)
             if (recognitionResult == null) {
-                faceRecognitionResults.add(FaceRecognitionResult("Not recognized", boundingBox))
+                faceRecognitionResults.add(FaceRecognitionResult("Não Encontrado", boundingBox))
                 continue
             }
 
@@ -92,7 +92,7 @@ class ImageVectorUseCase(
                 )
             } else {
                 faceRecognitionResults.add(
-                    FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
+                    FaceRecognitionResult("Não Encontrado", boundingBox, spoofResult),
                 )
             }
         }

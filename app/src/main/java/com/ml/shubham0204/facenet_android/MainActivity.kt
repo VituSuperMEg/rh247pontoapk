@@ -28,11 +28,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // Limpar faces cadastradas (4 faces existentes)
-        //ClearFacesUtil.clearAllFaces()
+        // ✅ COMENTADO: Não limpar faces cadastradas automaticamente
+        // ClearFacesUtil.clearAllFaces()
         
         // Limpar pontos do ADEILTON (CPF incorreto)
-        ClearAdeiltonPointsUtil.clearAdeiltonPoints()
+        //ClearAdeiltonPointsUtil.clearAdeiltonPoints()
         
         setContent {
             val navHostController = rememberNavController()
@@ -51,6 +51,29 @@ class MainActivity : ComponentActivity() {
                         onSettingsClick = { navHostController.navigate("settings") }
                     )
                 }
+                composable(
+                    route = "add-face/{personName}/{funcionarioId}",
+                    arguments = listOf(
+                        androidx.navigation.navArgument("personName") {
+                            type = androidx.navigation.NavType.StringType
+                            defaultValue = ""
+                        },
+                        androidx.navigation.navArgument("funcionarioId") {
+                            type = androidx.navigation.NavType.LongType
+                            defaultValue = 0L
+                        }
+                    )
+                ) { backStackEntry ->
+                    val personName = backStackEntry.arguments?.getString("personName") ?: ""
+                    val funcionarioId = backStackEntry.arguments?.getLong("funcionarioId") ?: 0L
+                    AddFaceScreen(
+                        personName = personName,
+                        funcionarioId = funcionarioId,
+                        onNavigateBack = { navHostController.navigateUp() }
+                    )
+                }
+                
+                // ✅ MANTIDO: Rota antiga para compatibilidade
                 composable(
                     route = "add-face/{personName}",
                     arguments = listOf(
@@ -121,8 +144,8 @@ class MainActivity : ComponentActivity() {
                     ImportedEmployeesScreen(
                         onNavigateBack = { navHostController.navigateUp() },
                         onAddFaceClick = { funcionario ->
-                            // Navegar para AddFaceScreen com nome do funcionário
-                            navHostController.navigate("add-face/${funcionario.nome}")
+                            // ✅ NOVO: Navegar para AddFaceScreen com nome e ID do funcionário
+                            navHostController.navigate("add-face/${funcionario.nome}/${funcionario.id}")
                         }
                     )
                 }
