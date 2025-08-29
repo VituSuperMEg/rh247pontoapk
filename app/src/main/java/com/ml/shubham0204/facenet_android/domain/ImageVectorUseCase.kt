@@ -131,4 +131,9 @@ class ImageVectorUseCase(
     fun removeImages(personID: Long) {
         imagesVectorDB.removeFaceRecordsWithPersonID(personID)
     }
+    
+    // ✅ NOVO: Função para buscar imagens de uma pessoa
+    fun getImagesByPersonID(personID: Long): List<FaceImageRecord> {
+        return imagesVectorDB.getFaceImagesByPersonID(personID)
+    }
 }

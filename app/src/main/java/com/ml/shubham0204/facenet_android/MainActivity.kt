@@ -29,7 +29,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         // ✅ COMENTADO: Não limpar faces cadastradas automaticamente
-        // ClearFacesUtil.clearAllFaces()
+        //ClearFacesUtil.clearAllFaces()
         
         // Limpar pontos do ADEILTON (CPF incorreto)
         //ClearAdeiltonPointsUtil.clearAdeiltonPoints()

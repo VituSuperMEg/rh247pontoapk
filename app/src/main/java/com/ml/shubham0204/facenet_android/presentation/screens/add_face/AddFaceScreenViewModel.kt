@@ -45,6 +45,12 @@ class AddFaceScreenViewModel(
         android.util.Log.d("AddFaceScreenViewModel", "📊 Total de URIs: ${selectedImageURIs.value.size}")
     }
     
+    // ✅ NOVO: Função para limpar URIs das imagens
+    fun clearSelectedImageURIs() {
+        selectedImageURIs.value = emptyList()
+        android.util.Log.d("AddFaceScreenViewModel", "🧹 URIs das imagens limpas")
+    }
+    
     // Variável para armazenar o arquivo temporário da foto atual
     private var currentPhotoFile: File? = null
     private var currentFaceBitmap: Bitmap? = null
@@ -142,58 +148,127 @@ class AddFaceScreenViewModel(
             try {
                 android.util.Log.d("AddFaceScreenViewModel", "🔄 Iniciando salvamento no banco...")
                 
-                // ✅ NOVO: Verificar se o personUseCase está funcionando
-                android.util.Log.d("AddFaceScreenViewModel", "🔍 Verificando personUseCase...")
+                val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
                 
-                // ✅ NOVO: Salvar pessoa no banco FaceNet
-                val personId = personUseCase.addPerson(
-                    personNameState.value,
-                    selectedImageURIs.value.size.toLong(),
-                    funcionarioId // ✅ NOVO: Passar o funcionarioId
-                )
-                
-                android.util.Log.d("AddFaceScreenViewModel", "✅ Pessoa salva com ID: $personId")
-                
-                // ✅ NOVO: Verificar se a pessoa foi salva
-                val totalPessoas = personUseCase.getCount()
-                android.util.Log.d("AddFaceScreenViewModel", "📊 Total de pessoas no banco após salvar: $totalPessoas")
-                
-                // ✅ NOVO: Salvar cada imagem
-                selectedImageURIs.value.forEachIndexed { index, uri ->
-                    android.util.Log.d("AddFaceScreenViewModel", "📸 Processando foto ${index + 1}: $uri")
+                if (existingPerson != null) {
+                    android.util.Log.d("AddFaceScreenViewModel", "🔄 === RECADASTRO DE FACES ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "🔄 Pessoa existente encontrada:")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Person ID: ${existingPerson.personID}")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Nome: ${existingPerson.personName}")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Faces antigas: ${existingPerson.numImages}")
                     
-                    try {
-                        imageVectorUseCase
-                            .addImage(personId, personNameState.value, uri)
-                            .onFailure { error ->
-                                val errorMessage = (error as AppException).errorCode.message
-                                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: $errorMessage")
-                                setProgressDialogText(errorMessage)
-                            }.onSuccess {
-                                numImagesProcessed.value += 1
-                                android.util.Log.d("AddFaceScreenViewModel", "✅ Foto ${index + 1} processada com sucesso")
-                                setProgressDialogText("Processed ${numImagesProcessed.value} image(s)")
-                            }
-                    } catch (e: Exception) {
-                        android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: ${e.message}")
-                        e.printStackTrace()
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Apagando faces antigas...")
+                    imageVectorUseCase.removeImages(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Faces antigas removidas")
+                    
+                    val updatedPerson = existingPerson.copy(
+                        personName = personNameState.value,
+                        numImages = selectedImageURIs.value.size.toLong(),
+                        addTime = System.currentTimeMillis()
+                    )
+                    
+                    personUseCase.removePerson(existingPerson.personID)
+                    val newPersonId = personUseCase.addPerson(
+                        updatedPerson.personName,
+                        updatedPerson.numImages,
+                        updatedPerson.funcionarioId
+                    )
+                    
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Pessoa atualizada com novo ID: $newPersonId")
+                    
+                    selectedImageURIs.value.forEachIndexed { index, uri ->
+                        android.util.Log.d("AddFaceScreenViewModel", "📸 Processando foto ${index + 1}: $uri")
+                        
+                        try {
+                            imageVectorUseCase
+                                .addImage(newPersonId, personNameState.value, uri)
+                                .onFailure { error ->
+                                    val errorMessage = (error as AppException).errorCode.message
+                                    android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: $errorMessage")
+                                    setProgressDialogText(errorMessage)
+                                }.onSuccess {
+                                    numImagesProcessed.value += 1
+                                    android.util.Log.d("AddFaceScreenViewModel", "✅ Foto ${index + 1} processada com sucesso")
+                                    setProgressDialogText("Processed ${numImagesProcessed.value} image(s)")
+                                }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: ${e.message}")
+                            e.printStackTrace()
+                        }
                     }
-                }
-                
-                android.util.Log.d("AddFaceScreenViewModel", "🎉 === SALVAMENTO CONCLUÍDO ===")
-                android.util.Log.d("AddFaceScreenViewModel", "📊 Total de fotos processadas: ${numImagesProcessed.value}")
-                
-                // ✅ NOVO: Verificar se todas as fotos foram processadas
-                if (numImagesProcessed.value == selectedImageURIs.value.size) {
-                    android.util.Log.d("AddFaceScreenViewModel", "✅ TODAS AS FOTOS FORAM SALVAS COM SUCESSO!")
                     
-                    // ✅ NOVO: Verificar novamente o total de pessoas
-                    val totalFinal = personUseCase.getCount()
-                    android.util.Log.d("AddFaceScreenViewModel", "📊 Total final de pessoas no banco: $totalFinal")
+                    android.util.Log.d("AddFaceScreenViewModel", "🎉 === RECADASTRO CONCLUÍDO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "📊 Total de fotos processadas: ${numImagesProcessed.value}")
                     
-                    showSuccessScreen.value = true
+                    if (numImagesProcessed.value == selectedImageURIs.value.size) {
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ TODAS AS FOTOS FORAM SALVAS COM SUCESSO!")
+                        
+                        val totalFinal = personUseCase.getCount()
+                        android.util.Log.d("AddFaceScreenViewModel", "📊 Total final de pessoas no banco: $totalFinal")
+                        
+                        // ✅ NOVO: Limpar URIs após salvamento bem-sucedido
+                        clearSelectedImageURIs()
+                        
+                        showSuccessScreen.value = true
+                    } else {
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ ERRO: Nem todas as fotos foram processadas!")
+                    }
+                    
                 } else {
-                    android.util.Log.e("AddFaceScreenViewModel", "❌ ERRO: Nem todas as fotos foram processadas!")
+                    android.util.Log.d("AddFaceScreenViewModel", "🆕 === PRIMEIRO CADASTRO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "🆕 Nenhuma pessoa encontrada para este funcionário")
+                    
+                    // ✅ NOVO: Salvar pessoa no banco FaceNet
+                    val personId = personUseCase.addPerson(
+                        personNameState.value,
+                        selectedImageURIs.value.size.toLong(),
+                        funcionarioId
+                    )
+                    
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Pessoa salva com ID: $personId")
+                    
+                    // ✅ NOVO: Verificar se a pessoa foi salva
+                    val totalPessoas = personUseCase.getCount()
+                    android.util.Log.d("AddFaceScreenViewModel", "📊 Total de pessoas no banco após salvar: $totalPessoas")
+                    
+                    // ✅ NOVO: Salvar cada imagem
+                    selectedImageURIs.value.forEachIndexed { index, uri ->
+                        android.util.Log.d("AddFaceScreenViewModel", "📸 Processando foto ${index + 1}: $uri")
+                        
+                        try {
+                            imageVectorUseCase
+                                .addImage(personId, personNameState.value, uri)
+                                .onFailure { error ->
+                                    val errorMessage = (error as AppException).errorCode.message
+                                    android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: $errorMessage")
+                                    setProgressDialogText(errorMessage)
+                                }.onSuccess {
+                                    numImagesProcessed.value += 1
+                                    android.util.Log.d("AddFaceScreenViewModel", "✅ Foto ${index + 1} processada com sucesso")
+                                    setProgressDialogText("Processed ${numImagesProcessed.value} image(s)")
+                                }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    }
+                    
+                    android.util.Log.d("AddFaceScreenViewModel", "🎉 === PRIMEIRO CADASTRO CONCLUÍDO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "📊 Total de fotos processadas: ${numImagesProcessed.value}")
+                    
+                    if (numImagesProcessed.value == selectedImageURIs.value.size) {
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ TODAS AS FOTOS FORAM SALVAS COM SUCESSO!")
+                        
+                        val totalFinal = personUseCase.getCount()
+                        android.util.Log.d("AddFaceScreenViewModel", "📊 Total final de pessoas no banco: $totalFinal")
+                        
+                        // ✅ NOVO: Limpar URIs após salvamento bem-sucedido
+                        clearSelectedImageURIs()
+                        
+                        showSuccessScreen.value = true
+                    } else {
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ ERRO: Nem todas as fotos foram processadas!")
+                    }
                 }
                 
             } catch (e: Exception) {

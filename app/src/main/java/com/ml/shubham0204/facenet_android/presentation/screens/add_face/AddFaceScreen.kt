@@ -466,6 +466,10 @@ private fun IntegratedCameraCapture(
         while (photoCount < totalPhotos && isActive) {
             android.util.Log.d("AddFaceScreen", "📸 === CAPTURA ${photoCount + 1}/$totalPhotos ===")
             
+            // ✅ CORRIGIDO: Atualizar o índice da foto atual
+            currentPhotoIndex = photoCount
+            android.util.Log.d("AddFaceScreen", "📊 Atualizando currentPhotoIndex para: $currentPhotoIndex")
+            
             // Simular detecção de face
             viewModel.setFaceDetectionStatus("Detectando face...")
             delay(1000)
@@ -524,15 +528,10 @@ private fun IntegratedCameraCapture(
         android.util.Log.d("AddFaceScreen", "🎉 === CAPTURA CONCLUÍDA ===")
         android.util.Log.d("AddFaceScreen", "📸 Total de fotos capturadas: ${viewModel.selectedImageURIs.value.size}")
         
-        // ✅ NOVO: Salvar automaticamente após capturar todas as fotos
+        // ✅ CORRIGIDO: Voltar para a tela de formulário após capturar todas as fotos
         if (viewModel.selectedImageURIs.value.size == totalPhotos) {
-            android.util.Log.d("AddFaceScreen", "💾 === SALVANDO FACES AUTOMATICAMENTE ===")
-            
-            // ✅ NOVO: Atualizar o nome da pessoa no viewModel antes de salvar
-            viewModel.updatePersonName(personName)
-            android.util.Log.d("AddFaceScreen", "📝 Nome atualizado no viewModel: $personName")
-            
-            viewModel.addImages()
+            android.util.Log.d("AddFaceScreen", "🔄 === VOLTANDO PARA TELA DE FORMULÁRIO ===")
+            onBackToForm()
         } else {
             android.util.Log.e("AddFaceScreen", "❌ ERRO: Nem todas as fotos foram capturadas!")
         }
@@ -606,7 +605,11 @@ private fun IntegratedCameraCapture(
                 }
                 
                 Text(
-                    text = "Foto ${currentPhotoIndex + 1}/3",
+                    text = if (viewModel.selectedImageURIs.value.size >= 3) {
+                        "Captura Concluída!"
+                    } else {
+                        "Foto ${viewModel.selectedImageURIs.value.size + 1}/3"
+                    },
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
                     fontWeight = FontWeight.Bold
@@ -660,7 +663,7 @@ private fun IntegratedCameraCapture(
                 // Status e instruções
                 Text(
                     text = when {
-                        currentPhotoIndex >= 3 -> "Todas as fotos foram capturadas!"
+                        viewModel.selectedImageURIs.value.size >= 3 -> "Todas as fotos foram capturadas!"
                         isStable && captureCountdown > 0 -> "Mantenha-se estável..."
                         isStable -> "Capturando foto..."
                         isFaceCentered -> "Rosto centralizado! Aguarde estabilizar..."
@@ -695,14 +698,14 @@ private fun IntegratedCameraCapture(
                             .size(60.dp)
                             .padding(4.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (index < currentPhotoIndex) Color.Green else Color.White.copy(alpha = 0.3f)
+                            containerColor = if (index < viewModel.selectedImageURIs.value.size) Color.Green else Color.White.copy(alpha = 0.3f)
                         )
                     ) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (index < currentPhotoIndex) {
+                            if (index < viewModel.selectedImageURIs.value.size) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = "Foto capturada",

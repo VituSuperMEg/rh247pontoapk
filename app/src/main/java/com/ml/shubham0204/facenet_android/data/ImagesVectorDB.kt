@@ -35,4 +35,12 @@ class ImagesVectorDB {
                 .toList(),
         )
     }
+    
+    // ✅ NOVO: Função para buscar todas as faces de uma pessoa
+    fun getFaceImagesByPersonID(personID: Long): List<FaceImageRecord> {
+        return imagesBox
+            .query(FaceImageRecord_.personID.equal(personID))
+            .build()
+            .find()
+    }
 }
