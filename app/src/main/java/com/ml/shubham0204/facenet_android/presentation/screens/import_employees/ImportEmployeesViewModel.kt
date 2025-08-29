@@ -152,10 +152,13 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         Log.d("ImportEmployeesViewModel", "🔄 loadMoreFuncionarios chamado")
         Log.d("ImportEmployeesViewModel", "   - isLoadingMore: $isLoadingMore")
         Log.d("ImportEmployeesViewModel", "   - hasMorePages: $hasMorePages")
+        Log.d("ImportEmployeesViewModel", "   - currentPage: $currentPage")
         Log.d("ImportEmployeesViewModel", "   - searchQuery: '${_uiState.value.searchQuery}'")
         
         if (isLoadingMore || !hasMorePages) {
             Log.d("ImportEmployeesViewModel", "❌ Condição não atendida para carregar mais")
+            Log.d("ImportEmployeesViewModel", "   - isLoadingMore: $isLoadingMore")
+            Log.d("ImportEmployeesViewModel", "   - hasMorePages: $hasMorePages")
             return
         }
         
@@ -196,11 +199,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                         it.copy(
                             funcionarios = funcionarios,
                             isLoading = false,
-                            hasMorePages = funcionarios.size >= 20 // Assumindo 20 por página
+                            hasMorePages = funcionarios.size >= 10 // Assumindo 10 por página
                         )
                     }
                     currentPage++
-                    hasMorePages = funcionarios.size >= 20
+                    hasMorePages = funcionarios.size >= 10
                 } else {
                     _uiState.update { 
                         it.copy(
@@ -226,34 +229,50 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         isLoadingMore = true
         _uiState.update { it.copy(isLoadingMore = true) }
         
+        Log.d("ImportEmployeesViewModel", "🔄 loadMoreFuncionariosInternal - página $currentPage")
+        
         viewModelScope.launch {
             try {
                 val entidadeId = getEntidadeId()
                 
                 if (entidadeId.isEmpty()) {
+                    Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID vazia")
                     _uiState.update { it.copy(isLoadingMore = false) }
                     return@launch
                 }
                 
-                Log.d("ImportEmployeesViewModel", "📡 Carregando mais funcionários - página $currentPage")
+                Log.d("ImportEmployeesViewModel", "📡 Fazendo requisição para página $currentPage")
                 
                 val response = apiService.getFuncionarios(entidadeId, currentPage)
                 val funcionarios = response.data ?: emptyList()
+                
+                Log.d("ImportEmployeesViewModel", "📊 Funcionários recebidos: ${funcionarios.size}")
                 
                 if (funcionarios.isNotEmpty()) {
                     val currentList = _uiState.value.funcionarios.toMutableList()
                     currentList.addAll(funcionarios)
                     
+                    // ✅ NOVO: Verificar se há mais páginas baseado no tamanho da resposta
+                    // A API retorna 10 funcionários por página (per_page: 10)
+                    val hasMore = funcionarios.size >= 10 // Corrigido de 20 para 10
+                    
+                    Log.d("ImportEmployeesViewModel", "✅ Adicionando ${funcionarios.size} funcionários")
+                    Log.d("ImportEmployeesViewModel", "📊 Total agora: ${currentList.size}")
+                    Log.d("ImportEmployeesViewModel", "🔄 Há mais páginas: $hasMore")
+                    
                     _uiState.update { 
                         it.copy(
                             funcionarios = currentList,
                             isLoadingMore = false,
-                            hasMorePages = funcionarios.size >= 20
+                            hasMorePages = hasMore
                         )
                     }
                     currentPage++
-                    hasMorePages = funcionarios.size >= 20
+                    hasMorePages = hasMore
+                    
+                    Log.d("ImportEmployeesViewModel", "📄 Página incrementada para: $currentPage")
                 } else {
+                    Log.d("ImportEmployeesViewModel", "❌ Nenhum funcionário recebido - fim das páginas")
                     _uiState.update { 
                         it.copy(
                             isLoadingMore = false,
@@ -264,8 +283,8 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 }
                 
             } catch (e: Exception) {
+                Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar mais funcionários", e)
                 _uiState.update { it.copy(isLoadingMore = false) }
-                // TODO: Mostrar erro
             } finally {
                 isLoadingMore = false
             }
@@ -290,10 +309,21 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         
         val descricao = query.trim()
         
+        Log.d("ImportEmployeesViewModel", "🔍 Filtrando funcionários: '$descricao'")
+        
         if (descricao.isEmpty()) {
             // Resetar para lista completa
+            Log.d("ImportEmployeesViewModel", "🔄 Resetando para lista completa")
             currentPage = 1
-            _uiState.update { it.copy(funcionarios = emptyList()) }
+            hasMorePages = true
+            isLoadingMore = false
+            _uiState.update { 
+                it.copy(
+                    funcionarios = emptyList(),
+                    hasMorePages = true,
+                    isLoadingMore = false
+                )
+            }
             loadFuncionarios()
         } else {
             // Debounce: aguardar 500ms antes de fazer a busca
@@ -301,9 +331,12 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 kotlinx.coroutines.delay(500)
                 
                 try {
+                    Log.d("ImportEmployeesViewModel", "🔍 Executando busca por: '$descricao'")
+                    
                     val entidadeId = getEntidadeId()
                     
                     if (entidadeId.isEmpty()) {
+                        Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID vazia na busca")
                         _uiState.update { 
                             it.copy(funcionarios = emptyList())
                         }
@@ -313,15 +346,22 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     val response = apiService.getFuncionarios(entidadeId, 1, descricao)
                     val funcionarios = response.data ?: emptyList()
                     
+                    Log.d("ImportEmployeesViewModel", "📊 Resultados da busca: ${funcionarios.size}")
+                    
                     // Filtrar resultados precisos
                     val funcionariosFiltrados = filtrarResultadosPrecisos(funcionarios, descricao)
                     
+                    Log.d("ImportEmployeesViewModel", "✅ Funcionários filtrados: ${funcionariosFiltrados.size}")
+                    
                     _uiState.update { 
-                        it.copy(funcionarios = funcionariosFiltrados)
+                        it.copy(
+                            funcionarios = funcionariosFiltrados,
+                            hasMorePages = false // Busca não suporta paginação
+                        )
                     }
                     
                 } catch (e: Exception) {
-                    // TODO: Mostrar erro
+                    Log.e("ImportEmployeesViewModel", "❌ Erro na busca", e)
                 }
             }
         }

@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,43 +29,44 @@ fun PontoSuccessScreen(
 ) {
     FaceNetAndroidTheme {
         Scaffold(
-            topBar = {
-                TopAppBar(
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent
-                    ),
-                    title = {
-                        Text(
-                            text = "Ponto Facial",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = Color.Black
-                        )
-                    },
-                    navigationIcon = {
-                        IconButton(onClick = onNavigateBack) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Default.ArrowBack,
-                                contentDescription = "Voltar",
-                                tint = Color.Black
-                            )
-                        }
-                    }
-                )
-            }
+            // topBar = {
+            //     TopAppBar(
+            //         colors = TopAppBarDefaults.topAppBarColors(
+            //             containerColor = Color.Transparent
+            //         ),
+            //         title = {
+            //             Text(
+            //                 text = "Ponto Facial",
+            //                 style = MaterialTheme.typography.headlineSmall,
+            //                 color = Color.Black
+            //             )
+            //         },
+            //         navigationIcon = {
+            //             IconButton(onClick = onNavigateBack) {
+            //                 Icon(
+            //                     imageVector = Icons.AutoMirrored.Default.ArrowBack,
+            //                     contentDescription = "Voltar",
+            //                     tint = Color.Black
+            //                 )
+            //             }
+            //         }
+            //     )
+            // }
         ) { innerPadding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFFF5F5F5))
+                    .background(Color(0xFFF9F9F9))
                     .padding(innerPadding)
             ) {
                 // Card principal
                 Card(
                     modifier = Modifier
-                        .width(300.dp)
+                        .width(600.dp)
                         .padding(16.dp)
                         .align(Alignment.Center)
-                        .height(700.dp),
+                        .height(430.dp)
+                        .shadow(elevation = 0.5.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White

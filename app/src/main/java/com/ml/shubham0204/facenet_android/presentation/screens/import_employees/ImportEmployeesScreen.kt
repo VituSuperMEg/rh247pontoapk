@@ -1,5 +1,6 @@
 package com.ml.shubham0204.facenet_android.presentation.screens.import_employees
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -55,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,14 +158,63 @@ fun ImportEmployeesScreen(
                         derivedStateOf {
                             val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
                             val totalItems = uiState.funcionarios.size
-                            lastVisibleItem >= totalItems - 3 && !uiState.isLoadingMore && uiState.hasMorePages
+                            
+                            // ✅ NOVO: Lógica mais sensível - carregar quando estiver a 5 itens do final
+                            val shouldLoad = lastVisibleItem >= totalItems - 5 && 
+                                           totalItems > 0 && 
+                                           !uiState.isLoadingMore && 
+                                           uiState.hasMorePages
+                            
+                            // ✅ NOVO: Log para debug
+                            if (shouldLoad) {
+                                Log.d("ImportEmployeesScreen", "🔄 Deve carregar mais:")
+                                Log.d("ImportEmployeesScreen", "   - lastVisibleItem: $lastVisibleItem")
+                                Log.d("ImportEmployeesScreen", "   - totalItems: $totalItems")
+                                Log.d("ImportEmployeesScreen", "   - isLoadingMore: ${uiState.isLoadingMore}")
+                                Log.d("ImportEmployeesScreen", "   - hasMorePages: ${uiState.hasMorePages}")
+                                Log.d("ImportEmployeesScreen", "   - Diferença: ${totalItems - lastVisibleItem}")
+                            }
+                            
+                            shouldLoad
                         }
                     }
                     
                     LaunchedEffect(shouldLoadMore) {
                         if (shouldLoadMore) {
+                            Log.d("ImportEmployeesScreen", "🚀 Carregando mais funcionários...")
                             viewModel.loadMoreFuncionarios()
                         }
+                    }
+                    
+                    // ✅ NOVO: Listener direto no scroll para detectar o final
+                    LaunchedEffect(listState) {
+                        snapshotFlow { listState.layoutInfo.visibleItemsInfo }
+                            .collectLatest { visibleItems ->
+                                val lastVisibleIndex = visibleItems.lastOrNull()?.index ?: 0
+                                val totalItems = uiState.funcionarios.size
+                                
+                                // ✅ NOVO: Log para debug de cada scroll
+                                Log.d("ImportEmployeesScreen", "📱 Scroll detectado:")
+                                Log.d("ImportEmployeesScreen", "   - lastVisibleIndex: $lastVisibleIndex")
+                                Log.d("ImportEmployeesScreen", "   - totalItems: $totalItems")
+                                Log.d("ImportEmployeesScreen", "   - isLoadingMore: ${uiState.isLoadingMore}")
+                                Log.d("ImportEmployeesScreen", "   - hasMorePages: ${uiState.hasMorePages}")
+                                Log.d("ImportEmployeesScreen", "   - Diferença: ${totalItems - lastVisibleIndex}")
+                                
+                                // Carregar quando estiver próximo ao final (2 itens antes para ser mais sensível)
+                                if (lastVisibleIndex >= totalItems - 2 && 
+                                    totalItems > 0 && 
+                                    !uiState.isLoadingMore && 
+                                    uiState.hasMorePages) {
+                                    
+                                    Log.d("ImportEmployeesScreen", "🚀 CONDIÇÃO ATENDIDA - carregando mais:")
+                                    Log.d("ImportEmployeesScreen", "   - lastVisibleIndex: $lastVisibleIndex")
+                                    Log.d("ImportEmployeesScreen", "   - totalItems: $totalItems")
+                                    Log.d("ImportEmployeesScreen", "   - Diferença: ${totalItems - lastVisibleIndex}")
+                                    
+                                    viewModel.loadMoreFuncionarios()
+                                }
+                            }
                     }
                     
                     LazyColumn(
@@ -186,8 +238,36 @@ fun ImportEmployeesScreen(
                                         .padding(16.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(32.dp)
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = "Carregando mais funcionários...",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // ✅ NOVO: Indicador quando não há mais páginas
+                        if (!uiState.hasMorePages && uiState.funcionarios.isNotEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Todos os funcionários foram carregados",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray
                                     )
                                 }
                             }

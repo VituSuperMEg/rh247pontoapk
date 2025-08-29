@@ -330,8 +330,8 @@ private fun ScreenUI(
                     enabled = personNameState.isNotEmpty(),
                     onClick = { isInCaptureMode = true },
                 ) {
-                    Icon(imageVector = Icons.Default.Camera, contentDescription = "Capturar fotos")
-                    Text(text = "Capturar Fotos")
+                    Icon(imageVector = Icons.Default.Camera, contentDescription = "Cadastrar Facial")
+                    Text(text = "Cadastrar Facial")
                 }
                 
                 DelayedVisibility(viewModel.selectedImageURIs.value.size >= 3) {
@@ -345,11 +345,11 @@ private fun ScreenUI(
             }
             
             if (viewModel.selectedImageURIs.value.isEmpty()) {
-                Text(
-                    text = "Clique em 'Capturar Fotos' para tirar 3 fotos do funcionário",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // Text(
+                //     text = "Clique em 'Capturar Fotos' para tirar 3 fotos do funcionário",
+                //     style = MaterialTheme.typography.bodySmall,
+                //     color = MaterialTheme.colorScheme.onSurfaceVariant
+                // )
             }
             
             Spacer(modifier = Modifier.height(16.dp))
