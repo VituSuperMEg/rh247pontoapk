@@ -80,6 +80,8 @@ import com.ml.shubham0204.facenet_android.presentation.components.DelayedVisibil
 import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionOverlay
 import com.ml.shubham0204.facenet_android.presentation.components.hideProgressDialog
 import com.ml.shubham0204.facenet_android.presentation.components.showProgressDialog
+import com.ml.shubham0204.facenet_android.presentation.components.AppAlertDialog
+import com.ml.shubham0204.facenet_android.presentation.components.createAlertDialog
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.delay
@@ -138,9 +140,11 @@ fun AddFaceScreen(
                     funcionarioCargo = funcionarioCargo,
                     funcionarioOrgao = funcionarioOrgao,
                     funcionarioLotacao = funcionarioLotacao,
+                    funcionarioId = funcionarioId,
                     onNavigateBack = onNavigateBack
                 )
                 ImageReadProgressDialog(viewModel, onNavigateBack)
+                AppAlertDialog()
             }
         }
     }
@@ -154,6 +158,7 @@ private fun ScreenUI(
     funcionarioCargo: String,
     funcionarioOrgao: String,
     funcionarioLotacao: String,
+    funcionarioId: Long,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -203,6 +208,7 @@ private fun ScreenUI(
             funcionarioOrgao = funcionarioOrgao,
             funcionarioLotacao = funcionarioLotacao,
             capturedPhotos = viewModel.selectedImageURIs.value,
+            isDeletion = viewModel.isDeletingUser.value,
             onBackToEmployees = onNavigateBack
         )
     } else if (isInCaptureMode) {
@@ -333,50 +339,64 @@ private fun ScreenUI(
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            // ✅ NOVO: Seção de debug (apenas em desenvolvimento)
-            if (funcionarioCpf.isEmpty() || funcionarioCargo.isEmpty() || funcionarioOrgao.isEmpty() || funcionarioLotacao.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFFF9800).copy(alpha = 0.1f)
-                    ),
-                    elevation = CardDefaults.cardElevation(
-                        defaultElevation = 2.dp
-                    )
+                // ✅ NOVO: Seção de debug (apenas em desenvolvimento)
+    if (funcionarioCpf.isEmpty() || funcionarioCargo.isEmpty() || funcionarioOrgao.isEmpty() || funcionarioLotacao.isEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFFF9800).copy(alpha = 0.1f)
+            ),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 2.dp
+            )
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = "Aviso",
-                                tint = Color(0xFFFF9800),
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Dados Incompletos",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFFF9800)
-                            )
-                        }
-                        
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        Text(
-                            text = "Alguns dados do funcionário não foram carregados corretamente. Verifique se os dados estão sendo passados da tela anterior.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFFFF9800)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Aviso",
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Dados Incompletos",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFFF9800)
+                    )
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                Text(
+                    text = "Alguns dados do funcionário não foram carregados corretamente. Verifique se os dados estão sendo passados da tela anterior.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFFF9800)
+                )
             }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+    
+    // ✅ NOVO: LaunchedEffect para monitorar o diálogo de confirmação
+    LaunchedEffect(viewModel.showDeleteConfirmation.value) {
+        if (viewModel.showDeleteConfirmation.value) {
+            createAlertDialog(
+                dialogTitle = "Excluir Usuário",
+                dialogText = "Tem certeza que deseja excluir o usuário '$personNameState' e todas as suas faces cadastradas? Esta ação não pode ser desfeita.",
+                dialogPositiveButtonText = "Excluir",
+                onPositiveButtonClick = { viewModel.deleteUserAndFaces() },
+                dialogNegativeButtonText = "Cancelar",
+                onNegativeButtonClick = { viewModel.cancelDelete() }
+            )
+        }
+    }
             
             // Informações sobre as fotos
             Text(
@@ -440,6 +460,48 @@ private fun ScreenUI(
                         Text(text = "Adicionar ao banco") 
                     }
                 }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // ✅ NOVO: Botão para excluir usuário (apenas se há um funcionário válido)
+            if (funcionarioId > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    Button(
+                        onClick = { viewModel.showDeleteConfirmationDialog() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Red
+                        ),
+                        enabled = !viewModel.isDeletingUser.value
+                    ) {
+                    if (viewModel.isDeletingUser.value) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Excluindo...",
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Excluir Usuário",
+                            tint = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Excluir Usuário e Faces",
+                            color = Color.White
+                        )
+                    }
+                }
+            }
             }
             
             if (viewModel.selectedImageURIs.value.isEmpty()) {
@@ -990,6 +1052,7 @@ private fun SuccessScreen(
     funcionarioOrgao: String,
     funcionarioLotacao: String,
     capturedPhotos: List<Uri>, // ✅ NOVO: Lista de fotos capturadas
+    isDeletion: Boolean = false, // ✅ NOVO: Indica se foi uma exclusão
     onBackToEmployees: () -> Unit
 ) {
     // ✅ DEBUG: Log das fotos recebidas
@@ -1010,14 +1073,14 @@ private fun SuccessScreen(
             modifier = Modifier
                 .size(120.dp)
                 .background(
-                    color = Color.Green,
+                    color = if (isDeletion) Color.Red else Color.Green,
                     shape = CircleShape
                 ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Sucesso",
+                imageVector = if (isDeletion) Icons.Default.Close else Icons.Default.Check,
+                contentDescription = if (isDeletion) "Excluído" else "Sucesso",
                 tint = Color.White,
                 modifier = Modifier.size(64.dp)
             )
@@ -1027,7 +1090,7 @@ private fun SuccessScreen(
         
         // Título de sucesso
         Text(
-            text = "Facial Cadastrada com Sucesso!",
+            text = if (isDeletion) "Usuário Excluído com Sucesso!" else "Facial Cadastrada com Sucesso!",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
@@ -1036,7 +1099,10 @@ private fun SuccessScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "A face do funcionário foi cadastrada no sistema",
+            text = if (isDeletion) 
+                "O usuário e todas as suas faces foram removidas do sistema" 
+            else 
+                "A face do funcionário foi cadastrada no sistema",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -1097,8 +1163,8 @@ private fun SuccessScreen(
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // ✅ NOVO: Seção de fotos capturadas
-        if (capturedPhotos.isNotEmpty()) {
+        // ✅ NOVO: Seção de fotos capturadas (apenas para cadastro, não para exclusão)
+        if (!isDeletion && capturedPhotos.isNotEmpty()) {
             android.util.Log.d("SuccessScreen", "📸 Mostrando seção de fotos com ${capturedPhotos.size} fotos")
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1167,6 +1233,8 @@ private fun SuccessScreen(
                     }
                 }
             }
+        } else if (isDeletion) {
+            android.util.Log.d("SuccessScreen", "🗑️ Exclusão realizada - não mostrando fotos")
         } else {
             android.util.Log.w("SuccessScreen", "⚠️ Nenhuma foto para mostrar")
         }
@@ -1178,10 +1246,10 @@ private fun SuccessScreen(
             onClick = onBackToEmployees,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(
-                containerColor = customBlue
+                containerColor = if (isDeletion) Color.Red else customBlue
             )
         ) {
-            Text("Voltar para Funcionários")
+            Text(if (isDeletion) "Voltar para Funcionários" else "Voltar para Funcionários")
         }
     }
 }

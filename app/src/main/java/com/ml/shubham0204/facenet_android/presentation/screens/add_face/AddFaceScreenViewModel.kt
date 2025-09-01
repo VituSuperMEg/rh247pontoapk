@@ -28,6 +28,10 @@ class AddFaceScreenViewModel(
     val numImagesProcessed: MutableState<Int> = mutableIntStateOf(0)
     val showSuccessScreen: MutableState<Boolean> = mutableStateOf(false)
     
+    // ✅ NOVO: Estados para controle da exclusão
+    val isDeletingUser: MutableState<Boolean> = mutableStateOf(false)
+    val showDeleteConfirmation: MutableState<Boolean> = mutableStateOf(false)
+    
     // ✅ NOVO: Adicionar funcionarioId para conectar com o banco de funcionários
     var funcionarioId: Long = 0
     
@@ -278,5 +282,89 @@ class AddFaceScreenViewModel(
                 isProcessingImages.value = false
             }
         }
+    }
+    
+    // ✅ NOVO: Função para excluir usuário e suas faces
+    fun deleteUserAndFaces() {
+        android.util.Log.d("AddFaceScreenViewModel", "🗑️ === INICIANDO EXCLUSÃO DE USUÁRIO ===")
+        android.util.Log.d("AddFaceScreenViewModel", "🆔 FuncionarioId: $funcionarioId")
+        android.util.Log.d("AddFaceScreenViewModel", "📝 Nome: ${personNameState.value}")
+        
+        isDeletingUser.value = true
+        
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                // Buscar a pessoa no banco
+                val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
+                
+                if (existingPerson != null) {
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ === PESSOA ENCONTRADA PARA EXCLUSÃO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Person ID: ${existingPerson.personID}")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Nome: ${existingPerson.personName}")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Faces: ${existingPerson.numImages}")
+                    
+                    // Buscar todas as faces da pessoa
+                    val faceImages = imageVectorUseCase.getImagesByPersonID(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "📸 Total de faces encontradas: ${faceImages.size}")
+                    
+                    // Remover todas as faces
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo faces...")
+                    imageVectorUseCase.removeImages(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Faces removidas")
+                    
+                    // Remover a pessoa
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pessoa...")
+                    personUseCase.removePerson(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Pessoa removida")
+                    
+                    // Verificar se foi removida
+                    val personAfterDeletion = personUseCase.getPersonByFuncionarioId(funcionarioId)
+                    if (personAfterDeletion == null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ === EXCLUSÃO CONCLUÍDA COM SUCESSO ===")
+                        android.util.Log.d("AddFaceScreenViewModel", "📊 Total de pessoas no banco: ${personUseCase.getCount()}")
+                        
+                        // Limpar dados locais
+                        clearSelectedImageURIs()
+                        personNameState.value = ""
+                        
+                        // Mostrar tela de sucesso da exclusão
+                        showSuccessScreen.value = true
+                    } else {
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ ERRO: Pessoa ainda existe após exclusão!")
+                    }
+                    
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma pessoa encontrada para exclusão")
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ FuncionarioId: $funcionarioId")
+                    
+                    // Mesmo sem pessoa no banco, limpar dados locais
+                    clearSelectedImageURIs()
+                    personNameState.value = ""
+                    
+                    // Mostrar tela de sucesso da exclusão
+                    showSuccessScreen.value = true
+                }
+                
+                // ✅ NOVO: Resetar o estado de exclusão após mostrar a tela de sucesso
+                isDeletingUser.value = false
+                
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro na exclusão: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                // ✅ CORRIGIDO: Não resetar isDeletingUser aqui, pois pode estar mostrando a tela de sucesso
+                showDeleteConfirmation.value = false
+            }
+        }
+    }
+    
+    // ✅ NOVO: Função para mostrar diálogo de confirmação
+    fun showDeleteConfirmationDialog() {
+        showDeleteConfirmation.value = true
+    }
+    
+    // ✅ NOVO: Função para cancelar exclusão
+    fun cancelDelete() {
+        showDeleteConfirmation.value = false
     }
 }

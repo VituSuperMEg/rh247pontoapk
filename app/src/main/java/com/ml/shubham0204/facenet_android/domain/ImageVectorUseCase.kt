@@ -86,7 +86,7 @@ class ImageVectorUseCase(
             val distance = cosineDistance(embedding, recognitionResult.faceEmbedding)
             // If the distance > 0.4, we recognize the person
             // else we conclude that the face does not match enough
-            if (distance > 0.2) {
+            if (distance > 0.8) {
                 faceRecognitionResults.add(
                     FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
                 )

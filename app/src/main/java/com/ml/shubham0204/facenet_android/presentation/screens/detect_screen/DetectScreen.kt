@@ -63,7 +63,7 @@ import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.text.font.FontWeight
 
 private val cameraPermissionStatus = mutableStateOf(false)
-private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_BACK)
+private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT) // Aqui troco camara
 private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
@@ -76,47 +76,47 @@ fun DetectScreen(
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-             topBar = {
-                  TopAppBar(
-                      colors = TopAppBarDefaults.topAppBarColors(),
-                      title = {
-                          Text(
-                              text = "Registrar Ponto",
-                              style = MaterialTheme.typography.headlineSmall,
-                          )
-                      },
-                      navigationIcon = {
-                          IconButton(onClick = onNavigateBack) {
-                              Icon(
-                                  imageVector = Icons.AutoMirrored.Default.ArrowBack,
-                                  contentDescription = "Voltar",
-                              )
-                          }
-                      },
-                      actions = {
-                           IconButton(onClick = onOpenFaceListClick) {
-                               Icon(
-                                   imageVector = Icons.Default.Face,
-                                   contentDescription = "Open Face List",
-                               )
-                           }
-                           IconButton(
-                               onClick = {
-                                   if (cameraFacing.intValue == CameraSelector.LENS_FACING_BACK) {
-                                       cameraFacing.intValue = CameraSelector.LENS_FACING_FRONT
-                                   } else {
-                                       cameraFacing.intValue = CameraSelector.LENS_FACING_BACK
-                                   }
-                               },
-                           ) {
-                               Icon(
-                                   imageVector = Icons.Default.Cameraswitch,
-                                   contentDescription = "Switch Camera",
-                               )
-                           }
-                      },
-                  )
-             },
+//             topBar = {
+//                  TopAppBar(
+//                      colors = TopAppBarDefaults.topAppBarColors(),
+//                      title = {
+//                          Text(
+//                              text = "Registrar Ponto",
+//                              style = MaterialTheme.typography.headlineSmall,
+//                          )
+//                      },
+//                      navigationIcon = {
+//                          IconButton(onClick = onNavigateBack) {
+//                              Icon(
+//                                  imageVector = Icons.AutoMirrored.Default.ArrowBack,
+//                                  contentDescription = "Voltar",
+//                              )
+//                          }
+//                      },
+//                      actions = {
+//                           IconButton(onClick = onOpenFaceListClick) {
+//                               Icon(
+//                                   imageVector = Icons.Default.Face,
+//                                   contentDescription = "Open Face List",
+//                               )
+//                           }
+//                           IconButton(
+//                               onClick = {
+//                                   if (cameraFacing.intValue == CameraSelector.LENS_FACING_BACK) {
+//                                       cameraFacing.intValue = CameraSelector.LENS_FACING_FRONT
+//                                   } else {
+//                                       cameraFacing.intValue = CameraSelector.LENS_FACING_BACK
+//                                   }
+//                               },
+//                           ) {
+//                               Icon(
+//                                   imageVector = Icons.Default.Cameraswitch,
+//                                   contentDescription = "Switch Camera",
+//                               )
+//                           }
+//                      },
+//                  )
+//             },
         ) { innerPadding ->
             Column(modifier = Modifier.padding(innerPadding)) { 
                 ScreenUI(onPontoSuccess = onPontoSuccess) 
@@ -198,24 +198,24 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             val metrics by remember { viewModel.faceDetectionMetricsState }
             Column {
                 // ✅ NOVO: Mostrar quantas pessoas estão cadastradas
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                        .background(
-                            color = Color.Green.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "✅ ${viewModel.getNumPeople()} pessoa(s) cadastrada(s) no sistema",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+//                Box(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .padding(16.dp)
+//                        .background(
+//                            color = Color.Green.copy(alpha = 0.8f),
+//                            shape = RoundedCornerShape(12.dp)
+//                        )
+//                        .padding(16.dp),
+//                    contentAlignment = Alignment.Center
+//                ) {
+//                    Text(
+//                        text = "✅ ${viewModel.getNumPeople()} pessoa(s) cadastrada(s) no sistema",
+//                        style = MaterialTheme.typography.bodyMedium,
+//                        color = Color.White,
+//                        fontWeight = FontWeight.Bold
+//                    )
+//                }
             }
         }
         DelayedVisibility(viewModel.getNumPeople() == 0L) {
