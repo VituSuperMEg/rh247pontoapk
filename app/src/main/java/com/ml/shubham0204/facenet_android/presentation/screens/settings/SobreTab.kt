@@ -4,8 +4,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -19,16 +21,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+
 import org.koin.androidx.compose.koinViewModel
+
+
 
 @Composable
 fun SobreTab() {
     val viewModel: SettingsViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsState()
-    var versao by remember { mutableStateOf("1.2") }
     
     Column(
         modifier = Modifier
@@ -39,35 +44,39 @@ fun SobreTab() {
     ) {
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center // se quiser centralizar também na vertical
             ) {
                 Text(
-                    text = "Sistema de Ponto",
+                    text = "RH247 - PONTO",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
-                
+
                 Text(
-                    text = "Versão 1.0.0",
+                    text = "Versão ${viewModel.getAppVersion()}",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = androidx.compose.ui.graphics.Color.Gray
-                )
-                
-                Text(
-                    text = "Sistema de ponto eletrônico com reconhecimento facial",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
+                    color = Color.Gray
                 )
             }
         }
-        
+
+
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White // cor de fundo
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -95,6 +104,9 @@ fun SobreTab() {
         
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White // cor de fundo
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -121,26 +133,21 @@ fun SobreTab() {
             
                 Button(
                     onClick = { viewModel.verificarAtualizacao() },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(55.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    ),
                     enabled = !uiState.isCheckingUpdate && !uiState.isUpdating
                 ) {
                     Text(if (uiState.isCheckingUpdate) "Verificando..." else "Verificar Atualização")
                 }
-                
-                Button(
-                    onClick = { viewModel.downloadDiretoAtualizacaoComVersao(versao) },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !uiState.isUpdating && versao.isNotBlank(),
-                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                        containerColor = androidx.compose.ui.graphics.Color.Green
-                    )
-                ) {
-                    Text(if (uiState.isUpdating) "Baixando..." else "Download Direto v$versao")
-                }
-                
+
                 Button(
                     onClick = { viewModel.atualizarSistema() },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(55.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    ),
                     enabled = !uiState.isUpdating && uiState.hasUpdate
                 ) {
                     Text(if (uiState.isUpdating) "Atualizando..." else "Atualizar Sistema")

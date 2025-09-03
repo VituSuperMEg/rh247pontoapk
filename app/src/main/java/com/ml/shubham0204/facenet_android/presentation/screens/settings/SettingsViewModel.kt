@@ -5,12 +5,18 @@ import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesEntity
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import com.ml.shubham0204.facenet_android.data.config.ServerConfig
 import com.ml.shubham0204.facenet_android.data.model.TabletVersionData
 import com.ml.shubham0204.facenet_android.data.repository.TabletUpdateRepository
+import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
+import com.ml.shubham0204.facenet_android.worker.SincronizacaoAutomaticaWorker
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,8 +27,11 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import java.io.File
 import java.text.SimpleDateFormat
+import java.time.Duration
+import java.time.LocalTime
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 @KoinViewModel
 class SettingsViewModel : ViewModel(), KoinComponent {
@@ -59,17 +68,34 @@ class SettingsViewModel : ViewModel(), KoinComponent {
         _uiState.update { it.copy(serverUrl = value, serverUrlError = null) }
     }
     
+    fun updateHoraSincronizacao(value: Int) {
+        _uiState.update { it.copy(horaSincronizacao = value) }
+    }
+    
+    fun updateMinutoSincronizacao(value: Int) {
+        _uiState.update { it.copy(minutoSincronizacao = value) }
+    }
+    
+    fun updateIntervaloSincronizacao(value: Int) {
+        _uiState.update { it.copy(intervaloSincronizacao = value) }
+    }
+    
     fun sincronizarAgora() {
         viewModelScope.launch {
             try {
                 Toast.makeText(context, "🔄 Iniciando sincronização...", Toast.LENGTH_SHORT).show()
                 
-                // TODO: Implementar sincronização real
+                val pontoSincronizacaoService = PontoSincronizacaoService()
+                val resultado = pontoSincronizacaoService.sincronizarPontosPendentes(context)
+                
                 val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
                 val historico = HistoricoSincronizacao(
                     dataHora = dataHora,
-                    mensagem = "Sincronização manual executada",
-                    status = "Sucesso"
+                    mensagem = if (resultado.sucesso) 
+                        "Sincronização manual: ${resultado.quantidadePontos} pontos sincronizados" 
+                    else 
+                        "Sincronização manual falhou: ${resultado.mensagem}",
+                    status = if (resultado.sucesso) "Sucesso" else "Erro"
                 )
                 
                 _uiState.update { 
@@ -78,8 +104,34 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     )
                 }
                 
-                Toast.makeText(context, "✅ Sincronização executada com sucesso!", Toast.LENGTH_SHORT).show()
+                if (resultado.sucesso) {
+                    Toast.makeText(
+                        context, 
+                        "✅ ${resultado.quantidadePontos} pontos sincronizados com sucesso!", 
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        context, 
+                        "❌ Erro na sincronização: ${resultado.mensagem}", 
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+                
             } catch (e: Exception) {
+                val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
+                val historico = HistoricoSincronizacao(
+                    dataHora = dataHora,
+                    mensagem = "Erro na sincronização: ${e.message}",
+                    status = "Erro"
+                )
+                
+                _uiState.update { 
+                    it.copy(
+                        historicoSincronizacao = it.historicoSincronizacao + historico
+                    )
+                }
+                
                 Toast.makeText(context, "❌ Erro na sincronização: ${e.message}", Toast.LENGTH_LONG).show()
             }
         }
@@ -142,10 +194,10 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     entidadeId = currentState.entidadeId,
                     localizacaoId = currentState.localizacaoId,
                     codigoSincronizacao = currentState.codigoSincronizacao,
-                    horaSincronizacao = 8,
-                    minutoSincronizacao = 0,
+                    horaSincronizacao = currentState.horaSincronizacao,
+                    minutoSincronizacao = currentState.minutoSincronizacao,
                     sincronizacaoAtiva = currentState.sincronizacaoAtiva,
-                    intervaloSincronizacao = 24
+                    intervaloSincronizacao = currentState.intervaloSincronizacao
                 )
                 
                 // Salvar URL do servidor nas preferências
@@ -158,6 +210,17 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 // Verificar se foi salvo corretamente
                 val configSalva = configuracoesDao.getConfiguracoes()
                 Log.d("SettingsViewModel", "🔍 Configuração salva: $configSalva")
+                
+                // Agendar sincronização automática se estiver ativada
+                if (currentState.sincronizacaoAtiva) {
+                    agendarSincronizacaoAutomatica(
+                        hora = currentState.horaSincronizacao,
+                        minuto = currentState.minutoSincronizacao,
+                        intervalo = currentState.intervaloSincronizacao
+                    )
+                } else {
+                    cancelarSincronizacaoAutomatica()
+                }
                 
                 // Adicionar ao histórico
                 val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
@@ -652,7 +715,19 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             localizacaoId = configuracoes.localizacaoId,
                             codigoSincronizacao = configuracoes.codigoSincronizacao,
                             entidadeId = configuracoes.entidadeId,
-                            sincronizacaoAtiva = configuracoes.sincronizacaoAtiva
+                            sincronizacaoAtiva = configuracoes.sincronizacaoAtiva,
+                            horaSincronizacao = configuracoes.horaSincronizacao,
+                            minutoSincronizacao = configuracoes.minutoSincronizacao,
+                            intervaloSincronizacao = configuracoes.intervaloSincronizacao
+                        )
+                    }
+                    
+                    // Se a sincronização automática estiver ativada, agendar
+                    if (configuracoes.sincronizacaoAtiva) {
+                        agendarSincronizacaoAutomatica(
+                            hora = configuracoes.horaSincronizacao,
+                            minuto = configuracoes.minutoSincronizacao,
+                            intervalo = configuracoes.intervaloSincronizacao
                         )
                     }
                 }
@@ -664,6 +739,87 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             }
         }
     }
+    
+    private fun agendarSincronizacaoAutomatica(hora: Int, minuto: Int, intervalo: Int) {
+        try {
+            Log.d("SettingsViewModel", "🕐 Agendando sincronização automática: $hora:$minuto a cada $intervalo horas")
+            
+            val workManager = WorkManager.getInstance(context)
+            
+            // Cancelar trabalhos existentes
+            workManager.cancelAllWorkByTag("sincronizacao_automatica")
+            
+            // Calcular delay inicial até o próximo horário
+            val agora = LocalTime.now()
+            val horarioAlvo = LocalTime.of(hora, minuto)
+            
+            var delayInicial = Duration.between(agora, horarioAlvo)
+            if (delayInicial.isNegative) {
+                // Se o horário já passou hoje, agendar para amanhã
+                delayInicial = delayInicial.plusDays(1)
+            }
+            
+            Log.d("SettingsViewModel", "⏰ Delay inicial: ${delayInicial.toMinutes()} minutos")
+            
+            // Criar dados para o worker
+            val inputData = Data.Builder()
+                .putInt("hora", hora)
+                .putInt("minuto", minuto)
+                .putInt("intervalo", intervalo)
+                .build()
+            
+            // Criar trabalho periódico
+            val sincronizacaoWork = PeriodicWorkRequestBuilder<SincronizacaoAutomaticaWorker>(
+                intervalo.toLong(), TimeUnit.HOURS
+            )
+                .setInputData(inputData)
+                .addTag("sincronizacao_automatica")
+                .setInitialDelay(delayInicial.toMillis(), TimeUnit.MILLISECONDS)
+                .build()
+            
+            // Agendar o trabalho
+            workManager.enqueue(sincronizacaoWork)
+            
+            Log.d("SettingsViewModel", "✅ Sincronização automática agendada com sucesso")
+            Toast.makeText(
+                context, 
+                "✅ Sincronização automática agendada para $hora:${minuto.toString().padStart(2, '0')} a cada $intervalo horas", 
+                Toast.LENGTH_LONG
+            ).show()
+            
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "❌ Erro ao agendar sincronização automática: ${e.message}")
+            Toast.makeText(
+                context, 
+                "❌ Erro ao agendar sincronização automática: ${e.message}", 
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    
+    private fun cancelarSincronizacaoAutomatica() {
+        try {
+            Log.d("SettingsViewModel", "❌ Cancelando sincronização automática")
+            
+            val workManager = WorkManager.getInstance(context)
+            workManager.cancelAllWorkByTag("sincronizacao_automatica")
+            
+            Log.d("SettingsViewModel", "✅ Sincronização automática cancelada")
+            Toast.makeText(context, "✅ Sincronização automática cancelada", Toast.LENGTH_SHORT).show()
+            
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "❌ Erro ao cancelar sincronização automática: ${e.message}")
+        }
+    }
+    
+    fun getAppVersion(): String {
+        return try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            "${packageInfo.versionName} (${packageInfo.versionCode})"
+        } catch (e: Exception) {
+            "0.1.0 (10)" // Versão padrão em caso de erro
+        }
+    }
 }
 
 data class SettingsUiState(
@@ -672,6 +828,9 @@ data class SettingsUiState(
     val entidadeId: String = "",
     val serverUrl: String = "",
     val sincronizacaoAtiva: Boolean = false,
+    val horaSincronizacao: Int = 8,
+    val minutoSincronizacao: Int = 0,
+    val intervaloSincronizacao: Int = 24,
     val localizacaoIdError: String? = null,
     val codigoSincronizacaoError: String? = null,
     val entidadeIdError: String? = null,

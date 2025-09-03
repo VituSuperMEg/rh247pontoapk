@@ -1,5 +1,6 @@
 package com.ml.shubham0204.facenet_android.presentation.screens.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,19 +9,28 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,6 +48,10 @@ fun ConfiguracoesTab(
     val viewModel: SettingsViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsState()
     
+    var horaDropdownExpanded by remember { mutableStateOf(false) }
+    var minutoDropdownExpanded by remember { mutableStateOf(false) }
+    var intervaloDropdownExpanded by remember { mutableStateOf(false) }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,6 +62,9 @@ fun ConfiguracoesTab(
         // Configurações Gerais
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White // cor de fundo
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -113,6 +130,9 @@ fun ConfiguracoesTab(
         // Configuração de Entidade
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White // cor de fundo
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -152,6 +172,9 @@ fun ConfiguracoesTab(
         // Sincronização Automática
         Card(
             modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White // cor de fundo
+            ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -179,153 +202,147 @@ fun ConfiguracoesTab(
                     )
                 }
                 
+                if (uiState.sincronizacaoAtiva) {
+                    Text(
+                        text = "Configure o horário e intervalo para sincronização automática",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray
+                    )
+                    
+                    // Seletor de Horário
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Seletor de Hora
+                        ExposedDropdownMenuBox(
+                            expanded = horaDropdownExpanded,
+                            onExpandedChange = { horaDropdownExpanded = !horaDropdownExpanded },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = "${uiState.horaSincronizacao.toString().padStart(2, '0')}",
+                                onValueChange = { },
+                                readOnly = true,
+                                label = { Text("Hora") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = horaDropdownExpanded) },
+                                modifier = Modifier.menuAnchor()
+                            )
+                            
+                            ExposedDropdownMenu(
+                                expanded = horaDropdownExpanded,
+                                onDismissRequest = { horaDropdownExpanded = false }
+                            ) {
+                                (0..23).forEach { hora ->
+                                    DropdownMenuItem(
+                                        text = { Text("${hora.toString().padStart(2, '0')}") },
+                                        onClick = { viewModel.updateHoraSincronizacao(hora); horaDropdownExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                        
+                        // Seletor de Minuto
+                        ExposedDropdownMenuBox(
+                            expanded = minutoDropdownExpanded,
+                            onExpandedChange = { minutoDropdownExpanded = !minutoDropdownExpanded },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            OutlinedTextField(
+                                value = "${uiState.minutoSincronizacao.toString().padStart(2, '0')}",
+                                onValueChange = { },
+                                readOnly = true,
+                                label = { Text("Minuto") },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = minutoDropdownExpanded) },
+                                modifier = Modifier.menuAnchor()
+                            )
+                            
+                            ExposedDropdownMenu(
+                                expanded = minutoDropdownExpanded,
+                                onDismissRequest = { minutoDropdownExpanded = false }
+                            ) {
+                                (0..59).forEach { minuto ->
+                                    DropdownMenuItem(
+                                        text = { Text("${minuto.toString().padStart(2, '0')}") },
+                                        onClick = { viewModel.updateMinutoSincronizacao(minuto); minutoDropdownExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    
+                    // Seletor de Intervalo
+                    ExposedDropdownMenuBox(
+                        expanded = intervaloDropdownExpanded,
+                        onExpandedChange = { intervaloDropdownExpanded = !intervaloDropdownExpanded },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        OutlinedTextField(
+                            value = "${uiState.intervaloSincronizacao} horas",
+                            onValueChange = { },
+                            readOnly = true,
+                            label = { Text("Intervalo de Sincronização") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = intervaloDropdownExpanded) },
+                            modifier = Modifier.menuAnchor()
+                        )
+                        
+                        ExposedDropdownMenu(
+                            expanded = intervaloDropdownExpanded,
+                            onDismissRequest = { intervaloDropdownExpanded = false }
+                        ) {
+                            listOf(1, 2, 4, 6, 8, 12, 24).forEach { intervalo ->
+                                DropdownMenuItem(
+                                    text = { Text("${intervalo} ${if (intervalo == 1) "hora" else "horas"}") },
+                                    onClick = { viewModel.updateIntervaloSincronizacao(intervalo); intervaloDropdownExpanded = false }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+
                 Button(
                     onClick = { viewModel.sincronizarAgora() },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(55.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    ),
                 ) {
                     Text("Sincronizar Agora")
                 }
             }
         }
         
-        // Atualizações do Sistema
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Atualizações do Sistema",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                // Status da verificação
-                if (uiState.updateMessage != null) {
-                    Text(
-                        text = uiState.updateMessage!!,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (uiState.updateMessage!!.startsWith("✅")) Color.Green 
-                               else if (uiState.updateMessage!!.startsWith("❌")) Color.Red 
-                               else Color.Gray
-                    )
-                }
-                
-                // Informações da atualização disponível
-                if (uiState.hasUpdate && uiState.availableUpdate != null) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E8))
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "📱 Nova Versão Disponível",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Green
-                            )
-                            
-                            Text(
-                                text = "Versão: ${uiState.availableUpdate!!.version}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            
-                            Text(
-                                text = "Tamanho: ${uiState.availableUpdate!!.fileSizeFormatted}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
-                            
-                            Text(
-                                text = "Última modificação: ${uiState.availableUpdate!!.lastModified}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
-                        }
-                    }
-                }
-                
-                // Botões de ação
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Button(
-                        onClick = { viewModel.verificarAtualizacao() },
-                        modifier = Modifier.weight(1f),
-                        enabled = !uiState.isCheckingUpdate && !uiState.isUpdating
-                    ) {
-                        Text(if (uiState.isCheckingUpdate) "Verificando..." else "Verificar Atualizações")
-                    }
-                    
-                    if (uiState.hasUpdate) {
-                        Button(
-                            onClick = { viewModel.atualizarSistema() },
-                            modifier = Modifier.weight(1f),
-                            enabled = !uiState.isUpdating,
-                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                                containerColor = Color.Green
-                            )
-                        ) {
-                            Text(if (uiState.isUpdating) "Baixando..." else "Baixar e Instalar")
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Informações
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = "Informações",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Text(
-                    text = "ID da Localização: Identificador único da localização",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
-                )
-            }
-        }
-        
+
         Spacer(modifier = Modifier.height(16.dp))
         
         // Botões de Ação
         Button(
             onClick = { viewModel.salvarConfiguracoes() },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth().height(55.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF264064)
+            ),
         ) {
             Text("Salvar Configurações")
         }
-        
-        Button(
+
+        OutlinedButton(
             onClick = onCancelar,
-            modifier = Modifier.fillMaxWidth(),
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                containerColor = Color.Gray
-            )
+            modifier = Modifier.fillMaxWidth().height(55.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent // garante que não tenha fundo
+            ),
+            border = BorderStroke(1.dp, Color(0xFF264064))
         ) {
-            Text("Cancelar")
+            Text("Cancelar", color = Color(0xFF264064))
         }
         
         Button(
             onClick = onSair,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().height(55.dp),
             colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                 containerColor = Color.Red
             )

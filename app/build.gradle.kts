@@ -13,8 +13,8 @@ android {
         applicationId = "com.ml.shubham0204.facenet_android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10
-        versionName = "0.1.0"
+        versionCode = 11
+        versionName = "0.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -119,6 +119,9 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     implementation("com.squareup.retrofit2:converter-scalars:2.9.0") // ✅ NOVO: Para respostas string
     implementation("com.squareup.okhttp3:logging-interceptor:4.11.0")
+
+    // WorkManager for background tasks
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
