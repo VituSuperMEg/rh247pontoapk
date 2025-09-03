@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -214,6 +216,61 @@ fun EmployeeDetailScreen(
                             Column(
                                 modifier = Modifier.padding(16.dp)
                             ) {
+                                // ✅ NOVO: Status do funcionário em destaque
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(
+                                        imageVector = if (funcionario.ativo == 1) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                        contentDescription = if (funcionario.ativo == 1) "Ativo" else "Inativo",
+                                        tint = if (funcionario.ativo == 1) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Status: ${if (funcionario.ativo == 1) "ATIVO" else "INATIVO"}",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (funcionario.ativo == 1) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                                    )
+                                }
+                                
+                                // ✅ NOVO: Aviso para funcionários inativos
+                                if (funcionario.ativo == 0) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = Color(0xFFFFEBEE)
+                                        ),
+                                        border = androidx.compose.foundation.BorderStroke(
+                                            width = 1.dp,
+                                            color = Color(0xFFF44336)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Warning,
+                                                contentDescription = "Aviso",
+                                                tint = Color(0xFFD32F2F),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Funcionário inativo - operações de facial bloqueadas",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = Color(0xFFD32F2F),
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(12.dp))
+                                
                                 Text(
                                     text = "Dados Principais",
                                     style = MaterialTheme.typography.titleMedium,
@@ -494,11 +551,16 @@ fun EmployeeDetailScreen(
                 // Botão Capturar Faces
                 Button(
                     onClick = onCaptureFacesClick,
+                    enabled = funcionario.ativo == 1, // ✅ NOVO: Desabilitar para funcionários inativos
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (hasRegisteredFaces) Color(0xFFFF9800) else MaterialTheme.colorScheme.primary
+                        containerColor = when {
+                            funcionario.ativo == 0 -> Color.Gray // ✅ NOVO: Cinza para inativos
+                            hasRegisteredFaces -> Color(0xFFFF9800) // Laranja para recadastro
+                            else -> MaterialTheme.colorScheme.primary // Azul para primeiro cadastro
+                        }
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -509,7 +571,11 @@ fun EmployeeDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = if (hasRegisteredFaces) "Recadastrar Facial" else "Cadastrar Facial",
+                        text = when {
+                            funcionario.ativo == 0 -> "Facial Bloqueada"
+                            hasRegisteredFaces -> "Recadastrar Facial"
+                            else -> "Cadastrar Facial"
+                        },
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -517,14 +583,18 @@ fun EmployeeDetailScreen(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Texto explicativo
+                // ✅ NOVO: Texto explicativo baseado no status
                 Text(
-                    text = if (hasRegisteredFaces) 
-                        "Clique no botão acima para recadastrar as faces do funcionário." 
-                    else 
-                        "Clique no botão acima para capturar 3 fotos do funcionário e cadastrar no sistema de reconhecimento facial.",
+                    text = when {
+                        funcionario.ativo == 0 -> "Funcionário inativo - operações de facial bloqueadas. Reative o funcionário para permitir cadastro/edição de faces."
+                        hasRegisteredFaces -> "Clique no botão acima para recadastrar as faces do funcionário."
+                        else -> "Clique no botão acima para capturar 3 fotos do funcionário e cadastrar no sistema de reconhecimento facial."
+                    },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = when {
+                        funcionario.ativo == 0 -> Color(0xFFD32F2F) // Vermelho para inativos
+                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                    },
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }

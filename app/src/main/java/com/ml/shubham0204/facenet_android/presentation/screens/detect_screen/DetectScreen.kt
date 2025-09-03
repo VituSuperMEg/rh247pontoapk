@@ -305,6 +305,13 @@ private fun Camera(
         }
 
     DelayedVisibility(cameraPermissionStatus.value) {
+        var isComponentVisible by remember { mutableStateOf(false) }
+        var cameraInitialized by remember { mutableStateOf(false) }
+        
+        LaunchedEffect(Unit) {
+            isComponentVisible = true
+        }
+        
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { 
@@ -313,7 +320,16 @@ private fun Camera(
                 overlay
             },
             update = { overlay ->
-                overlay.initializeCamera(cameraFacing)
+                // ✅ CORRIGIDO: Inicializar câmera apenas uma vez quando o componente estiver visível
+                if (isComponentVisible && !cameraInitialized) {
+                    try {
+                        overlay.initializeCamera(cameraFacing)
+                        cameraInitialized = true
+                        android.util.Log.d("DetectScreen", "✅ Câmera inicializada com sucesso")
+                    } catch (e: Exception) {
+                        android.util.Log.e("DetectScreen", "❌ Erro ao inicializar câmera: ${e.message}")
+                    }
+                }
             },
         )
     }
@@ -324,9 +340,10 @@ private fun Camera(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                "Allow Camera Permissions\nThe app cannot work without the camera permission.",
-                textAlign = TextAlign.Center,
+                text = "Allow Camera Permissions\nThe app cannot work without the camera permission",
+                textAlign = TextAlign.Center
             )
+            
             Button(
                 onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
                 modifier = Modifier.align(Alignment.CenterHorizontally),

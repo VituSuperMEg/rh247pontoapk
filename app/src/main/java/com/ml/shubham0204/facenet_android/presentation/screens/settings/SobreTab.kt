@@ -9,10 +9,14 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -24,6 +28,7 @@ import org.koin.androidx.compose.koinViewModel
 fun SobreTab() {
     val viewModel: SettingsViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsState()
+    var versao by remember { mutableStateOf("1.2") }
     
     Column(
         modifier = Modifier
@@ -43,7 +48,8 @@ fun SobreTab() {
                 Text(
                     text = "Sistema de Ponto",
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
                 
                 Text(
@@ -101,18 +107,43 @@ fun SobreTab() {
                     fontWeight = FontWeight.Bold
                 )
                 
+                // Status da verificação
+                if (uiState.updateMessage != null) {
+                    Text(
+                        text = uiState.updateMessage!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (uiState.updateMessage!!.startsWith("✅")) androidx.compose.ui.graphics.Color.Green 
+                               else if (uiState.updateMessage!!.startsWith("❌")) androidx.compose.ui.graphics.Color.Red 
+                               else androidx.compose.ui.graphics.Color.Gray
+                    )
+                }
+                
+            
                 Button(
                     onClick = { viewModel.verificarAtualizacao() },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isCheckingUpdate && !uiState.isUpdating
                 ) {
-                    Text("Verificar Atualização")
+                    Text(if (uiState.isCheckingUpdate) "Verificando..." else "Verificar Atualização")
+                }
+                
+                Button(
+                    onClick = { viewModel.downloadDiretoAtualizacaoComVersao(versao) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isUpdating && versao.isNotBlank(),
+                    colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                        containerColor = androidx.compose.ui.graphics.Color.Green
+                    )
+                ) {
+                    Text(if (uiState.isUpdating) "Baixando..." else "Download Direto v$versao")
                 }
                 
                 Button(
                     onClick = { viewModel.atualizarSistema() },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !uiState.isUpdating && uiState.hasUpdate
                 ) {
-                    Text("Atualizar Sistema")
+                    Text(if (uiState.isUpdating) "Atualizando..." else "Atualizar Sistema")
                 }
             }
         }

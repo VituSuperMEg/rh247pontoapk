@@ -63,8 +63,43 @@ class FuncionariosDao {
 
     fun searchByName(name: String): List<FuncionariosEntity> {
         val searchTerm = name.uppercase()
-        return getAll().filter { 
+        val funcionariosFiltrados = getAll().filter { 
             it.nome.uppercase().contains(searchTerm) 
         }
+        // ✅ NOVO: Ordenar resultados alfabeticamente por nome
+        return funcionariosFiltrados.sortedBy { it.nome }
+    }
+    
+    // ✅ NOVO: Métodos para ativação/desativação de funcionários
+    fun activateFuncionario(funcionarioId: Long) {
+        val funcionario = getById(funcionarioId)
+        funcionario?.let {
+            val funcionarioAtivado = it.copy(ativo = 1)
+            update(funcionarioAtivado)
+        }
+    }
+    
+    fun deactivateFuncionario(funcionarioId: Long) {
+        val funcionario = getById(funcionarioId)
+        funcionario?.let {
+            val funcionarioDesativado = it.copy(ativo = 0)
+            update(funcionarioDesativado)
+        }
+    }
+    
+    // ✅ NOVO: Obter apenas funcionários ativos
+    fun getActiveFuncionarios(): List<FuncionariosEntity> {
+        return getAll().filter { it.ativo == 1 }
+    }
+    
+    // ✅ NOVO: Obter apenas funcionários inativos
+    fun getInactiveFuncionarios(): List<FuncionariosEntity> {
+        return getAll().filter { it.ativo == 0 }
+    }
+    
+    // ✅ NOVO: Verificar se funcionário está ativo
+    fun isFuncionarioActive(funcionarioId: Long): Boolean {
+        val funcionario = getById(funcionarioId)
+        return funcionario?.ativo == 1
     }
 } 

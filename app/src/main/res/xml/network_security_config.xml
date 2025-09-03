@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Configuração específica para o domínio RH247 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">api.rh247.com.br</domain>
+        <domain includeSubdomains="true">rh247.com.br</domain>
+    </domain-config>
+    
+    <!-- Configuração base com certificados do sistema -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Configuração para debug (remover em produção) -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
+    </debug-overrides>
+    
+    <!-- Configuração adicional para desenvolvimento -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+    </domain-config>
+</network-security-config> 

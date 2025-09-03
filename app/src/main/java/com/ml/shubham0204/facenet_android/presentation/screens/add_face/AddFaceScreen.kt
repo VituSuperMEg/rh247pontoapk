@@ -12,6 +12,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,9 +37,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -127,12 +130,6 @@ fun AddFaceScreen(
             Column(modifier = Modifier.padding(innerPadding)) {
                 val viewModel: AddFaceScreenViewModel = koinViewModel()
                 
-                LaunchedEffect(funcionarioId) {
-                    if (funcionarioId > 0) {
-                        viewModel.funcionarioId = funcionarioId
-                    }
-                }
-                
                 ScreenUI(
                     viewModel = viewModel, 
                     personName = personName,
@@ -192,6 +189,23 @@ private fun ScreenUI(
     var isInCaptureMode by remember { mutableStateOf(false) }
     var showSuccessScreen by remember { mutableStateOf(false) }
     
+    // ✅ NOVO: Estado para status do funcionário
+    var isActive by remember { mutableStateOf(true) }
+    
+    LaunchedEffect(funcionarioId) {
+        if (funcionarioId > 0) {
+            viewModel.funcionarioId = funcionarioId
+            
+            // ✅ NOVO: Buscar o status atual do funcionário
+            try {
+                val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                isActive = funcionariosDao.isFuncionarioActive(funcionarioId)
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreen", "❌ Erro ao verificar status: ${e.message}")
+            }
+        }
+    }
+    
     if (showSuccessScreen) {
         // ✅ DEBUG: Log das fotos capturadas
         android.util.Log.d("AddFaceScreen", "📸 === TELA DE SUCESSO ===")
@@ -225,296 +239,370 @@ private fun ScreenUI(
         )
     } else {
         // Tela de formulário
-        Column(
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp, vertical = 50.dp),
         ) {
-            // ✅ NOVO: Título da seção
-            Text(
-                text = "Cadastro de Face",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            // ✅ NOVO: Card com dados do funcionário
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 2.dp
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp)
-                ) {
-                    Text(
-                        text = "Dados do Funcionário",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Campo Nome (editável)
-                    TextField(
-                        modifier = Modifier.fillMaxWidth(),
-                        value = personNameState,
-                        onValueChange = { personNameState = it },
-                        label = { Text(text = "Nome da pessoa") },
-                        singleLine = true,
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-            
-            // Campo CPF (somente leitura)
-            TextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = if (funcionarioCpf.isNotEmpty()) formatCPF(funcionarioCpf) else "Não informado",
-                onValueChange = { },
-                label = { Text(text = "CPF") },
-                singleLine = true,
-                enabled = false,
-                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Campo Cargo (somente leitura)
-            TextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = if (funcionarioCargo.isNotEmpty()) funcionarioCargo else "Não informado",
-                onValueChange = { },
-                label = { Text(text = "Cargo") },
-                singleLine = true,
-                enabled = false,
-                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Campo Órgão (somente leitura)
-            TextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = if (funcionarioOrgao.isNotEmpty()) funcionarioOrgao else "Não informado",
-                onValueChange = { },
-                label = { Text(text = "Órgão") },
-                singleLine = true,
-                enabled = false,
-                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Campo Lotação (somente leitura)
-            TextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
-                onValueChange = { },
-                label = { Text(text = "Lotação") },
-                singleLine = true,
-                enabled = false,
-                colors = androidx.compose.material3.TextFieldDefaults.colors(
-                    disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                )
-            )
-                }
-            }
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-                // ✅ NOVO: Seção de debug (apenas em desenvolvimento)
-    if (funcionarioCpf.isEmpty() || funcionarioCargo.isEmpty() || funcionarioOrgao.isEmpty() || funcionarioLotacao.isEmpty()) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = Color(0xFFFF9800).copy(alpha = 0.1f)
-            ),
-            elevation = CardDefaults.cardElevation(
-                defaultElevation = 2.dp
-            )
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = "Aviso",
-                        tint = Color(0xFFFF9800),
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Dados Incompletos",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFF9800)
-                    )
-                }
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
+            item {
+                // ✅ NOVO: Título da seção
                 Text(
-                    text = "Alguns dados do funcionário não foram carregados corretamente. Verifique se os dados estão sendo passados da tela anterior.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFFFF9800)
+                    text = "Cadastro Facial",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-    
-    // ✅ NOVO: LaunchedEffect para monitorar o diálogo de confirmação
-    LaunchedEffect(viewModel.showDeleteConfirmation.value) {
-        if (viewModel.showDeleteConfirmation.value) {
-            createAlertDialog(
-                dialogTitle = "Excluir Usuário",
-                dialogText = "Tem certeza que deseja excluir o usuário '$personNameState' e todas as suas faces cadastradas? Esta ação não pode ser desfeita.",
-                dialogPositiveButtonText = "Excluir",
-                onPositiveButtonClick = { viewModel.deleteUserAndFaces() },
-                dialogNegativeButtonText = "Cancelar",
-                onNegativeButtonClick = { viewModel.cancelDelete() }
-            )
-        }
-    }
-            
-            // Informações sobre as fotos
-            Text(
-                text = "Fotos capturadas: ${viewModel.selectedImageURIs.value.size}/3",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            // Última foto cadastrada
-            if (viewModel.selectedImageURIs.value.isNotEmpty()) {
-                Text(
-                    text = "Última foto cadastrada:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
                 
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                // ✅ NOVO: Card com dados do funcionário
                 Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                     ),
-                    elevation = CardDefaults.cardElevation(
-                        defaultElevation = 2.dp
-                    )
+
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                    Column(
+                        modifier = Modifier.padding(16.dp)
                     ) {
-                        AsyncImage(
-                            model = viewModel.selectedImageURIs.value.last(),
-                            contentDescription = "Última foto capturada",
-                            modifier = Modifier.fillMaxSize()
+                        Text(
+                            text = "Dados do Funcionário",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
                         )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Campo Nome (editável)
+                        TextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = personNameState,
+                            onValueChange = { personNameState = it },
+                            label = { Text(text = "Nome da pessoa") },
+                            singleLine = true,
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                
+                // Campo CPF (somente leitura)
+                TextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = if (funcionarioCpf.isNotEmpty()) formatCPF(funcionarioCpf) else "Não informado",
+                    onValueChange = { },
+                    label = { Text(text = "CPF") },
+                    singleLine = true,
+                    enabled = false,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Campo Cargo (somente leitura)
+                TextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = if (funcionarioCargo.isNotEmpty()) funcionarioCargo else "Não informado",
+                    onValueChange = { },
+                    label = { Text(text = "Cargo") },
+                    singleLine = true,
+                    enabled = false,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Campo Órgão (somente leitura)
+                TextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = if (funcionarioOrgao.isNotEmpty()) funcionarioOrgao else "Não informado",
+                    onValueChange = { },
+                    label = { Text(text = "Órgão") },
+                    singleLine = true,
+                    enabled = false,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Campo Lotação (somente leitura)
+                TextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
+                    onValueChange = { },
+                    label = { Text(text = "Lotação") },
+                    singleLine = true,
+                    enabled = false,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
                     }
                 }
+                
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+            
+            // ✅ NOVO: Botão de Desativação/Ativação do Funcionário
+            if (funcionarioId > 0) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 2.dp
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Gerenciar Status do Funcionário",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            // ✅ NOVO: Botão de Ativação/Desativação
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Status atual
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                        contentDescription = if (isActive) "Ativo" else "Inativo",
+                                        tint = if (isActive) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Status: ${if (isActive) "ATIVO" else "INATIVO"}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium,
+                                        color = if (isActive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                                    )
+                                }
+                                
+                                // Botão de ação
+                                androidx.compose.material3.OutlinedButton(
+                                    onClick = {
+                                        // Toggle do status
+                                        try {
+                                            val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                                            if (isActive) {
+                                                funcionariosDao.deactivateFuncionario(funcionarioId)
+                                                isActive = false
+                                            } else {
+                                                funcionariosDao.activateFuncionario(funcionarioId)
+                                                isActive = true
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("AddFaceScreen", "❌ Erro ao alterar status: ${e.message}")
+                                        }
+                                    },
+                                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                        contentColor = if (isActive) Color(0xFFD32F2F) else Color(0xFF4CAF50)
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isActive) Color(0xFFD32F2F) else Color(0xFF4CAF50)
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = if (isActive) Icons.Default.Cancel else Icons.Default.CheckCircle,
+                                        contentDescription = if (isActive) "Desativar" else "Ativar",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isActive) "Desativar" else "Ativar",
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                }
+                            }
+                            
+                            // ✅ NOVO: Aviso para funcionários inativos
+                            if (!isActive) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color(0xFFFFEBEE)
+                                    ),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        width = 1.dp,
+                                        color = Color(0xFFF44336)
+                                    )
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Aviso",
+                                            tint = Color(0xFFD32F2F),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Funcionário inativo - operações de facial bloqueadas",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFD32F2F),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+            }
+            
+            item {
+                // Informações sobre as fotos
+                Text(
+                    text = "Fotos capturadas: ${viewModel.selectedImageURIs.value.size}/3",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 Spacer(modifier = Modifier.height(16.dp))
             }
             
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                Button(
-                    enabled = personNameState.isNotEmpty(),
-                    onClick = { isInCaptureMode = true },
-                ) {
-                    Icon(imageVector = Icons.Default.Camera, contentDescription = "Cadastrar Facial")
-                    Text(text = "Cadastrar Facial")
-                }
-                
-                DelayedVisibility(viewModel.selectedImageURIs.value.size >= 3) {
-                    Button(onClick = { 
-                        viewModel.updatePersonName(personNameState)
-                        viewModel.addImages() 
-                    }) { 
-                        Text(text = "Adicionar ao banco") 
+            // Última foto cadastrada
+            if (viewModel.selectedImageURIs.value.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Última foto cadastrada:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(200.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surface
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 2.dp
+                        )
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = viewModel.selectedImageURIs.value.last(),
+                                contentDescription = "Última foto capturada",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            item {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Button(
+                        enabled = personNameState.isNotEmpty(),
+                        onClick = { isInCaptureMode = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF264064)
+                        ),
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
+                    ) {
+                        Text(text = "Cadastrar Facial")
+                    }
+                    
+                    if (viewModel.selectedImageURIs.value.size >= 3) {
+                        Button(
+                            onClick = { 
+                                viewModel.updatePersonName(personNameState)
+                                viewModel.saveFaces() 
+                            },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF4CAF50)
+                            )
+                        ) {
+                            Text(text = "Adicionar ao banco") 
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
             
             // ✅ NOVO: Botão para excluir usuário (apenas se há um funcionário válido)
             if (funcionarioId > 0) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center,
-                ) {
+                item {
                     Button(
                         onClick = { viewModel.showDeleteConfirmationDialog() },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color.Red
                         ),
-                        enabled = !viewModel.isDeletingUser.value
+                        enabled = !viewModel.isDeletingUser.value,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                    if (viewModel.isDeletingUser.value) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Excluindo...",
-                            color = Color.White
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Excluir Usuário",
-                            tint = Color.White
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Excluir Usuário e Faces",
-                            color = Color.White
-                        )
+                        if (viewModel.isDeletingUser.value) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Excluindo...",
+                                color = Color.White
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Excluir Usuário",
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Excluir Usuário e Faces",
+                                color = Color.White
+                            )
+                        }
                     }
                 }
             }
+            
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                ImagesGrid(viewModel)
             }
-            
-            if (viewModel.selectedImageURIs.value.isEmpty()) {
-                // Text(
-                //     text = "Clique em 'Capturar Fotos' para tirar 3 fotos do funcionário",
-                //     style = MaterialTheme.typography.bodySmall,
-                //     color = MaterialTheme.colorScheme.onSurfaceVariant
-                // )
-            }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            ImagesGrid(viewModel)
         }
     }
 }
@@ -532,22 +620,35 @@ private fun CapturePhotosScreen(
 ) {
     val context = LocalContext.current
     
-    cameraPermissionStatus.value = ActivityCompat.checkSelfPermission(
-        context, 
-        Manifest.permission.CAMERA
-    ) == PackageManager.PERMISSION_GRANTED
+    // ✅ CORRIGIDO: Verificação de permissão mais robusta
+    var hasCameraPermission by remember { 
+        mutableStateOf(
+            ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    
+    cameraPermissionStatus.value = hasCameraPermission
     
     cameraPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
+        hasCameraPermission = granted
+        cameraPermissionStatus.value = granted
+        
         if (granted) {
-            cameraPermissionStatus.value = true
+            android.util.Log.d("AddFaceScreen", "✅ Permissão da câmera concedida")
+        } else {
+            android.util.Log.w("AddFaceScreen", "⚠️ Permissão da câmera negada")
         }
     }
     
     Box(modifier = Modifier.fillMaxSize()) {
-        if (cameraPermissionStatus.value) {
-            // Câmera integrada
+        if (hasCameraPermission) {
+            // ✅ CORRIGIDO: Câmera integrada com verificação adicional
+            LaunchedEffect(Unit) {
+                android.util.Log.d("AddFaceScreen", "📷 Iniciando captura de câmera...")
+            }
+            
             IntegratedCameraCapture(
                 personName = personName,
                 funcionarioCpf = funcionarioCpf,
@@ -559,32 +660,67 @@ private fun CapturePhotosScreen(
                 onSuccess = onSuccess
             )
         } else {
-            // Solicitar permissão
+            // ✅ MELHORADO: Solicitar permissão com interface mais amigável
             Column(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
+                Icon(
+                    imageVector = Icons.Default.Camera,
+                    contentDescription = "Câmera",
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
                 Text(
                     "Permissão da Câmera Necessária",
                     style = MaterialTheme.typography.headlineSmall,
                     textAlign = TextAlign.Center,
+                    fontWeight = FontWeight.Bold
                 )
+                
                 Spacer(modifier = Modifier.height(16.dp))
+                
                 Text(
                     "O app precisa da permissão da câmera para capturar fotos do funcionário.",
                     textAlign = TextAlign.Center,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                
                 Spacer(modifier = Modifier.height(24.dp))
+                
                 Button(
-                    onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }
+                    onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
+                    modifier = Modifier.fillMaxWidth(0.8f)
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.Camera,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Permitir Câmera")
                 }
+                
                 Spacer(modifier = Modifier.height(16.dp))
+                
                 Button(
-                    onClick = onBackToForm
+                    onClick = onBackToForm,
+                    modifier = Modifier.fillMaxWidth(0.8f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Voltar")
                 }
             }
@@ -619,6 +755,23 @@ private fun IntegratedCameraCapture(
     // ✅ MELHORADO: LaunchedEffect para capturar fotos automaticamente com countdown visual
     LaunchedEffect(Unit) {
         android.util.Log.d("AddFaceScreen", "🚀 === INICIANDO CAPTURA AUTOMÁTICA ===")
+        
+        // ✅ NOVO: Aguardar a câmera ser inicializada
+        var attempts = 0
+        val maxAttempts = 10
+        
+        while (imageCapture == null && attempts < maxAttempts && isActive) {
+            android.util.Log.d("AddFaceScreen", "⏳ Aguardando inicialização da câmera... Tentativa ${attempts + 1}/$maxAttempts")
+            delay(500)
+            attempts++
+        }
+        
+        if (imageCapture == null) {
+            android.util.Log.e("AddFaceScreen", "❌ Câmera não foi inicializada após $maxAttempts tentativas!")
+            return@LaunchedEffect
+        }
+        
+        android.util.Log.d("AddFaceScreen", "✅ Câmera inicializada, iniciando captura...")
         
         var photoCount = 0
         val totalPhotos = 3
@@ -781,24 +934,75 @@ private fun IntegratedCameraCapture(
                             .setJpegQuality(90) // ✅ NOVO: Qualidade JPEG otimizada
                             .build()
                         
-                        val cameraSelector = androidx.camera.core.CameraSelector.Builder()
-                            .requireLensFacing(cameraFacing)
-                            .build()
+                        // ✅ CORRIGIDO: Seleção de câmera mais robusta
+                        val cameraSelector = try {
+                            // Primeiro tenta a câmera frontal
+                            androidx.camera.core.CameraSelector.Builder()
+                                .requireLensFacing(androidx.camera.core.CameraSelector.LENS_FACING_FRONT)
+                                .build()
+                        } catch (e: Exception) {
+                            android.util.Log.w("AddFaceScreen", "⚠️ Câmera frontal não disponível, tentando traseira...")
+                            try {
+                                // Se falhar, tenta a câmera traseira
+                                androidx.camera.core.CameraSelector.Builder()
+                                    .requireLensFacing(androidx.camera.core.CameraSelector.LENS_FACING_BACK)
+                                    .build()
+                            } catch (e2: Exception) {
+                                android.util.Log.w("AddFaceScreen", "⚠️ Câmera traseira não disponível, usando padrão...")
+                                // Se ambas falharem, usa o padrão do sistema
+                                androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA
+                            }
+                        }
+                        
+                        android.util.Log.d("AddFaceScreen", "📷 CameraSelector criado com sucesso")
                         
                         preview.setSurfaceProvider(previewView.surfaceProvider)
                         
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            capture
-                        )
+                        // ✅ CORRIGIDO: Verificar se a câmera está disponível antes de fazer bind
+                        val availableCameras = cameraProvider.availableCameraInfos
+                        if (availableCameras.isEmpty()) {
+                            android.util.Log.e("AddFaceScreen", "❌ Nenhuma câmera disponível!")
+                            return@addListener
+                        }
                         
-                        // ✅ MELHORADO: Armazenar referência do ImageCapture com verificação
-                        imageCapture = capture
-                        android.util.Log.d("AddFaceScreen", "✅ Câmera inicializada com sucesso!")
-                        android.util.Log.d("AddFaceScreen", "📷 ImageCapture configurado: ${imageCapture != null}")
+                        android.util.Log.d("AddFaceScreen", "📷 Câmeras disponíveis: ${availableCameras.size}")
+                        
+                        cameraProvider.unbindAll()
+                        
+                        try {
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                cameraSelector,
+                                preview,
+                                capture
+                            )
+                            
+                            // ✅ MELHORADO: Armazenar referência do ImageCapture com verificação
+                            imageCapture = capture
+                            android.util.Log.d("AddFaceScreen", "✅ Câmera inicializada com sucesso!")
+                            android.util.Log.d("AddFaceScreen", "📷 ImageCapture configurado: ${imageCapture != null}")
+                            
+                        } catch (e: Exception) {
+                            android.util.Log.e("AddFaceScreen", "❌ Erro ao fazer bind da câmera: ${e.message}")
+                            
+                            // ✅ NOVO: Tentar com câmera padrão se a selecionada falhar
+                            try {
+                                android.util.Log.d("AddFaceScreen", "🔄 Tentando com câmera padrão...")
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA,
+                                    preview,
+                                    capture
+                                )
+                                
+                                imageCapture = capture
+                                android.util.Log.d("AddFaceScreen", "✅ Câmera padrão inicializada com sucesso!")
+                                
+                            } catch (e2: Exception) {
+                                android.util.Log.e("AddFaceScreen", "❌ Falha total na inicialização da câmera: ${e2.message}")
+                                e2.printStackTrace()
+                            }
+                        }
                         
                     } catch (e: Exception) {
                         android.util.Log.e("AddFaceScreen", "❌ Erro ao inicializar câmera: ${e.message}")
@@ -980,12 +1184,13 @@ private fun IntegratedCameraCapture(
                             .size(60.dp)
                             .padding(4.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (index < viewModel.selectedImageURIs.value.size) Color.Green else Color.White.copy(alpha = 0.3f)
+                            containerColor = Color(0xFF264064)
                         )
                     ) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                            contentAlignment = Alignment.Center,
+                            
                         ) {
                             if (index < viewModel.selectedImageURIs.value.size) {
                                 Icon(
@@ -1012,8 +1217,19 @@ private fun IntegratedCameraCapture(
 @Composable
 private fun ImagesGrid(viewModel: AddFaceScreenViewModel) {
     val uris by remember { viewModel.selectedImageURIs }
-    LazyVerticalGrid(columns = GridCells.Fixed(2)) {
-        items(uris) { AsyncImage(model = it, contentDescription = null) }
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        modifier = Modifier.height(200.dp)
+    ) {
+        items(uris) { uri ->
+            AsyncImage(
+                model = uri, 
+                contentDescription = null,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .aspectRatio(1f)
+            )
+        }
     }
 }
 

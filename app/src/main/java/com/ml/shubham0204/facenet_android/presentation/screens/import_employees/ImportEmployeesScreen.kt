@@ -193,24 +193,12 @@ fun ImportEmployeesScreen(
                                 val lastVisibleIndex = visibleItems.lastOrNull()?.index ?: 0
                                 val totalItems = uiState.funcionarios.size
                                 
-                                // ✅ NOVO: Log para debug de cada scroll
-                                Log.d("ImportEmployeesScreen", "📱 Scroll detectado:")
-                                Log.d("ImportEmployeesScreen", "   - lastVisibleIndex: $lastVisibleIndex")
-                                Log.d("ImportEmployeesScreen", "   - totalItems: $totalItems")
-                                Log.d("ImportEmployeesScreen", "   - isLoadingMore: ${uiState.isLoadingMore}")
-                                Log.d("ImportEmployeesScreen", "   - hasMorePages: ${uiState.hasMorePages}")
-                                Log.d("ImportEmployeesScreen", "   - Diferença: ${totalItems - lastVisibleIndex}")
-                                
+
                                 // Carregar quando estiver próximo ao final (2 itens antes para ser mais sensível)
                                 if (lastVisibleIndex >= totalItems - 2 && 
                                     totalItems > 0 && 
                                     !uiState.isLoadingMore && 
                                     uiState.hasMorePages) {
-                                    
-                                    Log.d("ImportEmployeesScreen", "🚀 CONDIÇÃO ATENDIDA - carregando mais:")
-                                    Log.d("ImportEmployeesScreen", "   - lastVisibleIndex: $lastVisibleIndex")
-                                    Log.d("ImportEmployeesScreen", "   - totalItems: $totalItems")
-                                    Log.d("ImportEmployeesScreen", "   - Diferença: ${totalItems - lastVisibleIndex}")
                                     
                                     viewModel.loadMoreFuncionarios()
                                 }
@@ -303,6 +291,14 @@ fun ImportEmployeesScreen(
                 )
             }
         }
+    }
+}
+
+private fun formatCPF(cpf: String): String {
+    return if (cpf.length >= 11) {
+        "${cpf.substring(0, 3)}.***.***-${cpf.substring(9, 11)}"
+    } else {
+        cpf
     }
 }
 
@@ -402,12 +398,15 @@ private fun FuncionarioCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
-                    Text(
-                        text = "CPF: ${funcionario.numero_cpf}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
-                    )
                 }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "CPF: ${formatCPF(funcionario.numero_cpf)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 
@@ -459,4 +458,4 @@ private fun FuncionarioCard(
             }
         }
     }
-} 
+}

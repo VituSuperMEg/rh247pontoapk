@@ -85,14 +85,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             try {
                 val cpfLimpo = funcionario.numero_cpf.replace(Regex("[^0-9]"), "")
                 
-                Log.d("ImportEmployeesViewModel", "📝 Dados do funcionário:")
-                Log.d("ImportEmployeesViewModel", "   - ID: ${funcionario.id}")
-                Log.d("ImportEmployeesViewModel", "   - Nome: ${funcionario.nome}")
-                Log.d("ImportEmployeesViewModel", "   - CPF Original: ${funcionario.numero_cpf}")
-                Log.d("ImportEmployeesViewModel", "   - CPF Limpo: $cpfLimpo")
-                Log.d("ImportEmployeesViewModel", "   - Matrícula: ${funcionario.matricula}")
-                Log.d("ImportEmployeesViewModel", "   - Cargo: ${funcionario.cargo_descricao}")
-                
+
                 // Verificar se já existe por ID da API
                 val funcionarioExistente = funcionariosDao.getByApiId(funcionario.id.toLong())
                 if (funcionarioExistente != null) {
@@ -116,7 +109,8 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     cargo = funcionario.cargo_descricao,
                     secretaria = funcionario.orgao_descricao ?: "N/A",
                     lotacao = funcionario.setor_descricao ?: "N/A",
-                    apiId = funcionario.id.toLong() // ID original da API
+                    apiId = funcionario.id.toLong(), // ID original da API
+                    dataImportacao = System.currentTimeMillis() // Timestamp da importação
                 )
                 
                 Log.d("ImportEmployeesViewModel", "💾 Salvando no banco de dados...")
@@ -195,9 +189,12 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 val funcionarios = response.data ?: emptyList()
                 
                 if (funcionarios.isNotEmpty()) {
+                    // ✅ NOVO: Ordenar funcionários alfabeticamente por nome
+                    val funcionariosOrdenados = funcionarios.sortedBy { it.nome }
+                    
                     _uiState.update { 
                         it.copy(
-                            funcionarios = funcionarios,
+                            funcionarios = funcionariosOrdenados,
                             isLoading = false,
                             hasMorePages = funcionarios.size >= 10 // Assumindo 10 por página
                         )
@@ -252,17 +249,20 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     val currentList = _uiState.value.funcionarios.toMutableList()
                     currentList.addAll(funcionarios)
                     
+                    // ✅ NOVO: Ordenar a lista completa alfabeticamente por nome
+                    val listaOrdenada = currentList.sortedBy { it.nome }
+                    
                     // ✅ NOVO: Verificar se há mais páginas baseado no tamanho da resposta
                     // A API retorna 10 funcionários por página (per_page: 10)
                     val hasMore = funcionarios.size >= 10 // Corrigido de 20 para 10
                     
                     Log.d("ImportEmployeesViewModel", "✅ Adicionando ${funcionarios.size} funcionários")
-                    Log.d("ImportEmployeesViewModel", "📊 Total agora: ${currentList.size}")
+                    Log.d("ImportEmployeesViewModel", "📊 Total agora: ${listaOrdenada.size}")
                     Log.d("ImportEmployeesViewModel", "🔄 Há mais páginas: $hasMore")
                     
                     _uiState.update { 
                         it.copy(
-                            funcionarios = currentList,
+                            funcionarios = listaOrdenada,
                             isLoadingMore = false,
                             hasMorePages = hasMore
                         )
@@ -371,11 +371,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         funcionarios: List<FuncionariosModel>, 
         descricao: String
     ): List<FuncionariosModel> {
-        if (descricao.isEmpty()) return funcionarios
+        if (descricao.isEmpty()) return funcionarios.sortedBy { it.nome } // ✅ NOVO: Ordenar mesmo quando não há filtro
         
         val descricaoUpper = descricao.uppercase()
         
-        return funcionarios.filter { funcionario ->
+        val funcionariosFiltrados = funcionarios.filter { funcionario ->
             val nome = funcionario.nome.uppercase()
             val cargo = funcionario.cargo_descricao.uppercase()
             val orgao = funcionario.orgao_descricao?.uppercase() ?: ""
@@ -391,6 +391,9 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             matricula.contains(descricaoUpper) ||
             (cpfBusca.isNotEmpty() && cpf.contains(cpfBusca))
         }
+        
+        // ✅ NOVO: Ordenar resultados filtrados alfabeticamente por nome
+        return funcionariosFiltrados.sortedBy { it.nome }
     }
 }
 

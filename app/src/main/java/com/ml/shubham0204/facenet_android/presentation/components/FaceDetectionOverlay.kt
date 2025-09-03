@@ -54,7 +54,8 @@ class FaceDetectionOverlay(
     private var lastRecognizedPerson: String? = null
 
     init {
-        initializeCamera(cameraFacing)
+        // ✅ CORRIGIDO: Não inicializar câmera automaticamente no init
+        // A câmera será inicializada quando necessário
         doOnLayout {
             overlayHeight = it.measuredHeight
             overlayWidth = it.measuredWidth
@@ -72,54 +73,154 @@ class FaceDetectionOverlay(
     fun getLastRecognizedPerson(): String? {
         return lastRecognizedPerson
     }
+    
+    // ✅ NOVO: Função para limpar recursos da câmera
+    fun cleanupCamera() {
+        try {
+            android.util.Log.d("FaceDetectionOverlay", "🧹 Limpando recursos da câmera...")
+            
+            // Remover views se existirem
+            if (::previewView.isInitialized) {
+                removeView(previewView)
+            }
+            if (::boundingBoxOverlay.isInitialized) {
+                removeView(boundingBoxOverlay)
+            }
+            
+            android.util.Log.d("FaceDetectionOverlay", "✅ Recursos da câmera limpos com sucesso")
+            
+        } catch (e: Exception) {
+            android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao limpar câmera: ${e.message}")
+        }
+    }
 
     fun initializeCamera(cameraFacing: Int) {
+        // ✅ CORRIGIDO: Verificar se já está inicializando para evitar múltiplas inicializações
+        if (::previewView.isInitialized && ::boundingBoxOverlay.isInitialized) {
+            android.util.Log.d("FaceDetectionOverlay", "📷 Câmera já inicializada, pulando...")
+            return
+        }
+        
         this.cameraFacing = cameraFacing
         this.isImageTransformedInitialized = false
         this.isBoundingBoxTransformedInitialized = false
+        
+        android.util.Log.d("FaceDetectionOverlay", "📷 Iniciando inicialização da câmera...")
+        
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val previewView = PreviewView(context)
         val executor = ContextCompat.getMainExecutor(context)
         cameraProviderFuture.addListener(
             {
-                val cameraProvider = cameraProviderFuture.get()
-                val preview =
-                    Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
+                try {
+                    val cameraProvider = cameraProviderFuture.get()
+                    val preview =
+                        Preview.Builder().build().also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                        }
+                    
+                    // ✅ CORRIGIDO: Seleção de câmera mais robusta
+                    val cameraSelector = try {
+                        // Primeiro tenta a câmera especificada
+                        CameraSelector.Builder().requireLensFacing(cameraFacing).build()
+                    } catch (e: Exception) {
+                        android.util.Log.w("FaceDetectionOverlay", "⚠️ Câmera $cameraFacing não disponível, tentando frontal...")
+                        try {
+                            // Se falhar, tenta a câmera frontal
+                            CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_FRONT).build()
+                        } catch (e2: Exception) {
+                            android.util.Log.w("FaceDetectionOverlay", "⚠️ Câmera frontal não disponível, tentando traseira...")
+                            try {
+                                // Se falhar, tenta a câmera traseira
+                                CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_BACK).build()
+                            } catch (e3: Exception) {
+                                android.util.Log.w("FaceDetectionOverlay", "⚠️ Câmera traseira não disponível, usando padrão...")
+                                // Se todas falharem, usa o padrão do sistema
+                                CameraSelector.DEFAULT_FRONT_CAMERA
+                            }
+                        }
                     }
-                val cameraSelector =
-                    CameraSelector.Builder().requireLensFacing(cameraFacing).build()
-                val frameAnalyzer =
-                    ImageAnalysis
-                        .Builder()
-                        .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-                        .build()
-                frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    frameAnalyzer,
-                )
+                    
+                    android.util.Log.d("FaceDetectionOverlay", "📷 CameraSelector criado com sucesso")
+                    
+                    val frameAnalyzer =
+                        ImageAnalysis
+                            .Builder()
+                            .setTargetAspectRatio(AspectRatio.RATIO_16_9)
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                            .build()
+                    frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
+                    
+                    // ✅ CORRIGIDO: Verificar se a câmera está disponível antes de fazer bind
+                    val availableCameras = cameraProvider.availableCameraInfos
+                    if (availableCameras.isEmpty()) {
+                        android.util.Log.e("FaceDetectionOverlay", "❌ Nenhuma câmera disponível!")
+                        return@addListener
+                    }
+                    
+                    android.util.Log.d("FaceDetectionOverlay", "📷 Câmeras disponíveis: ${availableCameras.size}")
+                    
+                    cameraProvider.unbindAll()
+                    
+                    try {
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            cameraSelector,
+                            preview,
+                            frameAnalyzer,
+                        )
+                        
+                        android.util.Log.d("FaceDetectionOverlay", "✅ Câmera inicializada com sucesso!")
+                        
+                    } catch (e: Exception) {
+                        android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao fazer bind da câmera: ${e.message}")
+                        
+                        // ✅ NOVO: Tentar com câmera padrão se a selecionada falhar
+                        try {
+                            android.util.Log.d("FaceDetectionOverlay", "🔄 Tentando com câmera padrão...")
+                            cameraProvider.bindToLifecycle(
+                                lifecycleOwner,
+                                CameraSelector.DEFAULT_FRONT_CAMERA,
+                                preview,
+                                frameAnalyzer,
+                            )
+                            
+                            android.util.Log.d("FaceDetectionOverlay", "✅ Câmera padrão inicializada com sucesso!")
+                            
+                        } catch (e2: Exception) {
+                            android.util.Log.e("FaceDetectionOverlay", "❌ Falha total na inicialização da câmera: ${e2.message}")
+                            e2.printStackTrace()
+                        }
+                    }
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao inicializar câmera: ${e.message}")
+                    e.printStackTrace()
+                }
             },
             executor,
         )
-        if (childCount == 2) {
-            removeView(this.previewView)
-            removeView(this.boundingBoxOverlay)
-        }
-        this.previewView = previewView
-        addView(this.previewView)
+        // ✅ CORRIGIDO: Verificar se o componente está visível antes de adicionar views
+        if (visibility == VISIBLE) {
+            if (childCount == 2) {
+                removeView(this.previewView)
+                removeView(this.boundingBoxOverlay)
+            }
+            this.previewView = previewView
+            addView(this.previewView)
 
-        val boundingBoxOverlayParams =
-            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
-        this.boundingBoxOverlay = BoundingBoxOverlay(context)
-        this.boundingBoxOverlay.setWillNotDraw(false)
-        this.boundingBoxOverlay.setZOrderOnTop(true)
-        addView(this.boundingBoxOverlay, boundingBoxOverlayParams)
+            val boundingBoxOverlayParams =
+                LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+            this.boundingBoxOverlay = BoundingBoxOverlay(context)
+            this.boundingBoxOverlay.setWillNotDraw(false)
+            this.boundingBoxOverlay.setZOrderOnTop(true)
+            addView(this.boundingBoxOverlay, boundingBoxOverlayParams)
+            
+            android.util.Log.d("FaceDetectionOverlay", "✅ Views da câmera adicionadas com sucesso")
+        } else {
+            android.util.Log.w("FaceDetectionOverlay", "⚠️ Componente não visível, pulando adição de views")
+        }
     }
 
     private val analyzer =
@@ -208,20 +309,48 @@ class FaceDetectionOverlay(
                 
                 // ✅ CORRIGIDO: Capturar a pessoa reconhecida com verificação mais rigorosa
                 val recognizedPerson = results.find { result ->
-                    result.personName != "Not recognized" && 
-                    result.personName != "Não Encontrado" && 
-                    result.personName.isNotEmpty()
+                    val name = result.personName
+                    android.util.Log.d("FaceDetectionOverlay", "🔍 Verificando resultado: '$name' (tipo: ${name::class.java.simpleName})")
+                    
+                    val isValidName = name != "Not recognized" && 
+                                    name != "Não Encontrado" && 
+                                    name != "Error" &&
+                                    name.isNotEmpty() &&
+                                    name != "null" &&
+                                    name != "Nenhuma pessoa cadastrada" &&
+                                    name != "Pessoa não reconhecida"
+                    
+                    android.util.Log.d("FaceDetectionOverlay", "🔍 Resultado válido: $isValidName")
+                    isValidName
                 }
                 
                 if (recognizedPerson != null) {
-                    lastRecognizedPerson = recognizedPerson.personName
-                    // Chamar diretamente o ViewModel para atualizar o estado
-                    viewModel.setLastRecognizedPersonName(recognizedPerson.personName)
-                    android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: ${recognizedPerson.personName}")
+                    val personName = recognizedPerson.personName
+                    lastRecognizedPerson = personName
+                    
+                    // ✅ CORRIGIDO: Chamar diretamente o ViewModel para atualizar o estado
+                    try {
+                        viewModel.setLastRecognizedPersonName(personName)
+                        android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: '$personName' - ViewModel atualizado")
+                    } catch (e: Exception) {
+                        android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao atualizar ViewModel: ${e.message}")
+                    }
                 } else {
                     lastRecognizedPerson = null
-                    viewModel.setLastRecognizedPersonName(null)
-                    android.util.Log.d("FaceDetectionOverlay", "❌ Nenhuma pessoa reconhecida")
+                    
+                    // ✅ CORRIGIDO: Limpar o ViewModel
+                    try {
+                        viewModel.setLastRecognizedPersonName(null)
+                        android.util.Log.d("FaceDetectionOverlay", "🔄 ViewModel limpo (nenhuma pessoa reconhecida)")
+                    } catch (e: Exception) {
+                        android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao limpar ViewModel: ${e.message}")
+                    }
+                    
+                    // ✅ NOVO: Log detalhado para debug
+                    android.util.Log.d("FaceDetectionOverlay", "🔍 Debug - Resultados disponíveis:")
+                    results.forEachIndexed { index, result ->
+                        android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: '${result.personName}' (tipo: ${result.personName::class.java.simpleName})")
+                    }
                 }
                 
                 results.forEach { (name, boundingBox, spoofResult) ->

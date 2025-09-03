@@ -91,6 +91,22 @@ fun ConfiguracoesTab(
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
+                
+                OutlinedTextField(
+                    value = uiState.serverUrl,
+                    onValueChange = { viewModel.updateServerUrl(it) },
+                    label = { Text("URL do Servidor") },
+                    modifier = Modifier.fillMaxWidth(),
+                    isError = uiState.serverUrlError != null
+                )
+                
+                if (uiState.serverUrlError != null) {
+                    Text(
+                        text = uiState.serverUrlError!!,
+                        color = Color.Red,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
             }
         }
         
@@ -168,6 +184,98 @@ fun ConfiguracoesTab(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Sincronizar Agora")
+                }
+            }
+        }
+        
+        // Atualizações do Sistema
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "Atualizações do Sistema",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                // Status da verificação
+                if (uiState.updateMessage != null) {
+                    Text(
+                        text = uiState.updateMessage!!,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (uiState.updateMessage!!.startsWith("✅")) Color.Green 
+                               else if (uiState.updateMessage!!.startsWith("❌")) Color.Red 
+                               else Color.Gray
+                    )
+                }
+                
+                // Informações da atualização disponível
+                if (uiState.hasUpdate && uiState.availableUpdate != null) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E8))
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "📱 Nova Versão Disponível",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Green
+                            )
+                            
+                            Text(
+                                text = "Versão: ${uiState.availableUpdate!!.version}",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            
+                            Text(
+                                text = "Tamanho: ${uiState.availableUpdate!!.fileSizeFormatted}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                            
+                            Text(
+                                text = "Última modificação: ${uiState.availableUpdate!!.lastModified}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                }
+                
+                // Botões de ação
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { viewModel.verificarAtualizacao() },
+                        modifier = Modifier.weight(1f),
+                        enabled = !uiState.isCheckingUpdate && !uiState.isUpdating
+                    ) {
+                        Text(if (uiState.isCheckingUpdate) "Verificando..." else "Verificar Atualizações")
+                    }
+                    
+                    if (uiState.hasUpdate) {
+                        Button(
+                            onClick = { viewModel.atualizarSistema() },
+                            modifier = Modifier.weight(1f),
+                            enabled = !uiState.isUpdating,
+                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                                containerColor = Color.Green
+                            )
+                        ) {
+                            Text(if (uiState.isUpdating) "Baixando..." else "Baixar e Instalar")
+                        }
+                    }
                 }
             }
         }

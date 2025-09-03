@@ -7,6 +7,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesEntity
+import com.ml.shubham0204.facenet_android.data.config.AppPreferences
+import com.ml.shubham0204.facenet_android.data.config.ServerConfig
+import com.ml.shubham0204.facenet_android.data.model.TabletVersionData
+import com.ml.shubham0204.facenet_android.data.repository.TabletUpdateRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +19,7 @@ import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -24,6 +29,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     
     private val configuracoesDao = ConfiguracoesDao()
     private val context: Context by inject()
+    private val tabletUpdateRepository: TabletUpdateRepository by inject()
+    private val appPreferences: AppPreferences by inject()
     
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -46,6 +53,10 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     
     fun updateSincronizacaoAtiva(value: Boolean) {
         _uiState.update { it.copy(sincronizacaoAtiva = value) }
+    }
+    
+    fun updateServerUrl(value: String) {
+        _uiState.update { it.copy(serverUrl = value, serverUrlError = null) }
     }
     
     fun sincronizarAgora() {
@@ -104,11 +115,23 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             return
         }
         
-        if (currentState.entidadeId.length != 9) {
-            _uiState.update { it.copy(entidadeIdError = "Código da Entidade deve ter 9 dígitos") }
-            Toast.makeText(context, "❌ Código da Entidade deve ter 9 dígitos", Toast.LENGTH_SHORT).show()
-            return
-        }
+                        if (currentState.entidadeId.length != 9) {
+                    _uiState.update { it.copy(entidadeIdError = "Código da Entidade deve ter 9 dígitos") }
+                    Toast.makeText(context, "❌ Código da Entidade deve ter 9 dígitos", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                
+                if (currentState.serverUrl.isEmpty()) {
+                    _uiState.update { it.copy(serverUrlError = "URL do Servidor é obrigatória") }
+                    Toast.makeText(context, "❌ URL do Servidor é obrigatória", Toast.LENGTH_SHORT).show()
+                    return
+                }
+                
+                if (!currentState.serverUrl.startsWith("http://") && !currentState.serverUrl.startsWith("https://")) {
+                    _uiState.update { it.copy(serverUrlError = "URL deve começar com http:// ou https://") }
+                    Toast.makeText(context, "❌ URL deve começar com http:// ou https://", Toast.LENGTH_SHORT).show()
+                    return
+                }
         
         viewModelScope.launch {
             try {
@@ -124,6 +147,9 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     sincronizacaoAtiva = currentState.sincronizacaoAtiva,
                     intervaloSincronizacao = 24
                 )
+                
+                // Salvar URL do servidor nas preferências
+                appPreferences.serverUrl = currentState.serverUrl
                 
                 Log.d("SettingsViewModel", "💾 Salvando no banco de dados...")
                 val resultado = configuracoesDao.salvarConfiguracoes(configuracoes)
@@ -158,45 +184,459 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     }
     
     fun verificarAtualizacao() {
+        Log.d("SettingsViewModel", "🚀 Iniciando verificação de atualizações...")
         viewModelScope.launch {
             try {
-                // TODO: Implementar verificação de atualização real
-                val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
-                val historico = HistoricoSincronizacao(
-                    dataHora = dataHora,
-                    mensagem = "Verificação de atualização executada",
-                    status = "Sucesso"
+                _uiState.update { it.copy(isCheckingUpdate = true, updateMessage = "🔍 Verificando atualizações..." as String?) }
+                Log.d("SettingsViewModel", "🔄 Estado atualizado para 'verificando'")
+                
+                val result = tabletUpdateRepository.checkForUpdates()
+                Log.d("SettingsViewModel", "📡 Resultado da verificação recebido: $result")
+                
+                result.fold(
+                    onSuccess = { versionData ->
+                        val currentVersion = tabletUpdateRepository.getCurrentAppVersion()
+                        Log.d("SettingsViewModel", "🔍 Comparando versões:")
+                        Log.d("SettingsViewModel", "   - Versão atual do app: '$currentVersion'")
+                        Log.d("SettingsViewModel", "   - Versão disponível no servidor: '${versionData.version}'")
+                        
+                        val hasUpdate = tabletUpdateRepository.isUpdateAvailable(currentVersion, versionData.version)
+                        Log.d("SettingsViewModel", "   - Há atualização disponível? $hasUpdate")
+                        
+                        if (hasUpdate) {
+                            _uiState.update { 
+                                it.copy(
+                                    isCheckingUpdate = false,
+                                    updateMessage = "✅ Nova versão ${versionData.version} disponível!",
+                                    availableUpdate = versionData,
+                                    hasUpdate = true
+                                )
+                            }
+                            
+                            val historico = HistoricoSincronizacao(
+                                dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                                mensagem = "Nova versão ${versionData.version} encontrada",
+                                status = "Sucesso"
+                            )
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    historicoSincronizacao = it.historicoSincronizacao + historico
+                                )
+                            }
+                        } else {
+                            _uiState.update { 
+                                it.copy(
+                                    isCheckingUpdate = false,
+                                    updateMessage = "ℹ️ Você já está com a versão mais recente (${currentVersion})",
+                                    hasUpdate = false
+                                )
+                            }
+                        }
+                    },
+                    onFailure = { exception ->
+                        val errorMessage = when (exception) {
+                            is java.net.UnknownServiceException -> {
+                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
+                            }
+                            is java.net.ConnectException -> {
+                                "🔌 Erro de conexão com o servidor."
+                            }
+                            is java.net.SocketTimeoutException -> {
+                                "⏰ Timeout na conexão com o servidor."
+                            }
+                            is IllegalArgumentException -> {
+                                "🔗 URL inválida para verificação."
+                            }
+                            else -> {
+                                "❌ Erro ao verificar atualizações: ${exception.message}"
+                            }
+                        }
+                        
+                        _uiState.update { 
+                            it.copy(
+                                isCheckingUpdate = false,
+                                updateMessage = errorMessage,
+                                hasUpdate = false
+                            )
+                        }
+                        
+                        val historico = HistoricoSincronizacao(
+                            dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                            mensagem = "Erro na verificação: ${exception.message}",
+                            status = "Erro"
+                        )
+                        
+                        _uiState.update { 
+                            it.copy(
+                                historicoSincronizacao = it.historicoSincronizacao + historico
+                            )
+                        }
+                        
+                        // Log detalhado do erro
+                        Log.e("SettingsViewModel", "❌ Erro detalhado na verificação", exception)
+                    }
                 )
                 
+            } catch (e: Exception) {
                 _uiState.update { 
                     it.copy(
-                        historicoSincronizacao = it.historicoSincronizacao + historico
+                        isCheckingUpdate = false,
+                        updateMessage = "❌ Erro inesperado: ${e.message}",
+                        hasUpdate = false
                     )
                 }
-            } catch (e: Exception) {
-                // TODO: Tratar erro
             }
         }
     }
     
+    fun downloadDiretoAtualizacaoComVersao(versao: String) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isUpdating = true, updateMessage = "📥 Baixando atualização v$versao..." as String?) }
+                
+                // Rota fixa: 230440023/services/util/download-tablet-apk
+                // Parâmetro dinâmico: versao=$versao.apk
+                val downloadUrl = "https://api.rh247.com.br/${ServerConfig.DOWNLOAD_ENDPOINT}?versao=$versao.apk"
+                val filename = "tablet_update_v$versao.apk"
+                
+                
+                val downloadResult = tabletUpdateRepository.downloadDirectUpdate(downloadUrl, filename)
+                
+                downloadResult.fold(
+                    onSuccess = { apkFile ->
+                        _uiState.update { it.copy(updateMessage = "🔧 Instalando atualização..." as String?) }
+                        
+                        try {
+                            tabletUpdateRepository.installUpdate(apkFile)
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    isUpdating = false,
+                                    updateMessage = "✅ Atualização v$versao baixada e pronta para instalar!",
+                                    hasUpdate = false,
+                                    availableUpdate = null
+                                )
+                            }
+                            
+                            val historico = HistoricoSincronizacao(
+                                dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                                mensagem = "Atualização direta v$versao baixada com sucesso",
+                                status = "Sucesso"
+                            )
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    historicoSincronizacao = it.historicoSincronizacao + historico
+                                )
+                            }
+                            
+                            Toast.makeText(context, "✅ Atualização v$versao baixada! Instale o APK quando solicitado.", Toast.LENGTH_LONG).show()
+                            
+                        } catch (e: Exception) {
+                            _uiState.update { 
+                                it.copy(
+                                    isUpdating = false,
+                                    updateMessage = "❌ Erro ao instalar: ${e.message}",
+                                    hasUpdate = true
+                                )
+                            }
+                            
+                            Toast.makeText(context, "❌ Erro ao instalar: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                        
+                    },
+                    onFailure = { exception ->
+                        val errorMessage = when (exception) {
+                            is java.net.UnknownServiceException -> {
+                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
+                            }
+                            is java.net.ConnectException -> {
+                                "🔌 Erro de conexão com o servidor."
+                            }
+                            is java.net.SocketTimeoutException -> {
+                                "⏰ Timeout na conexão com o servidor."
+                            }
+                            is IllegalArgumentException -> {
+                                "🔗 URL inválida para download."
+                            }
+                            else -> {
+                                "❌ Erro ao baixar atualização: ${exception.message}"
+                            }
+                        }
+                        
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = errorMessage,
+                                hasUpdate = true
+                            )
+                        }
+                        
+                        val historico = HistoricoSincronizacao(
+                            dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                            mensagem = "Erro no download direto v$versao: ${exception.message}",
+                            status = "Erro"
+                        )
+                        
+                        _uiState.update { 
+                            it.copy(
+                                historicoSincronizacao = it.historicoSincronizacao + historico
+                            )
+                        }
+                        
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        
+                        // Log detalhado do erro
+                        Log.e("SettingsViewModel", "❌ Erro detalhado no download direto v$versao", exception)
+                    }
+                )
+                
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = false,
+                        updateMessage = "❌ Erro inesperado: ${e.message}",
+                        hasUpdate = true
+                    )
+                }
+            }
+        }
+    }
+
+    fun downloadDiretoAtualizacao() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isUpdating = true, updateMessage = "📥 Baixando atualização direta..." as String?) }
+                
+                // Construir URL usando o endpoint correto
+                val downloadUrl = "https://api.rh247.com.br/${ServerConfig.DOWNLOAD_ENDPOINT}?versao=1.2.apk"
+                val filename = "tablet_update_v1.2.apk"
+                
+                Log.d("SettingsViewModel", "🔗 URL de download: $downloadUrl")
+                
+                val downloadResult = tabletUpdateRepository.downloadDirectUpdate(downloadUrl, filename)
+                
+                downloadResult.fold(
+                    onSuccess = { apkFile ->
+                        _uiState.update { it.copy(updateMessage = "🔧 Instalando atualização..." as String?) }
+                        
+                        try {
+                            tabletUpdateRepository.installUpdate(apkFile)
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    isUpdating = false,
+                                    updateMessage = "✅ Atualização baixada e pronta para instalar!",
+                                    hasUpdate = false,
+                                    availableUpdate = null
+                                )
+                            }
+                            
+                            val historico = HistoricoSincronizacao(
+                                dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                                mensagem = "Atualização direta v1.2 baixada com sucesso",
+                                status = "Sucesso"
+                            )
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    historicoSincronizacao = it.historicoSincronizacao + historico
+                                )
+                            }
+                            
+                            Toast.makeText(context, "✅ Atualização baixada! Instale o APK quando solicitado.", Toast.LENGTH_LONG).show()
+                            
+                        } catch (e: Exception) {
+                            _uiState.update { 
+                                it.copy(
+                                    isUpdating = false,
+                                    updateMessage = "❌ Erro ao instalar: ${e.message}",
+                                    hasUpdate = true
+                                )
+                            }
+                            
+                            Toast.makeText(context, "❌ Erro ao instalar: ${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                        
+                    },
+                    onFailure = { exception ->
+                        val errorMessage = when (exception) {
+                            is java.net.UnknownServiceException -> {
+                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
+                            }
+                            is java.net.ConnectException -> {
+                                "🔌 Erro de conexão com o servidor."
+                            }
+                            is java.net.SocketTimeoutException -> {
+                                "⏰ Timeout na conexão com o servidor."
+                            }
+                            is IllegalArgumentException -> {
+                                "🔗 URL inválida para download."
+                            }
+                            else -> {
+                                "❌ Erro ao baixar atualização: ${exception.message}"
+                            }
+                        }
+                        
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = errorMessage,
+                                hasUpdate = true
+                            )
+                        }
+                        
+                        val historico = HistoricoSincronizacao(
+                            dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                            mensagem = "Erro no download direto: ${exception.message}",
+                            status = "Erro"
+                        )
+                        
+                        _uiState.update { 
+                            it.copy(
+                                historicoSincronizacao = it.historicoSincronizacao + historico
+                            )
+                        }
+                        
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        
+                        // Log detalhado do erro
+                        Log.e("SettingsViewModel", "❌ Erro detalhado no download direto", exception)
+                    }
+                )
+                
+            } catch (e: Exception) {
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = false,
+                        updateMessage = "❌ Erro inesperado: ${e.message}",
+                        hasUpdate = true
+                    )
+                }
+            }
+        }
+    }
+
     fun atualizarSistema() {
         viewModelScope.launch {
             try {
-                // TODO: Implementar atualização real
-                val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
-                val historico = HistoricoSincronizacao(
-                    dataHora = dataHora,
-                    mensagem = "Atualização do sistema executada",
-                    status = "Sucesso"
+                val currentState = _uiState.value
+                val updateData = currentState.availableUpdate
+                
+                if (updateData == null) {
+                    Toast.makeText(context, "❌ Nenhuma atualização disponível para instalar", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                
+                _uiState.update { it.copy(isUpdating = true, updateMessage = "📥 Baixando atualização..." as String?) }
+                
+                val downloadResult = tabletUpdateRepository.downloadUpdate(updateData)
+                
+                downloadResult.fold(
+                    onSuccess = { apkFile ->
+                        _uiState.update { it.copy(updateMessage = "🔧 Instalando atualização..." as String?) }
+                        
+                        try {
+                            tabletUpdateRepository.installUpdate(apkFile)
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    isUpdating = false,
+                                    updateMessage = "✅ Atualização baixada e pronta para instalar!",
+                                    hasUpdate = false,
+                                    availableUpdate = null
+                                )
+                            }
+                            
+                            val historico = HistoricoSincronizacao(
+                                dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                                mensagem = "Atualização ${updateData.version} baixada com sucesso",
+                                status = "Sucesso"
+                            )
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    historicoSincronizacao = it.historicoSincronizacao + historico
+                                )
+                            }
+                            
+                            Toast.makeText(context, "✅ Atualização baixada! Instale o APK quando solicitado.", Toast.LENGTH_LONG).show()
+                            
+                        } catch (e: Exception) {
+                            _uiState.update { 
+                                it.copy(
+                                    isUpdating = false,
+                                    updateMessage = "❌ Erro ao instalar: ${e.message}",
+                                    hasUpdate = true
+                                )
+                            }
+                            
+                            val historico = HistoricoSincronizacao(
+                                dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                                mensagem = "Erro na instalação: ${e.message}",
+                                status = "Erro"
+                            )
+                            
+                            _uiState.update { 
+                                it.copy(
+                                    historicoSincronizacao = it.historicoSincronizacao + historico
+                                )
+                            }
+                        }
+                    },
+                    onFailure = { exception ->
+                        val errorMessage = when (exception) {
+                            is java.net.UnknownServiceException -> {
+                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
+                            }
+                            is java.net.ConnectException -> {
+                                "🔌 Erro de conexão com o servidor."
+                            }
+                            is java.net.SocketTimeoutException -> {
+                                "⏰ Timeout na conexão com o servidor."
+                            }
+                            is IllegalArgumentException -> {
+                                "🔗 URL inválida para download."
+                            }
+                            else -> {
+                                "❌ Erro no download: ${exception.message}"
+                            }
+                        }
+                        
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = errorMessage,
+                                hasUpdate = true
+                            )
+                        }
+                        
+                        val historico = HistoricoSincronizacao(
+                            dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
+                            mensagem = "Erro no download: ${exception.message}",
+                            status = "Erro"
+                        )
+                        
+                        _uiState.update { 
+                            it.copy(
+                                historicoSincronizacao = it.historicoSincronizacao + historico
+                            )
+                        }
+                        
+                        // Log detalhado do erro
+                        Log.e("SettingsViewModel", "❌ Erro detalhado no download", exception)
+                    }
                 )
                 
+            } catch (e: Exception) {
                 _uiState.update { 
                     it.copy(
-                        historicoSincronizacao = it.historicoSincronizacao + historico
+                        isUpdating = false,
+                        updateMessage = "❌ Erro inesperado: ${e.message}",
+                        hasUpdate = true
                     )
                 }
-            } catch (e: Exception) {
-                // TODO: Tratar erro
             }
         }
     }
@@ -216,6 +656,9 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         )
                     }
                 }
+                
+                // Carregar URL do servidor das preferências
+                _uiState.update { it.copy(serverUrl = appPreferences.serverUrl) }
             } catch (e: Exception) {
                 // TODO: Tratar erro
             }
@@ -227,11 +670,18 @@ data class SettingsUiState(
     val localizacaoId: String = "",
     val codigoSincronizacao: String = "",
     val entidadeId: String = "",
+    val serverUrl: String = "",
     val sincronizacaoAtiva: Boolean = false,
     val localizacaoIdError: String? = null,
     val codigoSincronizacaoError: String? = null,
     val entidadeIdError: String? = null,
-    val historicoSincronizacao: List<HistoricoSincronizacao> = emptyList()
+    val serverUrlError: String? = null,
+    val historicoSincronizacao: List<HistoricoSincronizacao> = emptyList(),
+    val isCheckingUpdate: Boolean = false,
+    val isUpdating: Boolean = false,
+    val updateMessage: String? = null,
+    val hasUpdate: Boolean = false,
+    val availableUpdate: TabletVersionData? = null
 )
 
 data class HistoricoSincronizacao(

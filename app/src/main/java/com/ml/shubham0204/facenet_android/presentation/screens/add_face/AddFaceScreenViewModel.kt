@@ -12,6 +12,7 @@ import com.ml.shubham0204.facenet_android.domain.PersonUseCase
 import com.ml.shubham0204.facenet_android.presentation.components.setProgressDialogText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 import java.io.File
@@ -126,30 +127,41 @@ class AddFaceScreenViewModel(
         }
     }
     
-    fun addImages() {
-        android.util.Log.d("AddFaceScreenViewModel", "🚀 === INICIANDO SALVAMENTO DE FACES ===")
-        android.util.Log.d("AddFaceScreenViewModel", "📝 Nome da pessoa: ${personNameState.value}")
-        android.util.Log.d("AddFaceScreenViewModel", "🆔 FuncionarioId: $funcionarioId")
-        android.util.Log.d("AddFaceScreenViewModel", "📸 Total de fotos: ${selectedImageURIs.value.size}")
-        
-        // ✅ NOVO: Verificar se há fotos para salvar
+    // ✅ NOVO: Função para verificar se funcionário está ativo
+    suspend fun isFuncionarioActive(): Boolean {
+        return personUseCase.isFuncionarioActive(funcionarioId)
+    }
+    
+    // ✅ NOVO: Função para verificar se pode gerenciar facial
+    suspend fun canManageFacial(): Boolean {
+        return personUseCase.canManageFacial(funcionarioId)
+    }
+
+    fun saveFaces() {
         if (selectedImageURIs.value.isEmpty()) {
-            android.util.Log.e("AddFaceScreenViewModel", "❌ NENHUMA FOTO PARA SALVAR!")
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma imagem selecionada")
             return
         }
-        
-        // ✅ NOVO: Verificar se o nome está preenchido
-        if (personNameState.value.isEmpty()) {
-            android.util.Log.e("AddFaceScreenViewModel", "❌ NOME DA PESSOA NÃO PREENCHIDO!")
+
+        if (personNameState.value.isBlank()) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nome da pessoa não informado")
             return
         }
-        
+
         isProcessingImages.value = true
-        showSuccessScreen.value = false
-        numImagesProcessed.value = 0 // ✅ NOVO: Resetar contador
-        
+        numImagesProcessed.value = 0
+
         CoroutineScope(Dispatchers.Default).launch {
             try {
+                // ✅ NOVO: Verificar se funcionário está ativo antes de permitir operações de facial
+                if (!canManageFacial()) {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Funcionário inativo - operação de facial não permitida")
+                    setProgressDialogText("Funcionário inativo - operação não permitida")
+                    delay(2000) // Mostrar mensagem por 2 segundos
+                    isProcessingImages.value = false
+                    return@launch
+                }
+                
                 android.util.Log.d("AddFaceScreenViewModel", "🔄 Iniciando salvamento no banco...")
                 
                 val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)

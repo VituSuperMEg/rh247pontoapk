@@ -24,6 +24,7 @@ class PersonDB {
     fun getAll(): Flow<MutableList<PersonRecord>> =
         personBox
             .query(PersonRecord_.personID.notNull())
+            .order(PersonRecord_.personName) // ✅ NOVO: Ordenar alfabeticamente por nome
             .build()
             .flow()
             .flowOn(Dispatchers.IO)

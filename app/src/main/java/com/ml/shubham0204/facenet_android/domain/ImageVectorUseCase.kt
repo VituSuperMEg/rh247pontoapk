@@ -53,51 +53,108 @@ class ImageVectorUseCase(
         }
     }
 
-    // From the given frame, return the name of the person by performing
-    // face recognition
+    // ✅ CORRIGIDO: From the given frame, return the name of the person by performing
+    // face recognition com melhor tratamento de erro
     suspend fun getNearestPersonName(frameBitmap: Bitmap): Pair<RecognitionMetrics?, List<FaceRecognitionResult>> {
-        // Perform face-detection and get the cropped face as a Bitmap
-        val (faceDetectionResult, t1) =
-            measureTimedValue { mediapipeFaceDetector.getAllCroppedFaces(frameBitmap) }
-        val faceRecognitionResults = ArrayList<FaceRecognitionResult>()
-        var avgT2 = 0L
-        var avgT3 = 0L
-        var avgT4 = 0L
-
-        for (result in faceDetectionResult) {
-            // Get the embedding for the cropped face (query embedding)
-            val (croppedBitmap, boundingBox) = result
-            val (embedding, t2) = measureTimedValue { faceNet.getFaceEmbedding(croppedBitmap) }
-            avgT2 += t2.toLong(DurationUnit.MILLISECONDS)
-            // Perform nearest-neighbor search
-            val (recognitionResult, t3) =
-                measureTimedValue { imagesVectorDB.getNearestEmbeddingPersonName(embedding) }
-            avgT3 += t3.toLong(DurationUnit.MILLISECONDS)
-            if (recognitionResult == null) {
-                faceRecognitionResults.add(FaceRecognitionResult("Not recognized", boundingBox))
-                continue
+        return try {
+            android.util.Log.d("ImageVectorUseCase", "🔍 Iniciando reconhecimento facial...")
+            
+            // Perform face-detection and get the cropped face as a Bitmap
+            val (faceDetectionResult, t1) = try {
+                measureTimedValue { mediapipeFaceDetector.getAllCroppedFaces(frameBitmap) }
+            } catch (e: Exception) {
+                android.util.Log.e("ImageVectorUseCase", "❌ Erro na detecção facial: ${e.message}")
+                return Pair(null, listOf())
             }
+            
+            android.util.Log.d("ImageVectorUseCase", "📸 Faces detectadas: ${faceDetectionResult.size}")
+            
+            val faceRecognitionResults = ArrayList<FaceRecognitionResult>()
+            var avgT2 = 0L
+            var avgT3 = 0L
+            var avgT4 = 0L
 
-            val spoofResult = faceSpoofDetector.detectSpoof(frameBitmap, boundingBox)
-            avgT4 += spoofResult.timeMillis
+            for ((index, result) in faceDetectionResult.withIndex()) {
+                try {
+                    android.util.Log.d("ImageVectorUseCase", "🔍 Processando face $index/${faceDetectionResult.size}")
+                    
+                    // Get the embedding for the cropped face (query embedding)
+                    val (croppedBitmap, boundingBox) = result
+                    
+                    val (embedding, t2) = try {
+                        measureTimedValue { faceNet.getFaceEmbedding(croppedBitmap) }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ImageVectorUseCase", "❌ Erro ao gerar embedding para face $index: ${e.message}")
+                        faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
+                        continue
+                    }
+                    
+                    avgT2 += t2.toLong(DurationUnit.MILLISECONDS)
+                    android.util.Log.d("ImageVectorUseCase", "✅ Embedding gerado para face $index")
+                    
+                    // Perform nearest-neighbor search
+                    val (recognitionResult, t3) = try {
+                        measureTimedValue { imagesVectorDB.getNearestEmbeddingPersonName(embedding) }
+                    } catch (e: Exception) {
+                        android.util.Log.e("ImageVectorUseCase", "❌ Erro na busca por similaridade para face $index: ${e.message}")
+                        faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
+                        continue
+                    }
+                    
+                    avgT3 += t3.toLong(DurationUnit.MILLISECONDS)
+                    
+                    if (recognitionResult == null) {
+                        android.util.Log.d("ImageVectorUseCase", "⚠️ Face $index não reconhecida")
+                        faceRecognitionResults.add(FaceRecognitionResult("Not recognized", boundingBox))
+                        continue
+                    }
 
-            // Calculate cosine similarity between the nearest-neighbor
-            // and the query embedding
-            val distance = cosineDistance(embedding, recognitionResult.faceEmbedding)
-            // If the distance > 0.4, we recognize the person
-            // else we conclude that the face does not match enough
-            if (distance > 0.8) {
-                faceRecognitionResults.add(
-                    FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
-                )
-            } else {
-                faceRecognitionResults.add(
-                    FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
-                )
+                    val spoofResult = try {
+                        faceSpoofDetector.detectSpoof(frameBitmap, boundingBox)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ImageVectorUseCase", "❌ Erro na detecção de spoof para face $index: ${e.message}")
+                        // Continuar sem spoof detection
+                        null
+                    }
+                    
+                    if (spoofResult != null) {
+                        avgT4 += spoofResult.timeMillis
+                    }
+
+                    // Calculate cosine similarity between the nearest-neighbor
+                    // and the query embedding
+                    val distance = try {
+                        cosineDistance(embedding, recognitionResult.faceEmbedding)
+                    } catch (e: Exception) {
+                        android.util.Log.e("ImageVectorUseCase", "❌ Erro no cálculo de similaridade para face $index: ${e.message}")
+                        0.0f // Distância mínima em caso de erro
+                    }
+                    
+                    android.util.Log.d("ImageVectorUseCase", "📊 Face $index - Distância: $distance, Pessoa: ${recognitionResult.personName}")
+                    
+                    // If the distance > 0.6, we recognize the person
+                    // else we conclude that the face does not match enough
+                    if (distance > 0.6) {
+                        android.util.Log.d("ImageVectorUseCase", "✅ Face $index reconhecida como: ${recognitionResult.personName}")
+                        faceRecognitionResults.add(
+                            FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
+                        )
+                    } else {
+                        android.util.Log.d("ImageVectorUseCase", "❌ Face $index não reconhecida (distância: $distance)")
+                        faceRecognitionResults.add(
+                            FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
+                        )
+                    }
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("ImageVectorUseCase", "❌ Erro geral ao processar face $index: ${e.message}")
+                    // ✅ CORRIGIDO: Usar boundingBox do resultado atual
+                    val (_, boundingBox) = result
+                    faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
+                }
             }
-        }
-        val metrics =
-            if (faceDetectionResult.isNotEmpty()) {
+            
+            val metrics = if (faceDetectionResult.isNotEmpty()) {
                 RecognitionMetrics(
                     timeFaceDetection = t1.toLong(DurationUnit.MILLISECONDS),
                     timeFaceEmbedding = avgT2 / faceDetectionResult.size,
@@ -108,7 +165,14 @@ class ImageVectorUseCase(
                 null
             }
 
-        return Pair(metrics, faceRecognitionResults)
+            android.util.Log.d("ImageVectorUseCase", "✅ Reconhecimento concluído: ${faceRecognitionResults.size} resultados")
+            Pair(metrics, faceRecognitionResults)
+            
+        } catch (e: Exception) {
+            android.util.Log.e("ImageVectorUseCase", "❌ Erro fatal no reconhecimento: ${e.message}")
+            e.printStackTrace()
+            Pair(null, listOf())
+        }
     }
 
     private fun cosineDistance(

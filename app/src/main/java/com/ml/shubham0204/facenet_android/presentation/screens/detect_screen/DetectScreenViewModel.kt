@@ -159,13 +159,13 @@ class DetectScreenViewModel(
             if (recognizedPersonName != null && recognizedPersonName != "Not recognized" && recognizedPersonName != "Não Encontrado") {
                 Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida: $recognizedPersonName")
                 
-                // ✅ SIMPLIFICADO: Buscar por nome no banco de funcionários
-                val funcionarios = funcionariosDao.getAll()
-                Log.d("DetectScreenViewModel", "📊 Total de funcionários no banco: ${funcionarios.size}")
+                // ✅ NOVO: Buscar apenas funcionários ATIVOS no banco
+                val funcionarios = funcionariosDao.getActiveFuncionarios()
+                Log.d("DetectScreenViewModel", "📊 Total de funcionários ATIVOS no banco: ${funcionarios.size}")
                 
-                // Listar todos os funcionários para debug
+                // Listar todos os funcionários ativos para debug
                 funcionarios.forEach { funcionario ->
-                    Log.d("DetectScreenViewModel", "📋 Funcionário no banco: ${funcionario.nome}")
+                    Log.d("DetectScreenViewModel", "📋 Funcionário ATIVO no banco: ${funcionario.nome}")
                 }
                 
                 // ✅ MELHORADO: Buscar o funcionário correspondente no banco com comparação mais flexível
@@ -179,20 +179,34 @@ class DetectScreenViewModel(
                 }
                 
                 if (funcionario != null) {
-                    Log.d("DetectScreenViewModel", "✅ Funcionário encontrado no banco: ${funcionario.nome}")
+                    Log.d("DetectScreenViewModel", "✅ Funcionário ATIVO encontrado no banco: ${funcionario.nome}")
                     Log.d("DetectScreenViewModel", "✅ ID do funcionário: ${funcionario.id}")
                     Log.d("DetectScreenViewModel", "✅ CPF do funcionário: ${funcionario.cpf}")
+                    Log.d("DetectScreenViewModel", "✅ Status do funcionário: ${if (funcionario.ativo == 1) "ATIVO" else "INATIVO"}")
                     return funcionario
                 } else {
-                    Log.w("DetectScreenViewModel", "⚠️ Pessoa reconhecida mas não encontrada no banco: $recognizedPersonName")
-                    Log.w("DetectScreenViewModel", "⚠️ Funcionários disponíveis: ${funcionarios.map { it.nome }}")
+                    Log.w("DetectScreenViewModel", "⚠️ Pessoa reconhecida mas não encontrada entre funcionários ATIVOS: $recognizedPersonName")
+                    Log.w("DetectScreenViewModel", "⚠️ Funcionários ATIVOS disponíveis: ${funcionarios.map { it.nome }}")
+                    
+                    // ✅ NOVO: Verificar se existe entre funcionários inativos
+                    val funcionariosInativos = funcionariosDao.getInactiveFuncionarios()
+                    val funcionarioInativo = funcionariosInativos.find { funcionario ->
+                        funcionario.nome == recognizedPersonName ||
+                        funcionario.nome.equals(recognizedPersonName, ignoreCase = true) ||
+                        funcionario.nome.trim() == recognizedPersonName.trim()
+                    }
+                    
+                    if (funcionarioInativo != null) {
+                        Log.w("DetectScreenViewModel", "⚠️ Funcionário encontrado mas está INATIVO: ${funcionarioInativo.nome}")
+                        Log.w("DetectScreenViewModel", "⚠️ Ponto não autorizado para funcionários inativos")
+                    }
                     
                     // ✅ NOVO: Log detalhado para debug
                     Log.w("DetectScreenViewModel", "🔍 === DEBUG DE COMPARAÇÃO ===")
                     Log.w("DetectScreenViewModel", "🔍 Nome reconhecido: '$recognizedPersonName'")
                     Log.w("DetectScreenViewModel", "🔍 Tamanho do nome reconhecido: ${recognizedPersonName.length}")
                     funcionarios.forEach { func ->
-                        Log.w("DetectScreenViewModel", "🔍 Comparando com: '${func.nome}' (tamanho: ${func.nome.length})")
+                        Log.w("DetectScreenViewModel", "🔍 Comparando com ATIVO: '${func.nome}' (tamanho: ${func.nome.length})")
                         Log.w("DetectScreenViewModel", "🔍 Igual exato: ${func.nome == recognizedPersonName}")
                         Log.w("DetectScreenViewModel", "🔍 Igual ignore case: ${func.nome.equals(recognizedPersonName, ignoreCase = true)}")
                         Log.w("DetectScreenViewModel", "🔍 Igual trim: ${func.nome.trim() == recognizedPersonName.trim()}")
