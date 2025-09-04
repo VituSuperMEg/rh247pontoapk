@@ -57,20 +57,13 @@ class PontoSincronizacaoService {
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 
                 if (configuracoes == null) {
-                    Log.e(TAG, "❌ Configurações não encontradas")
                     return@withContext SincronizacaoResult(false, 0, 0, "Configurações não encontradas")
                 }
                 
                 // Verificar se as configurações estão válidas
                 if (configuracoes.entidadeId.isEmpty() || configuracoes.localizacaoId.isEmpty() || configuracoes.codigoSincronizacao.isEmpty()) {
-                    Log.e(TAG, "❌ Configurações inválidas!")
                     return@withContext SincronizacaoResult(false, 0, 0, "Configurações de entidade/localização/código não preenchidas")
                 }
-                
-                Log.d(TAG, "✅ Configurações encontradas:")
-                Log.d(TAG, "  🆔 Entidade ID: '${configuracoes.entidadeId}'")
-                Log.d(TAG, "  📍 Localização ID: '${configuracoes.localizacaoId}'")
-                Log.d(TAG, "  🔑 Código: '${configuracoes.codigoSincronizacao}'")
                 
                 // Buscar pontos não sincronizados
                 val pontosDao = PontosGenericosDao()
@@ -86,9 +79,7 @@ class PontoSincronizacaoService {
                     Log.d(TAG, "  🔹 [$index] ${ponto.funcionarioNome} - ${ponto.tipoPonto} - ${Date(ponto.dataHora)}")
                 }
                 
-                Log.d(TAG, "🔄 Iniciando sincronização de ${pontosPendentes.size} pontos...")
                 
-                // Converter pontos para formato da API
                 val pontosParaAPI = pontosPendentes.map { ponto ->
                     PontoSyncRequest(
                         funcionarioId = ponto.funcionarioCpf, // Usar CPF em vez do ID interno
@@ -130,7 +121,14 @@ class PontoSincronizacaoService {
                     Log.d(TAG, "  observacao: '${pontoAPI.observacao}'")
                     Log.d(TAG, "  fotoBase64: ${if (pontoAPI.fotoBase64?.isNotEmpty() == true) "✅ Presente (${pontoAPI.fotoBase64.length} chars)" else "❌ Ausente"}")
                     if (pontoAPI.fotoBase64?.isNotEmpty() == true) {
-                        Log.d(TAG, "    📸 Início da foto: ${pontoAPI.fotoBase64.take(50)}...")
+                        // ✅ CORRIGIDO: Mostrar início da foto com prefixo
+                        Log.d(TAG, "     Início da foto: ${pontoAPI.fotoBase64.take(80)}...")
+                        // Verificar se tem o prefixo correto
+                        if (pontoAPI.fotoBase64.startsWith("data:image/jpeg;base64,")) {
+                            Log.d(TAG, "    ✅ Prefixo correto detectado: data:image/jpeg;base64,")
+                        } else {
+                            Log.w(TAG, "    ⚠️ Prefixo não encontrado - pode causar erro no servidor")
+                        }
                     }
                     Log.d(TAG, "  ---")
                 }

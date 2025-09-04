@@ -1,8 +1,11 @@
 package com.ml.shubham0204.facenet_android.presentation.screens.reports
 
 import android.content.Context
+import android.content.Intent
+import android.os.Environment
 import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
@@ -11,7 +14,12 @@ import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
+import java.io.File
+import java.io.FileWriter
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 data class ReportsState(
     val points: List<PontosGenericosEntity> = emptyList(),
@@ -119,13 +127,39 @@ class ReportsViewModel(
     fun exportReports(context: Context) {
         viewModelScope.launch {
             try {
-                // TODO: Implementar exportação de relatórios
-                // Pode ser CSV, PDF, etc.
-                Toast.makeText(context, "📤 Exportação em desenvolvimento...", Toast.LENGTH_SHORT).show()
+                reportsState.value = reportsState.value.copy(isLoading = true)
+                
+                val points = reportsState.value.points
+                if (points.isEmpty()) {
+                    Toast.makeText(context, "❌ Nenhum ponto para exportar", Toast.LENGTH_SHORT).show()
+                    reportsState.value = reportsState.value.copy(isLoading = false)
+                    return@launch
+                }
+                
+                // Gerar nome do arquivo com timestamp atual
+                val timestamp = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault()).format(Date())
+                val fileName = "${timestamp}.txt"
+                
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val file = File(downloadsDir, fileName)
+                
+                val afdContent = generateAFDContent(points)
+                
+                FileWriter(file).use { writer ->
+                    writer.write(afdContent)
+                }
+                
+                shareFile(context, file)
+                
+                Toast.makeText(context, "✅ Arquivo AFD exportado: $fileName", Toast.LENGTH_LONG).show()
+                
             } catch (e: Exception) {
+                Toast.makeText(context, "❌ Erro ao exportar: ${e.message}", Toast.LENGTH_LONG).show()
                 reportsState.value = reportsState.value.copy(
                     error = "Erro ao exportar: ${e.message}"
                 )
+            } finally {
+                reportsState.value = reportsState.value.copy(isLoading = false)
             }
         }
     }
@@ -236,5 +270,56 @@ class ReportsViewModel(
         }
         
         return samplePoints
+    }
+
+    private fun generateAFDContent(points: List<PontosGenericosEntity>): String {
+        val stringBuilder = StringBuilder()
+        val dateFormat = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
+        
+        points.forEach { ponto ->
+            // Formatar data/hora (14 posições)
+            val dataHora = dateFormat.format(Date(ponto.dataHora))
+            
+            // Formatar CPF - remover pontos e hífens, manter apenas números (11 posições)
+            val cpf = ponto.funcionarioCpf.replace(Regex("[^0-9]"), "").padEnd(11, ' ').substring(0, 11)
+            
+            // Formatar nome (30 posições, preenchido com espaços à direita)
+            val nome = ponto.funcionarioNome.padEnd(30, ' ').substring(0, 30)
+            
+            // Localizacao ID (10 posições, preenchido com espaços à direita)
+            val localizacaoId = "LOC001".padEnd(10, ' ').substring(0, 10)
+            
+            // Código de sincronização (10 posições, preenchido com espaços à direita)
+            val codSincroniza = "SYNC001".padEnd(10, ' ').substring(0, 10)
+            
+            // Montar linha AFD
+            val linha = "${dataHora}${cpf}${nome}${localizacaoId}${codSincroniza}"
+            stringBuilder.appendLine(linha)
+        }
+        
+        return stringBuilder.toString()
+    }
+    
+    private fun shareFile(context: Context, file: File) {
+        try {
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Arquivo AFD - ${file.name}")
+                putExtra(Intent.EXTRA_TEXT, "Arquivo AFD gerado com os pontos registrados.")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            
+            context.startActivity(Intent.createChooser(intent, "Compartilhar arquivo AFD"))
+        } catch (e: Exception) {
+            // Se falhar ao compartilhar, pelo menos mostra onde foi salvo
+            Toast.makeText(context, "Arquivo salvo em: ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        }
     }
 } 
