@@ -48,6 +48,11 @@ enum class PeriodFilter(
     CUSTOM("Período Personalizado", Icons.Default.DateRange)
 }
 
+sealed class ActiveFilter {
+    data class DATE_RANGE(val startDate: Date, val endDate: Date) : ActiveFilter()
+    data class EMPLOYEE(val employeeName: String) : ActiveFilter()
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(
@@ -65,8 +70,10 @@ fun ReportsScreen(
     var selectedStartDate by remember { mutableStateOf<Date?>(null) }
     var selectedEndDate by remember { mutableStateOf<Date?>(null) }
     var selectedEmployee by remember { mutableStateOf<String?>(null) }
-    var filterType by remember { mutableStateOf<FilterType?>(null) }
     var selectedPeriod by remember { mutableStateOf<PeriodFilter?>(null) }
+    
+    // Lista de filtros ativos
+    var activeFilters by remember { mutableStateOf<List<ActiveFilter>>(emptyList()) }
     
     // Lista de funcionários únicos para o filtro
     val uniqueEmployees = remember(reportsState.points) {
@@ -126,7 +133,7 @@ fun ReportsScreen(
                         }
                         
                         // Indicador de filtro ativo
-                        if (filterType != null) {
+                        if (activeFilters.isNotEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
@@ -188,20 +195,20 @@ fun ReportsScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Seção de Filtros Ativos
-                if (filterType != null) {
+                if (activeFilters.isNotEmpty()) {
                     item {
                         ActiveFiltersSection(
-                            filterType = filterType,
-                            selectedPeriod = selectedPeriod,
-                            selectedStartDate = selectedStartDate,
-                            selectedEndDate = selectedEndDate,
-                            selectedEmployee = selectedEmployee,
-                            onClearFilters = {
-                                filterType = null
-                                selectedPeriod = null
+                            activeFilters = activeFilters,
+                            onRemoveFilter = { filterToRemove ->
+                                activeFilters = activeFilters.filter { it != filterToRemove }
+                                applyFilters(viewModel, activeFilters.filter { it != filterToRemove })
+                            },
+                            onClearAllFilters = {
+                                activeFilters = emptyList()
                                 selectedStartDate = null
                                 selectedEndDate = null
                                 selectedEmployee = null
+                                selectedPeriod = null
                                 viewModel.loadReports()
                             }
                         )
@@ -257,34 +264,34 @@ fun ReportsScreen(
             onDismiss = { showFilterDialog = false },
             onFilterByPeriod = { period ->
                 selectedPeriod = period
-                filterType = when (period) {
-                    PeriodFilter.TODAY -> FilterType.TODAY
-                    PeriodFilter.THIS_WEEK -> FilterType.THIS_WEEK
-                    PeriodFilter.THIS_MONTH -> FilterType.THIS_MONTH
-                    PeriodFilter.THIS_YEAR -> FilterType.THIS_YEAR
+                showFilterDialog = false
+                
+                when (period) {
+                    PeriodFilter.TODAY, PeriodFilter.THIS_WEEK, PeriodFilter.THIS_MONTH, PeriodFilter.THIS_YEAR -> {
+                        // Adicionar filtro de período à lista
+                        val periodFilter = applyPeriodFilter(viewModel, period)
+                        activeFilters = activeFilters.filter { it !is ActiveFilter.DATE_RANGE } + periodFilter
+                        applyFilters(viewModel, activeFilters)
+                    }
                     PeriodFilter.CUSTOM -> {
-                        showFilterDialog = false
                         showDatePicker = true
-                        return@FilterDialog
                     }
                 }
-                showFilterDialog = false
-                applyPeriodFilter(viewModel, period)
             },
             onFilterByEmployee = { 
                 showFilterDialog = false
                 showEmployeePicker = true 
             },
             onClearFilters = {
-                filterType = null
-                selectedPeriod = null
+                activeFilters = emptyList()
                 selectedStartDate = null
                 selectedEndDate = null
                 selectedEmployee = null
+                selectedPeriod = null
                 showFilterDialog = false
                 viewModel.loadReports()
             },
-            hasActiveFilters = filterType != null
+            hasActiveFilters = activeFilters.isNotEmpty()
         )
     }
     
@@ -296,9 +303,12 @@ fun ReportsScreen(
                 selectedStartDate = startDate
                 selectedEndDate = endDate
                 selectedPeriod = PeriodFilter.CUSTOM
-                filterType = FilterType.DATE_RANGE
                 showDatePicker = false
-                viewModel.filterByDate(startDate.time, endDate.time)
+                
+                // Adicionar filtro de data à lista
+                val dateFilter = ActiveFilter.DATE_RANGE(startDate, endDate)
+                activeFilters = activeFilters.filter { it !is ActiveFilter.DATE_RANGE } + dateFilter
+                applyFilters(viewModel, activeFilters)
             }
         )
     }
@@ -310,19 +320,22 @@ fun ReportsScreen(
             onDismiss = { showEmployeePicker = false },
             onEmployeeSelected = { employee ->
                 selectedEmployee = employee
-                filterType = FilterType.EMPLOYEE
                 showEmployeePicker = false
-                viewModel.filterByEmployee(employee)
+                
+                // Adicionar filtro de funcionário à lista
+                val employeeFilter = ActiveFilter.EMPLOYEE(employee)
+                activeFilters = activeFilters.filter { it !is ActiveFilter.EMPLOYEE } + employeeFilter
+                applyFilters(viewModel, activeFilters)
             }
         )
     }
 }
 
-private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter) {
+private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter): ActiveFilter {
     val calendar = Calendar.getInstance()
     val now = calendar.timeInMillis
     
-    when (period) {
+    return when (period) {
         PeriodFilter.TODAY -> {
             calendar.set(Calendar.HOUR_OF_DAY, 0)
             calendar.set(Calendar.MINUTE, 0)
@@ -336,7 +349,7 @@ private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter)
             calendar.set(Calendar.MILLISECOND, 999)
             val endOfDay = calendar.timeInMillis
             
-            viewModel.filterByDate(startOfDay, endOfDay)
+            ActiveFilter.DATE_RANGE(Date(startOfDay), Date(endOfDay))
         }
         PeriodFilter.THIS_WEEK -> {
             calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
@@ -353,7 +366,7 @@ private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter)
             calendar.set(Calendar.MILLISECOND, 999)
             val endOfWeek = calendar.timeInMillis
             
-            viewModel.filterByDate(startOfWeek, endOfWeek)
+            ActiveFilter.DATE_RANGE(Date(startOfWeek), Date(endOfWeek))
         }
         PeriodFilter.THIS_MONTH -> {
             calendar.set(Calendar.DAY_OF_MONTH, 1)
@@ -370,7 +383,7 @@ private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter)
             calendar.set(Calendar.MILLISECOND, 999)
             val endOfMonth = calendar.timeInMillis
             
-            viewModel.filterByDate(startOfMonth, endOfMonth)
+            ActiveFilter.DATE_RANGE(Date(startOfMonth), Date(endOfMonth))
         }
         PeriodFilter.THIS_YEAR -> {
             calendar.set(Calendar.DAY_OF_YEAR, 1)
@@ -387,10 +400,30 @@ private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter)
             calendar.set(Calendar.MILLISECOND, 999)
             val endOfYear = calendar.timeInMillis
             
-            viewModel.filterByDate(startOfYear, endOfYear)
+            ActiveFilter.DATE_RANGE(Date(startOfYear), Date(endOfYear))
         }
         PeriodFilter.CUSTOM -> {
             // Será tratado no date picker
+            ActiveFilter.DATE_RANGE(Date(), Date())
+        }
+    }
+}
+
+private fun applyFilters(viewModel: ReportsViewModel, filters: List<ActiveFilter>) {
+    if (filters.isEmpty()) {
+        viewModel.loadReports()
+        return
+    }
+    
+    // Aplicar todos os filtros
+    filters.forEach { filter ->
+        when (filter) {
+            is ActiveFilter.DATE_RANGE -> {
+                viewModel.filterByDate(filter.startDate.time, filter.endDate.time)
+            }
+            is ActiveFilter.EMPLOYEE -> {
+                viewModel.filterByEmployee(filter.employeeName)
+            }
         }
     }
 }
@@ -1081,12 +1114,9 @@ private fun PointCard(
 
 @Composable
 private fun ActiveFiltersSection(
-    filterType: FilterType?,
-    selectedPeriod: PeriodFilter?,
-    selectedStartDate: Date?,
-    selectedEndDate: Date?,
-    selectedEmployee: String?,
-    onClearFilters: () -> Unit
+    activeFilters: List<ActiveFilter>,
+    onRemoveFilter: (ActiveFilter) -> Unit,
+    onClearAllFilters: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -1094,62 +1124,21 @@ private fun ActiveFiltersSection(
             .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Chips simples como na segunda foto
+        // Chips para cada filtro ativo
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            when (filterType) {
-                FilterType.TODAY, FilterType.THIS_WEEK, FilterType.THIS_MONTH, FilterType.THIS_YEAR -> {
-                    selectedPeriod?.let { period ->
-                        FilterChip(
-                            label = {
-                                Text(
-                                    text = period.label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = Color.White
-                                )
-                            },
-                            selected = true,
-                            onClick = { },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Color(0xFF5bc0de),
-                                selectedLabelColor = Color.White
-                            ),
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Label,
-                                    contentDescription = period.label,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = Color.White
-                                )
-                            },
-                            trailingIcon = {
-                                IconButton(
-                                    onClick = onClearFilters,
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Remover filtro",
-                                        modifier = Modifier.size(14.dp),
-                                        tint = Color.White
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
-                FilterType.DATE_RANGE -> {
-                    if (selectedStartDate != null && selectedEndDate != null) {
+            activeFilters.forEach { filter ->
+                when (filter) {
+                    is ActiveFilter.DATE_RANGE -> {
                         val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
                         
                         // Chip para data inicial
                         FilterChip(
                             label = {
                                 Text(
-                                    text = dateFormat.format(selectedStartDate),
+                                    text = dateFormat.format(filter.startDate),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White
@@ -1171,7 +1160,7 @@ private fun ActiveFiltersSection(
                             },
                             trailingIcon = {
                                 IconButton(
-                                    onClick = onClearFilters,
+                                    onClick = { onRemoveFilter(filter) },
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Icon(
@@ -1188,7 +1177,7 @@ private fun ActiveFiltersSection(
                         FilterChip(
                             label = {
                                 Text(
-                                    text = dateFormat.format(selectedEndDate),
+                                    text = dateFormat.format(filter.endDate),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White
@@ -1210,7 +1199,7 @@ private fun ActiveFiltersSection(
                             },
                             trailingIcon = {
                                 IconButton(
-                                    onClick = onClearFilters,
+                                    onClick = { onRemoveFilter(filter) },
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Icon(
@@ -1223,13 +1212,11 @@ private fun ActiveFiltersSection(
                             }
                         )
                     }
-                }
-                FilterType.EMPLOYEE -> {
-                    selectedEmployee?.let { employee ->
+                    is ActiveFilter.EMPLOYEE -> {
                         FilterChip(
                             label = {
                                 Text(
-                                    text = employee,
+                                    text = filter.employeeName,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = Color.White,
@@ -1253,7 +1240,7 @@ private fun ActiveFiltersSection(
                             },
                             trailingIcon = {
                                 IconButton(
-                                    onClick = onClearFilters,
+                                    onClick = { onRemoveFilter(filter) },
                                     modifier = Modifier.size(20.dp)
                                 ) {
                                     Icon(
@@ -1267,7 +1254,6 @@ private fun ActiveFiltersSection(
                         )
                     }
                 }
-                else -> { }
             }
         }
     }
