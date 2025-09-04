@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -78,6 +79,10 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     
     fun updateIntervaloSincronizacao(value: Int) {
         _uiState.update { it.copy(intervaloSincronizacao = value) }
+    }
+    
+    fun updateDownloadProgress(progress: Int) {
+        _uiState.update { it.copy(downloadProgress = progress) }
     }
     
     fun sincronizarAgora() {
@@ -356,7 +361,13 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun downloadDiretoAtualizacaoComVersao(versao: String) {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isUpdating = true, updateMessage = "📥 Baixando atualização v$versao..." as String?) }
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = true, 
+                        updateMessage = "📥 Baixando atualização v$versao...",
+                        downloadProgress = 0
+                    ) 
+                }
                 
                 // Rota fixa: 230440023/services/util/download-tablet-apk
                 // Parâmetro dinâmico: versao=$versao.apk
@@ -364,11 +375,22 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 val filename = "tablet_update_v$versao.apk"
                 
                 
-                val downloadResult = tabletUpdateRepository.downloadDirectUpdate(downloadUrl, filename)
+                val downloadResult = tabletUpdateRepository.downloadDirectUpdate(
+                    downloadUrl, 
+                    filename,
+                    onProgress = { progress ->
+                        _uiState.update { it.copy(downloadProgress = progress) }
+                    }
+                )
                 
                 downloadResult.fold(
                     onSuccess = { apkFile ->
-                        _uiState.update { it.copy(updateMessage = "🔧 Instalando atualização..." as String?) }
+                        _uiState.update { 
+                            it.copy(
+                                updateMessage = "🔧 Instalando atualização...",
+                                downloadProgress = 100
+                            ) 
+                        }
                         
                         try {
                             tabletUpdateRepository.installUpdate(apkFile)
@@ -378,7 +400,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                                     isUpdating = false,
                                     updateMessage = "✅ Atualização v$versao baixada e pronta para instalar!",
                                     hasUpdate = false,
-                                    availableUpdate = null
+                                    availableUpdate = null,
+                                    downloadProgress = 0
                                 )
                             }
                             
@@ -401,7 +424,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                                 it.copy(
                                     isUpdating = false,
                                     updateMessage = "❌ Erro ao instalar: ${e.message}",
-                                    hasUpdate = true
+                                    hasUpdate = true,
+                                    downloadProgress = 0
                                 )
                             }
                             
@@ -432,7 +456,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             it.copy(
                                 isUpdating = false,
                                 updateMessage = errorMessage,
-                                hasUpdate = true
+                                hasUpdate = true,
+                                downloadProgress = 0
                             )
                         }
                         
@@ -460,7 +485,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     it.copy(
                         isUpdating = false,
                         updateMessage = "❌ Erro inesperado: ${e.message}",
-                        hasUpdate = true
+                        hasUpdate = true,
+                        downloadProgress = 0
                     )
                 }
             }
@@ -470,7 +496,13 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun downloadDiretoAtualizacao() {
         viewModelScope.launch {
             try {
-                _uiState.update { it.copy(isUpdating = true, updateMessage = "📥 Baixando atualização direta..." as String?) }
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = true, 
+                        updateMessage = "📥 Baixando atualização direta...",
+                        downloadProgress = 0
+                    ) 
+                }
                 
                 // Construir URL usando o endpoint correto
                 val downloadUrl = "https://api.rh247.com.br/${ServerConfig.DOWNLOAD_ENDPOINT}?versao=1.2.apk"
@@ -478,11 +510,22 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 
                 Log.d("SettingsViewModel", "🔗 URL de download: $downloadUrl")
                 
-                val downloadResult = tabletUpdateRepository.downloadDirectUpdate(downloadUrl, filename)
+                val downloadResult = tabletUpdateRepository.downloadDirectUpdate(
+                    downloadUrl, 
+                    filename,
+                    onProgress = { progress ->
+                        _uiState.update { it.copy(downloadProgress = progress) }
+                    }
+                )
                 
                 downloadResult.fold(
                     onSuccess = { apkFile ->
-                        _uiState.update { it.copy(updateMessage = "🔧 Instalando atualização..." as String?) }
+                        _uiState.update { 
+                            it.copy(
+                                updateMessage = "🔧 Instalando atualização...",
+                                downloadProgress = 100
+                            ) 
+                        }
                         
                         try {
                             tabletUpdateRepository.installUpdate(apkFile)
@@ -492,7 +535,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                                     isUpdating = false,
                                     updateMessage = "✅ Atualização baixada e pronta para instalar!",
                                     hasUpdate = false,
-                                    availableUpdate = null
+                                    availableUpdate = null,
+                                    downloadProgress = 0
                                 )
                             }
                             
@@ -515,7 +559,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                                 it.copy(
                                     isUpdating = false,
                                     updateMessage = "❌ Erro ao instalar: ${e.message}",
-                                    hasUpdate = true
+                                    hasUpdate = true,
+                                    downloadProgress = 0
                                 )
                             }
                             
@@ -546,7 +591,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             it.copy(
                                 isUpdating = false,
                                 updateMessage = errorMessage,
-                                hasUpdate = true
+                                hasUpdate = true,
+                                downloadProgress = 0
                             )
                         }
                         
@@ -574,7 +620,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     it.copy(
                         isUpdating = false,
                         updateMessage = "❌ Erro inesperado: ${e.message}",
-                        hasUpdate = true
+                        hasUpdate = true,
+                        downloadProgress = 0
                     )
                 }
             }
@@ -592,13 +639,29 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     return@launch
                 }
                 
-                _uiState.update { it.copy(isUpdating = true, updateMessage = "📥 Baixando atualização..." as String?) }
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = true, 
+                        updateMessage = "📥 Baixando atualização...",
+                        downloadProgress = 0
+                    ) 
+                }
                 
-                val downloadResult = tabletUpdateRepository.downloadUpdate(updateData)
+                val downloadResult = tabletUpdateRepository.downloadUpdate(
+                    updateData,
+                    onProgress = { progress ->
+                        _uiState.update { it.copy(downloadProgress = progress) }
+                    }
+                )
                 
                 downloadResult.fold(
                     onSuccess = { apkFile ->
-                        _uiState.update { it.copy(updateMessage = "🔧 Instalando atualização..." as String?) }
+                        _uiState.update { 
+                            it.copy(
+                                updateMessage = "🔧 Instalando atualização...",
+                                downloadProgress = 100
+                            ) 
+                        }
                         
                         try {
                             tabletUpdateRepository.installUpdate(apkFile)
@@ -608,7 +671,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                                     isUpdating = false,
                                     updateMessage = "✅ Atualização baixada e pronta para instalar!",
                                     hasUpdate = false,
-                                    availableUpdate = null
+                                    availableUpdate = null,
+                                    downloadProgress = 0
                                 )
                             }
                             
@@ -631,7 +695,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                                 it.copy(
                                     isUpdating = false,
                                     updateMessage = "❌ Erro ao instalar: ${e.message}",
-                                    hasUpdate = true
+                                    hasUpdate = true,
+                                    downloadProgress = 0
                                 )
                             }
                             
@@ -671,7 +736,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             it.copy(
                                 isUpdating = false,
                                 updateMessage = errorMessage,
-                                hasUpdate = true
+                                hasUpdate = true,
+                                downloadProgress = 0
                             )
                         }
                         
@@ -687,6 +753,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             )
                         }
                         
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                        
                         // Log detalhado do erro
                         Log.e("SettingsViewModel", "❌ Erro detalhado no download", exception)
                     }
@@ -697,7 +765,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     it.copy(
                         isUpdating = false,
                         updateMessage = "❌ Erro inesperado: ${e.message}",
-                        hasUpdate = true
+                        hasUpdate = true,
+                        downloadProgress = 0
                     )
                 }
             }
@@ -840,7 +909,8 @@ data class SettingsUiState(
     val isUpdating: Boolean = false,
     val updateMessage: String? = null,
     val hasUpdate: Boolean = false,
-    val availableUpdate: TabletVersionData? = null
+    val availableUpdate: TabletVersionData? = null,
+    val downloadProgress: Int = 0
 )
 
 data class HistoricoSincronizacao(

@@ -27,7 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 import org.koin.androidx.compose.koinViewModel
-
+import androidx.compose.material3.LinearProgressIndicator
 
 
 @Composable
@@ -118,6 +118,26 @@ fun SobreTab() {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                
+                // ProgressBar para download (só aparece quando isUpdating = true)
+                if (uiState.isUpdating) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { uiState.downloadProgress / 100f },
+                            modifier = Modifier.fillMaxWidth(),
+                            color = Color(0xFF264064),
+                            trackColor = Color(0xFFE0E0E0)
+                        )
+                        Text(
+                            text = "${uiState.downloadProgress}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF264064),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
                 
                 // Status da verificação
                 if (uiState.updateMessage != null) {

@@ -330,8 +330,8 @@ class FaceDetectionOverlay(
                     
                     // ✅ CORRIGIDO: Chamar diretamente o ViewModel para atualizar o estado
                     try {
-                        viewModel.setLastRecognizedPersonName(personName)
-                        android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: '$personName' - ViewModel atualizado")
+                        // viewModel.setLastRecognizedPersonName(personName)
+                        // android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: '$personName' - ViewModel atualizado")
                     } catch (e: Exception) {
                         android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao atualizar ViewModel: ${e.message}")
                     }

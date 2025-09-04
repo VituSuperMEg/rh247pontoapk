@@ -23,6 +23,16 @@ import org.koin.androidx.compose.koinViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+private fun formatCPF(cpf: String): String {
+    return if (cpf.length >= 11) {
+        "${cpf.substring(0, 3)}.***.***-${cpf.substring(9, 11)}"
+    } else {
+        cpf
+    }
+}
+
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReportsScreen(
@@ -273,7 +283,7 @@ private fun PointCard(
                 )
                 
                 Text(
-                    text = "CPF: ${ponto.funcionarioCpf}",
+                    text = "CPF: ${formatCPF(ponto.funcionarioCpf)}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF666666)
                 )
@@ -283,9 +293,21 @@ private fun PointCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF666666)
                 )
+                // Cargo e Lotação
+                Text(
+                    text = "Cargo: ${ponto.funcionarioCargo}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF666666),
+                )
+
+                Text(
+                    text = "Lotação: ${ponto.funcionarioLotacao}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF666666),
+                )
                 
                 Text(
-                    text = "Data: ${dateFormat.format(Date(ponto.dataHora))} ${timeFormat.format(Date(ponto.dataHora))}",
+                    text = "Data: ${dateFormat.format(Date(ponto.dataHora))}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF666666)
                 )
@@ -296,38 +318,22 @@ private fun PointCard(
                 horizontalAlignment = Alignment.End,
                 modifier = Modifier.padding(start = 16.dp)
             ) {
-                // Cargo e Lotação
-                Text(
-                    text = "Cargo: ${ponto.funcionarioCargo}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF666666),
-                    textAlign = TextAlign.End
-                )
-                
-                Text(
-                    text = "Lotação: ${ponto.funcionarioLotacao}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF666666),
-                    textAlign = TextAlign.End
-                )
-                
-                Spacer(modifier = Modifier.height(12.dp))
-                
+
                 // Horário grande (azul)
                 Text(
-                    text = timeDisplayFormat.format(Date(ponto.dataHora)),
+                    text = timeFormat.format(Date(ponto.dataHora)),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF2196F3) // Azul
+                    color = Color(0xFF264064) // Azul
                 )
                 
                 // Status (laranja/amarelo)
                 Text(
                     text = if (ponto.synced) "Sincronizado" else "Pendente",
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (ponto.synced) Color.Green else Color(0xFFFF9800) // Laranja para pendente
+                    color = if (ponto.synced) Color(0xFF264064) else Color(0xFFFF9800) // Laranja para pendente
                 )
             }
         }
     }
-} 
+}

@@ -133,7 +133,7 @@ fun HomeScreen(
                     // Bottom right card - Relatórios
                     MenuCard(
                         icon = Icons.Default.Summarize,
-                        title = "Relatórios",
+                        title = "Pontos Registrados",
                         subtitle = "",
                         modifier = Modifier.weight(1f).height(180.dp),
                         onClick = onReportsClick
@@ -184,7 +184,7 @@ private fun MenuCard(
                 imageVector = icon,
                 contentDescription = title,
                 modifier = Modifier.size(48.dp),
-                tint = Color.Black // Black color
+                tint = Color(0xFF264064) // Black color
             )
             
             Spacer(modifier = Modifier.height(12.dp))

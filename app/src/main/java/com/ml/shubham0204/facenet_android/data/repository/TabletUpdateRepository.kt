@@ -50,7 +50,10 @@ class TabletUpdateRepository(
         }
     }
     
-    suspend fun downloadUpdate(versionData: TabletVersionData): Result<File> = withContext(Dispatchers.IO) {
+    suspend fun downloadUpdate(
+        versionData: TabletVersionData, 
+        onProgress: (Int) -> Unit = {}
+    ): Result<File> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "📥 Iniciando download da versão ${versionData.version}")
             Log.d(TAG, "🔗 URL de download original da API: ${versionData.downloadUrl}")
@@ -104,11 +107,41 @@ class TabletUpdateRepository(
                     throw IOException("Corpo da resposta vazio")
                 }
                 
-                // Salvar arquivo
-                FileOutputStream(apkFile).use { fos ->
-                    body.byteStream().use { input ->
-                        input.copyTo(fos)
+                val contentLength = body.contentLength()
+                Log.d(TAG, "📊 Tamanho do arquivo: $contentLength bytes")
+                
+                if (contentLength > 0) {
+                    // Download com progresso
+                    var bytesRead = 0L
+                    val buffer = ByteArray(8192)
+                    
+                    FileOutputStream(apkFile).use { fos ->
+                        body.byteStream().use { input ->
+                            var bytes: Int
+                            while (input.read(buffer).also { bytes = it } != -1) {
+                                fos.write(buffer, 0, bytes)
+                                bytesRead += bytes
+                                
+                                // Calcular e reportar progresso
+                                val progress = ((bytesRead * 100) / contentLength).toInt()
+                                onProgress(progress)
+                                
+                                Log.d(TAG, "📥 Progresso: $progress% ($bytesRead/$contentLength bytes)")
+                            }
+                        }
                     }
+                } else {
+                    // Download sem progresso (tamanho desconhecido)
+                    Log.d(TAG, "⚠️ Tamanho do arquivo desconhecido, download sem progresso")
+                    onProgress(0)
+                    
+                    FileOutputStream(apkFile).use { fos ->
+                        body.byteStream().use { input ->
+                            input.copyTo(fos)
+                        }
+                    }
+                    
+                    onProgress(100)
                 }
             }
             
@@ -139,7 +172,11 @@ class TabletUpdateRepository(
         }
     }
     
-    suspend fun downloadDirectUpdate(downloadUrl: String, filename: String = "tablet_update.apk"): Result<File> = withContext(Dispatchers.IO) {
+    suspend fun downloadDirectUpdate(
+        downloadUrl: String, 
+        filename: String = "tablet_update.apk",
+        onProgress: (Int) -> Unit = {}
+    ): Result<File> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "📥 Iniciando download direto da URL: $downloadUrl")
             
@@ -185,11 +222,41 @@ class TabletUpdateRepository(
                     throw IOException("Corpo da resposta vazio")
                 }
                 
-                // Salvar arquivo
-                FileOutputStream(apkFile).use { fos ->
-                    body.byteStream().use { input ->
-                        input.copyTo(fos)
+                val contentLength = body.contentLength()
+                Log.d(TAG, "📊 Tamanho do arquivo: $contentLength bytes")
+                
+                if (contentLength > 0) {
+                    // Download com progresso
+                    var bytesRead = 0L
+                    val buffer = ByteArray(8192)
+                    
+                    FileOutputStream(apkFile).use { fos ->
+                        body.byteStream().use { input ->
+                            var bytes: Int
+                            while (input.read(buffer).also { bytes = it } != -1) {
+                                fos.write(buffer, 0, bytes)
+                                bytesRead += bytes
+                                
+                                // Calcular e reportar progresso
+                                val progress = ((bytesRead * 100) / contentLength).toInt()
+                                onProgress(progress)
+                                
+                                Log.d(TAG, "📥 Progresso: $progress% ($bytesRead/$contentLength bytes)")
+                            }
+                        }
                     }
+                } else {
+                    // Download sem progresso (tamanho desconhecido)
+                    Log.d(TAG, "⚠️ Tamanho do arquivo desconhecido, download sem progresso")
+                    onProgress(0)
+                    
+                    FileOutputStream(apkFile).use { fos ->
+                        body.byteStream().use { input ->
+                            input.copyTo(fos)
+                        }
+                    }
+                    
+                    onProgress(100)
                 }
             }
             
