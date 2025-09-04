@@ -141,6 +141,7 @@ fun AddFaceScreen(
                     onNavigateBack = onNavigateBack
                 )
                 ImageReadProgressDialog(viewModel, onNavigateBack)
+                DuplicateFaceDialog(viewModel)
                 AppAlertDialog()
             }
         }
@@ -1058,7 +1059,7 @@ private fun IntegratedCameraCapture(
                 // ✅ MELHORADO: Círculo de foco com countdown visual e cores dinâmicas
                 Box(
                     modifier = Modifier
-                        .size(300.dp) // Tamanho otimizado
+                        .size(600.dp) // Tamanho otimizado
                         .border(
                             width = 4.dp, // Borda mais grossa para melhor visibilidade
                             color = when {
@@ -1188,9 +1189,13 @@ private fun IntegratedCameraCapture(
                         )
                     ) {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().background(
+                                color = if (index < viewModel.selectedImageURIs.value.size)
+                                    Color.Green   // já selecionado
+                                else
+                                    Color(0xFF264064)   // não selecionado
+                            ),
                             contentAlignment = Alignment.Center,
-                            
                         ) {
                             if (index < viewModel.selectedImageURIs.value.size) {
                                 Icon(
@@ -1199,6 +1204,7 @@ private fun IntegratedCameraCapture(
                                     tint = Color.White
                                 )
                             } else {
+
                                 Text(
                                     text = (index + 1).toString(),
                                     color = Color.White
@@ -1503,4 +1509,118 @@ private fun formatCPF(cpf: String): String {
 
 private fun decodeUrlValue(value: String): String {
     return value.replace("_", " ")
+}
+
+@Composable
+private fun DuplicateFaceDialog(viewModel: AddFaceScreenViewModel) {
+    val showDialog by remember { viewModel.showDuplicateFaceDialog }
+    val duplicateInfo by remember { viewModel.duplicateFaceInfo }
+    
+    if (showDialog && duplicateInfo != null) {
+        // Criar uma variável local para evitar problemas com smart cast
+        val info = duplicateInfo!!
+        
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.cancelDuplicateFaceRegistration() },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Aviso",
+                        tint = Color(0xFFFF9800),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Face Já Cadastrada",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Esta face já está cadastrada no sistema para outro funcionário:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFF3E0)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFFF9800)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = "Funcionário Existente:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFFE65100),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = info.existingPersonName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Text(
+                                text = "Similaridade:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFFE65100),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "${(info.similarity * 100).toInt()}%",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "Deseja continuar mesmo assim? Isso pode causar problemas no sistema de reconhecimento facial.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.confirmDuplicateFaceRegistration() },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFD32F2F)
+                    )
+                ) {
+                    Text(
+                        text = "Continuar Mesmo Assim",
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.cancelDuplicateFaceRegistration() }
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        )
+    }
 }

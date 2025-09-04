@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -331,7 +332,7 @@ private fun FuncionarioCard(
                     modifier = Modifier
                         .size(48.dp)
                         .background(
-                            color = if (isImported) Color(0xFF4CAF50) else Color(0xFF1976D2),
+                            color = if (isImported) Color(0xFF4CAF50) else Color(0xFF264064),
                             shape = RoundedCornerShape(24.dp)
                         ),
                     contentAlignment = Alignment.Center
@@ -409,7 +410,15 @@ private fun FuncionarioCard(
                 )
                 
                 Spacer(modifier = Modifier.height(4.dp))
-                
+
+                Text(
+                    text = "Cargo: ${funcionario.cargo_descricao}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 // Órgão
                 if (funcionario.orgao_descricao != null) {
                     Text(
@@ -445,7 +454,11 @@ private fun FuncionarioCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
                     onClick = onImportClick,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064), // cor de fundo
+                        contentColor = Color.White          // cor do texto e ícone
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
@@ -455,6 +468,7 @@ private fun FuncionarioCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Importar Funcionário")
                 }
+
             }
         }
     }

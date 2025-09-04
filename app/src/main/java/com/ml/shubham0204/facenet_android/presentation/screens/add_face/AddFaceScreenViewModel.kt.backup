@@ -33,10 +33,6 @@ class AddFaceScreenViewModel(
     val isDeletingUser: MutableState<Boolean> = mutableStateOf(false)
     val showDeleteConfirmation: MutableState<Boolean> = mutableStateOf(false)
     
-    // ✅ NOVO: Estados para validação de face duplicada
-    val showDuplicateFaceDialog: MutableState<Boolean> = mutableStateOf(false)
-    val duplicateFaceInfo: MutableState<DuplicateFaceInfo?> = mutableStateOf(null)
-    
     // ✅ NOVO: Adicionar funcionarioId para conectar com o banco de funcionários
     var funcionarioId: Long = 0
     
@@ -54,78 +50,91 @@ class AddFaceScreenViewModel(
         android.util.Log.d("AddFaceScreenViewModel", "📊 Total de URIs: ${selectedImageURIs.value.size}")
     }
     
-    // ✅ NOVO: Função para limpar URIs selecionadas
+    // ✅ NOVO: Função para limpar URIs das imagens
     fun clearSelectedImageURIs() {
         selectedImageURIs.value = emptyList()
-        android.util.Log.d("AddFaceScreenViewModel", "🗑️ URIs limpas")
+        android.util.Log.d("AddFaceScreenViewModel", "🧹 URIs das imagens limpas")
     }
     
-    // ✅ NOVO: Função para atualizar nome da pessoa
+    // Variável para armazenar o arquivo temporário da foto atual
+    private var currentPhotoFile: File? = null
+    private var currentFaceBitmap: Bitmap? = null
+    private var faceDetectionOverlay: Any? = null // Será o FaceDetectionOverlay
+    
     fun updatePersonName(name: String) {
         personNameState.value = name
-        android.util.Log.d("AddFaceScreenViewModel", "📝 Nome atualizado: $name")
+    }
+    
+    fun setCurrentPhotoFile(file: File) {
+        currentPhotoFile = file
+    }
+    
+    fun addCapturedImage() {
+        currentPhotoFile?.let { file ->
+            val uri = Uri.fromFile(file)
+            val currentList = selectedImageURIs.value.toMutableList()
+            currentList.add(uri)
+            selectedImageURIs.value = currentList
+            currentPhotoFile = null
+        }
+    }
+    
+    // Nova função para capturar foto da câmera integrada
+    fun capturePhotoFromCamera() {
+        // Capturar o frame atual da câmera
+        currentFaceBitmap?.let { bitmap ->
+            // Converter bitmap para URI temporário
+            val tempFile = createTempFileFromBitmap(bitmap)
+            if (tempFile != null) {
+                val uri = Uri.fromFile(tempFile)
+                val currentList = selectedImageURIs.value.toMutableList()
+                currentList.add(uri)
+                selectedImageURIs.value = currentList
+            }
+        }
+    }
+    
+    // Função para definir o FaceDetectionOverlay
+    fun setFaceDetectionOverlay(overlay: Any) {
+        faceDetectionOverlay = overlay
+    }
+    
+    // Função para capturar o frame atual
+    fun captureCurrentFrame() {
+        // Usar reflection para acessar o método getCurrentFrameBitmap
+        try {
+            val overlay = faceDetectionOverlay
+            if (overlay != null) {
+                val method = overlay.javaClass.getMethod("getCurrentFrameBitmap")
+                val bitmap = method.invoke(overlay) as? Bitmap
+                currentFaceBitmap = bitmap
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    
+    private fun createTempFileFromBitmap(bitmap: Bitmap): File? {
+        return try {
+            val tempFile = File.createTempFile("capture_", ".jpg")
+            val outputStream = tempFile.outputStream()
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+            outputStream.close()
+            tempFile
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+    
+    // ✅ NOVO: Função para verificar se funcionário está ativo
+    suspend fun isFuncionarioActive(): Boolean {
+        return personUseCase.isFuncionarioActive(funcionarioId)
     }
     
     // ✅ NOVO: Função para verificar se pode gerenciar facial
     suspend fun canManageFacial(): Boolean {
-        if (funcionarioId <= 0) {
-            android.util.Log.w("AddFaceScreenViewModel", "⚠️ FuncionarioId inválido: $funcionarioId")
-            return false
-        }
         return personUseCase.canManageFacial(funcionarioId)
-    }
-    
-    // ✅ NOVO: Função para verificar se uma face já existe no sistema
-    suspend fun validateFaceNotDuplicate(imageUri: Uri, currentPersonID: Long? = null): Boolean {
-        return try {
-            android.util.Log.d("AddFaceScreenViewModel", "🔍 Validando se face já existe no sistema...")
-            
-            val result = imageVectorUseCase.checkIfFaceAlreadyExists(imageUri, currentPersonID)
-            
-            if (result.isSuccess) {
-                val faceCheckResult = result.getOrNull()!!
-                
-                if (faceCheckResult.exists) {
-                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Face já existe no sistema!")
-                    android.util.Log.w("AddFaceScreenViewModel", "   - Pessoa existente: ${faceCheckResult.existingFace?.personName}")
-                    android.util.Log.w("AddFaceScreenViewModel", "   - Similaridade: ${faceCheckResult.similarity}")
-                    
-                    // Mostrar diálogo de face duplicada
-                    duplicateFaceInfo.value = DuplicateFaceInfo(
-                        existingPersonName = faceCheckResult.existingFace?.personName ?: "Desconhecido",
-                        similarity = faceCheckResult.similarity
-                    )
-                    showDuplicateFaceDialog.value = true
-                    
-                    return false
-                } else {
-                    android.util.Log.d("AddFaceScreenViewModel", "✅ Face é única - pode cadastrar")
-                    return true
-                }
-            } else {
-                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao verificar face duplicada: ${result.exceptionOrNull()?.message}")
-                return true // Em caso de erro, permitir cadastro
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro na validação de face duplicada: ${e.message}")
-            e.printStackTrace()
-            return true // Em caso de erro, permitir cadastro
-        }
-    }
-    
-    // ✅ NOVO: Função para confirmar cadastro mesmo com face duplicada
-    fun confirmDuplicateFaceRegistration() {
-        showDuplicateFaceDialog.value = false
-        duplicateFaceInfo.value = null
-        // Continuar com o cadastro
-        saveFacesInternal()
-    }
-    
-    // ✅ NOVO: Função para cancelar cadastro por face duplicada
-    fun cancelDuplicateFaceRegistration() {
-        showDuplicateFaceDialog.value = false
-        duplicateFaceInfo.value = null
-        isProcessingImages.value = false
     }
 
     fun saveFaces() {
@@ -153,48 +162,6 @@ class AddFaceScreenViewModel(
                     return@launch
                 }
                 
-                // ✅ NOVO: Validar se as faces não são duplicadas
-                android.util.Log.d("AddFaceScreenViewModel", "🔍 Validando faces para duplicação...")
-                
-                val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
-                val currentPersonID = existingPerson?.personID
-                
-                var allFacesValid = true
-                var duplicateFound = false
-                
-                for ((index, uri) in selectedImageURIs.value.withIndex()) {
-                    android.util.Log.d("AddFaceScreenViewModel", "🔍 Validando face ${index + 1}/${selectedImageURIs.value.size}")
-                    
-                    val isValid = validateFaceNotDuplicate(uri, currentPersonID)
-                    if (!isValid) {
-                        allFacesValid = false
-                        duplicateFound = true
-                        break // Parar na primeira face duplicada
-                    }
-                }
-                
-                if (duplicateFound) {
-                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Face duplicada encontrada - aguardando confirmação do usuário")
-                    return@launch // Aguardar confirmação do usuário
-                }
-                
-                if (allFacesValid) {
-                    android.util.Log.d("AddFaceScreenViewModel", "✅ Todas as faces são válidas - prosseguindo com cadastro")
-                    saveFacesInternal()
-                }
-                
-            } catch (e: Exception) {
-                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao validar faces: ${e.message}")
-                e.printStackTrace()
-                isProcessingImages.value = false
-            }
-        }
-    }
-    
-    // ✅ NOVO: Função interna para salvar faces (após validação)
-    private fun saveFacesInternal() {
-        CoroutineScope(Dispatchers.Default).launch {
-            try {
                 android.util.Log.d("AddFaceScreenViewModel", "🔄 Iniciando salvamento no banco...")
                 
                 val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
@@ -246,8 +213,8 @@ class AddFaceScreenViewModel(
                         }
                     }
                     
-                    android.util.Log.d("AddFaceScreenViewModel", "�� === RECADASTRO CONCLUÍDO ===")
-                    android.util.Log.d("AddFaceScreenViewModel", "�� Total de fotos processadas: ${numImagesProcessed.value}")
+                    android.util.Log.d("AddFaceScreenViewModel", "🎉 === RECADASTRO CONCLUÍDO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "📊 Total de fotos processadas: ${numImagesProcessed.value}")
                     
                     if (numImagesProcessed.value == selectedImageURIs.value.size) {
                         android.util.Log.d("AddFaceScreenViewModel", "✅ TODAS AS FOTOS FORAM SALVAS COM SUCESSO!")
@@ -265,7 +232,7 @@ class AddFaceScreenViewModel(
                     
                 } else {
                     android.util.Log.d("AddFaceScreenViewModel", "🆕 === PRIMEIRO CADASTRO ===")
-                    android.util.Log.d("AddFaceScreenViewModel", "�� Nenhuma pessoa encontrada para este funcionário")
+                    android.util.Log.d("AddFaceScreenViewModel", "🆕 Nenhuma pessoa encontrada para este funcionário")
                     
                     // ✅ NOVO: Salvar pessoa no banco FaceNet
                     val personId = personUseCase.addPerson(
@@ -302,7 +269,7 @@ class AddFaceScreenViewModel(
                         }
                     }
                     
-                    android.util.Log.d("AddFaceScreenViewModel", "�� === PRIMEIRO CADASTRO CONCLUÍDO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "🎉 === PRIMEIRO CADASTRO CONCLUÍDO ===")
                     android.util.Log.d("AddFaceScreenViewModel", "📊 Total de fotos processadas: ${numImagesProcessed.value}")
                     
                     if (numImagesProcessed.value == selectedImageURIs.value.size) {
@@ -321,7 +288,7 @@ class AddFaceScreenViewModel(
                 }
                 
             } catch (e: Exception) {
-                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao salvar faces: ${e.message}")
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro geral no salvamento: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isProcessingImages.value = false
@@ -329,56 +296,87 @@ class AddFaceScreenViewModel(
         }
     }
     
-    // ✅ NOVO: Função para mostrar diálogo de confirmação de exclusão
-    fun showDeleteConfirmationDialog() {
-        showDeleteConfirmation.value = true
-    }
-    
-    // ✅ NOVO: Função para confirmar exclusão
-    fun confirmDeleteUser() {
-        showDeleteConfirmation.value = false
+    // ✅ NOVO: Função para excluir usuário e suas faces
+    fun deleteUserAndFaces() {
+        android.util.Log.d("AddFaceScreenViewModel", "🗑️ === INICIANDO EXCLUSÃO DE USUÁRIO ===")
+        android.util.Log.d("AddFaceScreenViewModel", "🆔 FuncionarioId: $funcionarioId")
+        android.util.Log.d("AddFaceScreenViewModel", "📝 Nome: ${personNameState.value}")
+        
         isDeletingUser.value = true
         
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Iniciando exclusão do usuário...")
-                
+                // Buscar a pessoa no banco
                 val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
                 
                 if (existingPerson != null) {
-                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo faces do banco...")
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ === PESSOA ENCONTRADA PARA EXCLUSÃO ===")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Person ID: ${existingPerson.personID}")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Nome: ${existingPerson.personName}")
+                    android.util.Log.d("AddFaceScreenViewModel", "   - Faces: ${existingPerson.numImages}")
+                    
+                    // Buscar todas as faces da pessoa
+                    val faceImages = imageVectorUseCase.getImagesByPersonID(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "📸 Total de faces encontradas: ${faceImages.size}")
+                    
+                    // Remover todas as faces
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo faces...")
                     imageVectorUseCase.removeImages(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Faces removidas")
                     
-                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pessoa do banco...")
+                    // Remover a pessoa
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pessoa...")
                     personUseCase.removePerson(existingPerson.personID)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Pessoa removida")
                     
-                    android.util.Log.d("AddFaceScreenViewModel", "✅ Usuário excluído com sucesso!")
+                    // Verificar se foi removida
+                    val personAfterDeletion = personUseCase.getPersonByFuncionarioId(funcionarioId)
+                    if (personAfterDeletion == null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ === EXCLUSÃO CONCLUÍDA COM SUCESSO ===")
+                        android.util.Log.d("AddFaceScreenViewModel", "📊 Total de pessoas no banco: ${personUseCase.getCount()}")
+                        
+                        // Limpar dados locais
+                        clearSelectedImageURIs()
+                        personNameState.value = ""
+                        
+                        // Mostrar tela de sucesso da exclusão
+                        showSuccessScreen.value = true
+                    } else {
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ ERRO: Pessoa ainda existe após exclusão!")
+                    }
                     
-                    // Limpar URIs
-                    clearSelectedImageURIs()
-                    
-                    showSuccessScreen.value = true
                 } else {
                     android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma pessoa encontrada para exclusão")
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ FuncionarioId: $funcionarioId")
+                    
+                    // Mesmo sem pessoa no banco, limpar dados locais
+                    clearSelectedImageURIs()
+                    personNameState.value = ""
+                    
+                    // Mostrar tela de sucesso da exclusão
+                    showSuccessScreen.value = true
                 }
                 
+                // ✅ NOVO: Resetar o estado de exclusão após mostrar a tela de sucesso
+                isDeletingUser.value = false
+                
             } catch (e: Exception) {
-                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir usuário: ${e.message}")
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro na exclusão: ${e.message}")
                 e.printStackTrace()
             } finally {
-                isDeletingUser.value = false
+                // ✅ CORRIGIDO: Não resetar isDeletingUser aqui, pois pode estar mostrando a tela de sucesso
+                showDeleteConfirmation.value = false
             }
         }
     }
     
+    // ✅ NOVO: Função para mostrar diálogo de confirmação
+    fun showDeleteConfirmationDialog() {
+        showDeleteConfirmation.value = true
+    }
+    
     // ✅ NOVO: Função para cancelar exclusão
-    fun cancelDeleteUser() {
+    fun cancelDelete() {
         showDeleteConfirmation.value = false
     }
 }
-
-// ✅ NOVO: Classe para informações de face duplicada
-data class DuplicateFaceInfo(
-    val existingPersonName: String,
-    val similarity: Float
-)

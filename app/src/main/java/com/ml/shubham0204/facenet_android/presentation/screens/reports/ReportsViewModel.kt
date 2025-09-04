@@ -9,6 +9,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
+import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import kotlinx.coroutines.delay
@@ -30,7 +31,8 @@ data class ReportsState(
 
 @KoinViewModel
 class ReportsViewModel(
-    private val pontosGenericosDao: PontosGenericosDao
+    private val pontosGenericosDao: PontosGenericosDao,
+    private val configuracoesDao: ConfiguracoesDao
 ) : ViewModel() {
     
     val reportsState = mutableStateOf(ReportsState())
@@ -276,6 +278,11 @@ class ReportsViewModel(
         val stringBuilder = StringBuilder()
         val dateFormat = SimpleDateFormat("yyyyMMddHHmmss", Locale.getDefault())
         
+        // Buscar configurações para obter localizacaoId e codigoSincronizacao
+        val configuracoes = configuracoesDao.getConfiguracoes()
+        val localizacaoId = configuracoes?.localizacaoId ?: "LOC001"
+        val codigoSincronizacao = configuracoes?.codigoSincronizacao ?: "SYNC001"
+        
         points.forEach { ponto ->
             // Formatar data/hora (14 posições)
             val dataHora = dateFormat.format(Date(ponto.dataHora))
@@ -287,13 +294,13 @@ class ReportsViewModel(
             val nome = ponto.funcionarioNome.padEnd(30, ' ').substring(0, 30)
             
             // Localizacao ID (10 posições, preenchido com espaços à direita)
-            val localizacaoId = "LOC001".padEnd(10, ' ').substring(0, 10)
+            val localizacaoIdFormatted = localizacaoId.padEnd(10, ' ').substring(0, 10)
             
             // Código de sincronização (10 posições, preenchido com espaços à direita)
-            val codSincroniza = "SYNC001".padEnd(10, ' ').substring(0, 10)
+            val codSincroniza = codigoSincronizacao.padEnd(10, ' ').substring(0, 10)
             
             // Montar linha AFD
-            val linha = "${dataHora}${cpf}${nome}${localizacaoId}${codSincroniza}"
+            val linha = "${dataHora}${cpf}${nome}${localizacaoIdFormatted}${codSincroniza}"
             stringBuilder.appendLine(linha)
         }
         
