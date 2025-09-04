@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
@@ -58,7 +59,6 @@ fun ReportsScreen(
     val reportsState by remember { viewModel.reportsState }
     val context = androidx.compose.ui.platform.LocalContext.current
     
-    // Estados para os filtros
     var showFilterDialog by remember { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showEmployeePicker by remember { mutableStateOf(false) }
@@ -187,6 +187,27 @@ fun ReportsScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Seção de Filtros Ativos
+                if (filterType != null) {
+                    item {
+                        ActiveFiltersSection(
+                            filterType = filterType,
+                            selectedPeriod = selectedPeriod,
+                            selectedStartDate = selectedStartDate,
+                            selectedEndDate = selectedEndDate,
+                            selectedEmployee = selectedEmployee,
+                            onClearFilters = {
+                                filterType = null
+                                selectedPeriod = null
+                                selectedStartDate = null
+                                selectedEndDate = null
+                                selectedEmployee = null
+                                viewModel.loadReports()
+                            }
+                        )
+                    }
+                }
+                
                 val groupedPoints = reportsState.points.groupBy { ponto ->
                     val calendar = Calendar.getInstance().apply { timeInMillis = ponto.dataHora }
                     calendar.get(Calendar.YEAR) to calendar.get(Calendar.DAY_OF_YEAR)
@@ -1053,6 +1074,200 @@ private fun PointCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = if (ponto.synced) Color(0xFF264064) else Color(0xFFFF9800) // Laranja para pendente
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveFiltersSection(
+    filterType: FilterType?,
+    selectedPeriod: PeriodFilter?,
+    selectedStartDate: Date?,
+    selectedEndDate: Date?,
+    selectedEmployee: String?,
+    onClearFilters: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Chips simples como na segunda foto
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            when (filterType) {
+                FilterType.TODAY, FilterType.THIS_WEEK, FilterType.THIS_MONTH, FilterType.THIS_YEAR -> {
+                    selectedPeriod?.let { period ->
+                        FilterChip(
+                            label = {
+                                Text(
+                                    text = period.label,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            },
+                            selected = true,
+                            onClick = { },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF5bc0de),
+                                selectedLabelColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Label,
+                                    contentDescription = period.label,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = onClearFilters,
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover filtro",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+                FilterType.DATE_RANGE -> {
+                    if (selectedStartDate != null && selectedEndDate != null) {
+                        val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+                        
+                        // Chip para data inicial
+                        FilterChip(
+                            label = {
+                                Text(
+                                    text = dateFormat.format(selectedStartDate),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            },
+                            selected = true,
+                            onClick = { },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF5bc0de),
+                                selectedLabelColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Label,
+                                    contentDescription = "Data inicial",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = onClearFilters,
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover filtro",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        )
+                        
+                        // Chip para data final
+                        FilterChip(
+                            label = {
+                                Text(
+                                    text = dateFormat.format(selectedEndDate),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            },
+                            selected = true,
+                            onClick = { },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF5bc0de),
+                                selectedLabelColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Label,
+                                    contentDescription = "Data final",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = onClearFilters,
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover filtro",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+                FilterType.EMPLOYEE -> {
+                    selectedEmployee?.let { employee ->
+                        FilterChip(
+                            label = {
+                                Text(
+                                    text = employee,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            selected = true,
+                            onClick = { },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF5bc0de),
+                                selectedLabelColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Label,
+                                    contentDescription = "Funcionário",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = onClearFilters,
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover filtro",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        )
+                    }
+                }
+                else -> { }
             }
         }
     }
