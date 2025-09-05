@@ -142,6 +142,111 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         }
     }
     
+    // Novas funções para gerenciar a segunda aba
+    fun addToImportQueue(funcionario: FuncionariosModel) {
+        val currentQueue = _uiState.value.funcionariosParaImportar.toMutableList()
+        if (!currentQueue.any { it.id == funcionario.id }) {
+            currentQueue.add(funcionario)
+            _uiState.update { 
+                it.copy(funcionariosParaImportar = currentQueue)
+            }
+            Toast.makeText(
+                context,
+                "✅ ${funcionario.nome} adicionado à lista de importação!",
+                Toast.LENGTH_SHORT
+            ).show()
+        } else {
+            Toast.makeText(
+                context,
+                "⚠️ ${funcionario.nome} já está na lista de importação!",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+    
+    fun removeFromImportQueue(funcionario: FuncionariosModel) {
+        val currentQueue = _uiState.value.funcionariosParaImportar.toMutableList()
+        currentQueue.removeAll { it.id == funcionario.id }
+        _uiState.update { 
+            it.copy(funcionariosParaImportar = currentQueue)
+        }
+    }
+    
+    fun importAllFromQueue() {
+        val funcionariosParaImportar = _uiState.value.funcionariosParaImportar
+        if (funcionariosParaImportar.isEmpty()) {
+            Toast.makeText(context, "⚠️ Nenhum funcionário na lista de importação!", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        _uiState.update { it.copy(isImportingBatch = true) }
+        
+        viewModelScope.launch {
+            var sucessos = 0
+            var erros = 0
+            
+            funcionariosParaImportar.forEach { funcionario ->
+                try {
+                    // Verificar se já existe
+                    val funcionarioExistente = funcionariosDao.getByApiId(funcionario.id.toLong())
+                    if (funcionarioExistente != null) {
+                        erros++
+                        return@forEach
+                    }
+                    
+                    val cpfLimpo = funcionario.numero_cpf.replace(Regex("[^0-9]"), "")
+                    val funcionarioEntity = FuncionariosEntity(
+                        id = 0,
+                        codigo = cpfLimpo,
+                        nome = funcionario.nome,
+                        ativo = 1,
+                        matricula = funcionario.matricula,
+                        cpf = cpfLimpo,
+                        cargo = funcionario.cargo_descricao,
+                        secretaria = funcionario.orgao_descricao ?: "N/A",
+                        lotacao = funcionario.setor_descricao ?: "N/A",
+                        apiId = funcionario.id.toLong(),
+                        dataImportacao = System.currentTimeMillis()
+                    )
+                    
+                    funcionariosDao.insert(funcionarioEntity)
+                    sucessos++
+                } catch (e: Exception) {
+                    Log.e("ImportEmployeesViewModel", "Erro ao importar ${funcionario.nome}", e)
+                    erros++
+                }
+            }
+            
+            // Limpar a lista após importação
+            _uiState.update { 
+                it.copy(
+                    funcionariosParaImportar = emptyList(),
+                    isImportingBatch = false
+                )
+            }
+            
+            // Atualizar lista de importados
+            loadImportedIds()
+            
+            // Mostrar resultado
+            val mensagem = if (erros == 0) {
+                "✅ $sucessos funcionários importados com sucesso!"
+            } else {
+                "⚠️ $sucessos importados, $erros erros/já existentes"
+            }
+            
+            Toast.makeText(context, mensagem, Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    fun clearImportQueue() {
+        _uiState.update { it.copy(funcionariosParaImportar = emptyList()) }
+    }
+    
+    fun updateSelectedTab(tabIndex: Int) {
+        _uiState.update { it.copy(selectedTabIndex = tabIndex) }
+    }
+    
     fun loadMoreFuncionarios() {
         Log.d("ImportEmployeesViewModel", "🔄 loadMoreFuncionarios chamado")
         Log.d("ImportEmployeesViewModel", "   - isLoadingMore: $isLoadingMore")
@@ -399,11 +504,14 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
 
 data class ImportEmployeesUiState(
     val funcionarios: List<FuncionariosModel> = emptyList(),
+    val funcionariosParaImportar: List<FuncionariosModel> = emptyList(),
     val searchQuery: String = "",
     val isLoading: Boolean = false,
     val isLoadingMore: Boolean = false,
+    val isImportingBatch: Boolean = false,
     val hasMorePages: Boolean = true,
     val importedIds: Set<Long> = emptySet(),
     val showImportDialog: Boolean = false,
-    val selectedFuncionario: FuncionariosModel? = null
+    val selectedFuncionario: FuncionariosModel? = null,
+    val selectedTabIndex: Int = 0
 ) 

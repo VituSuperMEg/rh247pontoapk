@@ -440,7 +440,7 @@ private fun ImportedFuncionarioCard(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Cadastrar Facial",
+                                text = "Detalhes (Cadastro de Facial)",
                                 style = MaterialTheme.typography.labelSmall
                             )
                         }
