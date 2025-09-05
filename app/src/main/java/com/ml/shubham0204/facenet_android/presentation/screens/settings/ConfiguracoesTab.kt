@@ -278,7 +278,11 @@ fun ConfiguracoesTab(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         OutlinedTextField(
-                            value = "${uiState.intervaloSincronizacao} horas",
+                            value = when {
+                                uiState.intervaloSincronizacao < 60 -> "${uiState.intervaloSincronizacao} min"
+                                uiState.intervaloSincronizacao == 60 -> "1 hora"
+                                else -> "${uiState.intervaloSincronizacao / 60} horas"
+                            },
                             onValueChange = { },
                             readOnly = true,
                             label = { Text("Intervalo de Sincronização") },
@@ -290,10 +294,18 @@ fun ConfiguracoesTab(
                             expanded = intervaloDropdownExpanded,
                             onDismissRequest = { intervaloDropdownExpanded = false }
                         ) {
+                            // Intervalos em minutos
+                            listOf(1, 5, 10, 20, 30).forEach { intervalo ->
+                                DropdownMenuItem(
+                                    text = { Text("${intervalo} min") },
+                                    onClick = { viewModel.updateIntervaloSincronizacao(intervalo); intervaloDropdownExpanded = false }
+                                )
+                            }
+                            // Intervalos em horas
                             listOf(1, 2, 4, 6, 8, 12, 24).forEach { intervalo ->
                                 DropdownMenuItem(
                                     text = { Text("${intervalo} ${if (intervalo == 1) "hora" else "horas"}") },
-                                    onClick = { viewModel.updateIntervaloSincronizacao(intervalo); intervaloDropdownExpanded = false }
+                                    onClick = { viewModel.updateIntervaloSincronizacao(intervalo * 60); intervaloDropdownExpanded = false }
                                 )
                             }
                         }
@@ -301,17 +313,7 @@ fun ConfiguracoesTab(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-
-
-                Button(
-                    onClick = { viewModel.sincronizarAgora() },
-                    modifier = Modifier.fillMaxWidth().height(55.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF264064)
-                    ),
-                ) {
-                    Text("Sincronizar Agora")
-                }
+                
             }
         }
         
@@ -343,11 +345,22 @@ fun ConfiguracoesTab(
         Button(
             onClick = onSair,
             modifier = Modifier.fillMaxWidth().height(55.dp),
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-                containerColor = Color.Red
-            )
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF264064)
+            ),
         ) {
             Text("Sair")
+        }
+
+        OutlinedButton(
+            onClick = { viewModel.sincronizarAgora() },
+            modifier = Modifier.fillMaxWidth().height(55.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent // garante que não tenha fundo
+            ),
+            border = BorderStroke(1.dp, Color(0xFF264064))
+        ) {
+            Text("Sincronizar Agora", color = Color(0xFF264064))
         }
     }
 } 

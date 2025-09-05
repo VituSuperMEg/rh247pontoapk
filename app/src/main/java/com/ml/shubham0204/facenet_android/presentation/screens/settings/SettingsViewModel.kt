@@ -47,6 +47,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     
     init {
         carregarConfiguracoes()
+        carregarHistorico()
     }
     
     fun updateLocalizacaoId(value: String) {
@@ -809,14 +810,86 @@ class SettingsViewModel : ViewModel(), KoinComponent {
         }
     }
     
+    private fun carregarHistorico() {
+        try {
+            val prefs = context.getSharedPreferences("historico_sincronizacao", Context.MODE_PRIVATE)
+            val historicoJson = prefs.getString("historico", "[]") ?: "[]"
+            
+            val gson = com.google.gson.Gson()
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
+            val historicoList = gson.fromJson<List<Map<String, String>>>(historicoJson, type)
+            
+            val historico = historicoList.map { item ->
+                HistoricoSincronizacao(
+                    dataHora = item["dataHora"] ?: "",
+                    mensagem = item["mensagem"] ?: "",
+                    status = item["status"] ?: ""
+                )
+            }
+            
+            _uiState.update { it.copy(historicoSincronizacao = historico) }
+            Log.d("SettingsViewModel", "📚 Histórico carregado: ${historico.size} entradas")
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "❌ Erro ao carregar histórico: ${e.message}")
+        }
+    }
+    
     private fun agendarSincronizacaoAutomatica(hora: Int, minuto: Int, intervalo: Int) {
         try {
-            Log.d("SettingsViewModel", "🕐 Agendando sincronização automática: $hora:$minuto a cada $intervalo horas")
+            Log.d("SettingsViewModel", "🕐 Agendando sincronização automática: $hora:$minuto a cada $intervalo minutos")
             
             val workManager = WorkManager.getInstance(context)
             
             // Cancelar trabalhos existentes
             workManager.cancelAllWorkByTag("sincronizacao_automatica")
+            
+            // Para intervalos menores que 15 minutos, usar OneTimeWorkRequest em loop
+            if (intervalo < 15) {
+                agendarSincronizacaoFrequente(intervalo)
+            } else {
+                agendarSincronizacaoPeriodica(hora, minuto, intervalo)
+            }
+            
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "❌ Erro ao agendar sincronização automática", e)
+            Toast.makeText(context, "❌ Erro ao agendar sincronização: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    private fun agendarSincronizacaoFrequente(intervalo: Int) {
+        try {
+            val workManager = WorkManager.getInstance(context)
+            
+            // Criar dados para o worker
+            val inputData = Data.Builder()
+                .putInt("intervalo", intervalo)
+                .putBoolean("isFrequente", true)
+                .build()
+            
+            // Para intervalos frequentes, agendar imediatamente
+            val sincronizacaoWork = OneTimeWorkRequestBuilder<SincronizacaoAutomaticaWorker>()
+                .setInputData(inputData)
+                .addTag("sincronizacao_automatica")
+                .setInitialDelay(intervalo.toLong(), TimeUnit.MINUTES)
+                .build()
+            
+            workManager.enqueue(sincronizacaoWork)
+            
+            Log.d("SettingsViewModel", "✅ Sincronização frequente agendada para $intervalo minutos")
+            Toast.makeText(
+                context, 
+                "✅ Sincronização automática iniciada! Próxima execução em $intervalo min", 
+                Toast.LENGTH_LONG
+            ).show()
+            
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "❌ Erro ao agendar sincronização frequente", e)
+        }
+    }
+    
+    private fun agendarSincronizacaoPeriodica(hora: Int, minuto: Int, intervalo: Int) {
+        try {
+            val workManager = WorkManager.getInstance(context)
             
             // Calcular delay inicial até o próximo horário
             val agora = LocalTime.now()
@@ -835,16 +908,27 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 .putInt("hora", hora)
                 .putInt("minuto", minuto)
                 .putInt("intervalo", intervalo)
+                .putBoolean("isFrequente", false)
                 .build()
             
-            // Criar trabalho periódico
-            val sincronizacaoWork = PeriodicWorkRequestBuilder<SincronizacaoAutomaticaWorker>(
-                intervalo.toLong(), TimeUnit.HOURS
-            )
-                .setInputData(inputData)
-                .addTag("sincronizacao_automatica")
-                .setInitialDelay(delayInicial.toMillis(), TimeUnit.MILLISECONDS)
-                .build()
+            // Criar trabalho periódico - usar minutos se < 60, senão converter para horas
+            val sincronizacaoWork = if (intervalo < 60) {
+                PeriodicWorkRequestBuilder<SincronizacaoAutomaticaWorker>(
+                    intervalo.toLong(), TimeUnit.MINUTES
+                )
+                    .setInputData(inputData)
+                    .addTag("sincronizacao_automatica")
+                    .setInitialDelay(delayInicial.toMillis(), TimeUnit.MILLISECONDS)
+                    .build()
+            } else {
+                PeriodicWorkRequestBuilder<SincronizacaoAutomaticaWorker>(
+                    (intervalo / 60).toLong(), TimeUnit.HOURS
+                )
+                    .setInputData(inputData)
+                    .addTag("sincronizacao_automatica")
+                    .setInitialDelay(delayInicial.toMillis(), TimeUnit.MILLISECONDS)
+                    .build()
+            }
             
             // Agendar o trabalho
             workManager.enqueue(sincronizacaoWork)
@@ -852,17 +936,12 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             Log.d("SettingsViewModel", "✅ Sincronização automática agendada com sucesso")
             Toast.makeText(
                 context, 
-                "✅ Sincronização automática agendada para $hora:${minuto.toString().padStart(2, '0')} a cada $intervalo horas", 
+                "✅ Sincronização automática agendada para $hora:${minuto.toString().padStart(2, '0')} a cada ${if (intervalo < 60) "$intervalo min" else "${intervalo/60}h"}", 
                 Toast.LENGTH_LONG
             ).show()
             
         } catch (e: Exception) {
-            Log.e("SettingsViewModel", "❌ Erro ao agendar sincronização automática: ${e.message}")
-            Toast.makeText(
-                context, 
-                "❌ Erro ao agendar sincronização automática: ${e.message}", 
-                Toast.LENGTH_LONG
-            ).show()
+            Log.e("SettingsViewModel", "❌ Erro ao agendar sincronização periódica", e)
         }
     }
     

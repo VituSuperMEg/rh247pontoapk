@@ -2,7 +2,6 @@ package com.ml.shubham0204.facenet_android.presentation.screens.add_face
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -12,7 +11,6 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,11 +27,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Check
@@ -54,8 +49,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,36 +67,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
 import coil.compose.AsyncImage
 import com.ml.shubham0204.facenet_android.presentation.components.AppProgressDialog
-import com.ml.shubham0204.facenet_android.presentation.components.DelayedVisibility
-import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionOverlay
 import com.ml.shubham0204.facenet_android.presentation.components.hideProgressDialog
 import com.ml.shubham0204.facenet_android.presentation.components.showProgressDialog
 import com.ml.shubham0204.facenet_android.presentation.components.AppAlertDialog
-import com.ml.shubham0204.facenet_android.presentation.components.createAlertDialog
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.delay
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.layout.ContentScale
 import com.ml.shubham0204.facenet_android.presentation.theme.customBlue
 import java.io.File
-import androidx.core.content.FileProvider
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.ImageProxy
-import androidx.camera.core.AspectRatio
-import androidx.camera.core.ImageCapture.OnImageCapturedCallback
-import android.graphics.BitmapFactory
-import android.graphics.ImageFormat
-import android.graphics.Matrix
-import android.graphics.Rect
-import android.media.Image
-import java.nio.ByteBuffer
 import kotlinx.coroutines.isActive
 
 
@@ -248,7 +224,7 @@ private fun ScreenUI(
             item {
                 // ✅ NOVO: Título da seção
                 Text(
-                    text = "Cadastro Facial",
+                    text = "Dados do Funcionário",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -259,22 +235,11 @@ private fun ScreenUI(
                 // ✅ NOVO: Card com dados do funcionário
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    ),
-
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        Text(
-                            text = "Dados do Funcionário",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
+                        // ✅ REMOVIDO: Texto "Dados do Funcionário" duplicado
                         
                         // Campo Nome (editável)
                         TextField(
@@ -283,6 +248,7 @@ private fun ScreenUI(
                             onValueChange = { personNameState = it },
                             label = { Text(text = "Nome da pessoa") },
                             singleLine = true,
+                            enabled = false,
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                 
@@ -566,11 +532,12 @@ private fun ScreenUI(
                 item {
                     Button(
                         onClick = { viewModel.showDeleteConfirmationDialog() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Red
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent // garante que não tenha fundo
                         ),
+                        border = BorderStroke(1.dp, Color(0xFF264064)),
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
                         enabled = !viewModel.isDeletingUser.value,
-                        modifier = Modifier.fillMaxWidth()
                     ) {
                         if (viewModel.isDeletingUser.value) {
                             CircularProgressIndicator(
@@ -584,24 +551,35 @@ private fun ScreenUI(
                                 color = Color.White
                             )
                         } else {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Excluir Usuário",
-                                tint = Color.White
-                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Excluir Usuário e Faces",
-                                color = Color.White
+                                text = "Excluir Facial",
+                                color = Color(0xFF264064)
                             )
                         }
+                    }
+                }
+                
+                // ✅ NOVO: Botão Voltar
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Button(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF264064)
+                        )
+                    ) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Voltar")
                     }
                 }
             }
             
             item {
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 ImagesGrid(viewModel)
             }
         }
