@@ -354,6 +354,15 @@ private fun ImportedFuncionarioCard(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // Mat
+                Text(
+                    text = "Matrícula: ${funcionario.matricula}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isActive) Color.Gray else Color(0xFF9E9E9E)
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
                 // CPF com máscara
                 Text(
                     text = "CPF: ${formatCPF(funcionario.cpf)}",
@@ -382,7 +391,7 @@ private fun ImportedFuncionarioCard(
                 
                 // Lotação
                 Text(
-                    text = "Lotação: ${funcionario.lotacao}",
+                    text = "Setor: ${funcionario.lotacao}",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isActive) Color.Gray else Color(0xFF9E9E9E)
                 )
