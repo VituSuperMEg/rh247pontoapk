@@ -14,9 +14,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun HistoricoTab() {
@@ -28,12 +32,7 @@ fun HistoricoTab() {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text(
-            text = "Histórico de Sincronização",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        
+
         if (uiState.historicoSincronizacao.isEmpty()) {
             Column(
                 modifier = Modifier.fillMaxSize(),
@@ -49,10 +48,20 @@ fun HistoricoTab() {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(uiState.historicoSincronizacao) { historico ->
+                items(uiState.historicoSincronizacao.sortedByDescending { historico ->
+                    try {
+                        val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+                        dateFormat.parse(historico.dataHora)?.time ?: 0L
+                    } catch (e: Exception) {
+                        0L
+                    }
+                }) { historico ->
                     Card(
                         modifier = Modifier.fillMaxSize(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White // cor de fundo
+                        ),
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp)
