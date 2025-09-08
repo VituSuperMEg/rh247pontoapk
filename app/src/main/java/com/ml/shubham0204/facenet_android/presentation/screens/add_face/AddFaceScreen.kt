@@ -235,6 +235,9 @@ private fun ScreenUI(
                 // ✅ NOVO: Card com dados do funcionário
                 Card(
                     modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.White
+                    )
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)

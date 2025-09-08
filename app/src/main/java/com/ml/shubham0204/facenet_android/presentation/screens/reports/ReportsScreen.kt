@@ -1080,11 +1080,11 @@ private fun PointCard(
                     color = Color(0xFF666666),
                 )
                 
-                Text(
-                    text = "Data: ${dateFormat.format(Date(ponto.dataHora))}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF666666)
-                )
+//                Text(
+//                    text = "Data: ${dateFormat.format(Date(ponto.dataHora))}",
+//                    style = MaterialTheme.typography.bodyMedium,
+//                    color = Color(0xFF666666)
+//                )
             }
             
             // Lado direito - Detalhes adicionais e status
@@ -1100,7 +1100,11 @@ private fun PointCard(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF264064) // Azul
                 )
-                
+                Text(
+                    text = "${dateFormat.format(Date(ponto.dataHora))}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF666666)
+                )
                 // Status (laranja/amarelo)
                 Text(
                     text = if (ponto.synced) "Sincronizado" else "Pendente",

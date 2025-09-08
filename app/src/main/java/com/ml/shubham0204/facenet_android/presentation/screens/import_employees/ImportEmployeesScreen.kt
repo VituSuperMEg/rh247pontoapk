@@ -658,7 +658,7 @@ private fun FuncionarioCard(
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "✅ Funcionário adicionado à lista de importação",
+                            text = "Funcionário adicionado à lista de importação",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color(0xFF856404),
                             textAlign = TextAlign.Center,
@@ -680,7 +680,7 @@ private fun QueuedFuncionarioCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))
+        colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
             modifier = Modifier
@@ -719,11 +719,7 @@ private fun QueuedFuncionarioCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
-                    Text(
-                        text = funcionario.cargo_descricao,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.Gray
-                    )
+
                 }
                 
                 IconButton(
@@ -751,25 +747,43 @@ private fun QueuedFuncionarioCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = Color.Gray
             )
+
+            Text(
+                text = "Cargo: ${funcionario.cargo_descricao}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+
+            Text(
+                text = "Órgão: ${funcionario.orgao_descricao}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
+
+            Text(
+                text = "Setor: ${funcionario.setor_descricao}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray
+            )
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // Botão Importar Individual
-            Button(
-                onClick = onImportClick,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF264064)
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Importar Funcionário")
-            }
+//            // Botão Importar Individual
+//            Button(
+//                onClick = onImportClick,
+//                modifier = Modifier.fillMaxWidth(),
+//                colors = ButtonDefaults.buttonColors(
+//                    containerColor = Color(0xFF264064)
+//                )
+//            ) {
+//                Icon(
+//                    imageVector = Icons.Default.Check,
+//                    contentDescription = null,
+//                    modifier = Modifier.size(16.dp)
+//                )
+//                Spacer(modifier = Modifier.width(8.dp))
+//                Text("Importar Funcionário")
+//            }
         }
     }
 }

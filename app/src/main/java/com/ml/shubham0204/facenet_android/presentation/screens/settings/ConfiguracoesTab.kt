@@ -109,21 +109,21 @@ fun ConfiguracoesTab(
                     )
                 }
                 
-                OutlinedTextField(
-                    value = uiState.serverUrl,
-                    onValueChange = { viewModel.updateServerUrl(it) },
-                    label = { Text("URL do Servidor") },
-                    modifier = Modifier.fillMaxWidth(),
-                    isError = uiState.serverUrlError != null
-                )
-                
-                if (uiState.serverUrlError != null) {
-                    Text(
-                        text = uiState.serverUrlError!!,
-                        color = Color.Red,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
+//                OutlinedTextField(
+//                    value = uiState.serverUrl,
+//                    onValueChange = { viewModel.updateServerUrl(it) },
+//                    label = { Text("URL do Servidor") },
+//                    modifier = Modifier.fillMaxWidth(),
+//                    isError = uiState.serverUrlError != null
+//                )
+//
+//                if (uiState.serverUrlError != null) {
+//                    Text(
+//                        text = uiState.serverUrlError!!,
+//                        color = Color.Red,
+//                        style = MaterialTheme.typography.bodySmall
+//                    )
+//                }
             }
         }
         

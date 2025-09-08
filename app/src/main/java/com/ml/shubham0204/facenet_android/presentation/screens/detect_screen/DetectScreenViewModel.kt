@@ -1,7 +1,9 @@
 package com.ml.shubham0204.facenet_android.presentation.screens.detect_screen
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -18,6 +20,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 @KoinViewModel
 class DetectScreenViewModel(
@@ -25,7 +29,8 @@ class DetectScreenViewModel(
     val imageVectorUseCase: ImageVectorUseCase,
     private val pontosGenericosDao: PontosGenericosDao,
     private val funcionariosDao: FuncionariosDao
-) : ViewModel() {
+) : ViewModel(), KoinComponent {
+    private val context: Context by inject()
     val faceDetectionMetricsState = mutableStateOf<RecognitionMetrics?>(null)
     val isProcessingRecognition = mutableStateOf(false)
     val currentFaceBitmap = mutableStateOf<Bitmap?>(null)
@@ -113,7 +118,7 @@ class DetectScreenViewModel(
                         
                         // Buscar funcionários reconhecidos
                         val funcionario = findRecognizedEmployee()
-                        
+
                         if (funcionario != null) {
                             Log.d("DetectScreenViewModel", "✅ Funcionário reconhecido: ${funcionario.nome}")
                             recognizedPerson.value = funcionario
@@ -124,7 +129,7 @@ class DetectScreenViewModel(
                                 savedPonto.value = ponto
                                 showSuccessScreen.value = true
                                 Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso")
-                                break // ✅ CORRIGIDO: Sair do loop após sucesso
+                                break
                             }
                         } else {
                             Log.w("DetectScreenViewModel", "⚠️ Nenhum funcionário reconhecido")
@@ -197,14 +202,10 @@ class DetectScreenViewModel(
                     }
                     
                     if (funcionarioInativo != null) {
-                        Log.w("DetectScreenViewModel", "⚠️ Funcionário encontrado mas está INATIVO: ${funcionarioInativo.nome}")
-                        Log.w("DetectScreenViewModel", "⚠️ Ponto não autorizado para funcionários inativos")
+                        Toast.makeText(context, "⚠️ Funcionário encontrado mas está INATIVO: ${funcionarioInativo.nome}", Toast.LENGTH_LONG).show()
                     }
                     
-                    // ✅ NOVO: Log detalhado para debug
-                    Log.w("DetectScreenViewModel", "🔍 === DEBUG DE COMPARAÇÃO ===")
-                    Log.w("DetectScreenViewModel", "🔍 Nome reconhecido: '$recognizedPersonName'")
-                    Log.w("DetectScreenViewModel", "🔍 Tamanho do nome reconhecido: ${recognizedPersonName.length}")
+                 
                     funcionarios.forEach { func ->
                         Log.w("DetectScreenViewModel", "🔍 Comparando com ATIVO: '${func.nome}' (tamanho: ${func.nome.length})")
                         Log.w("DetectScreenViewModel", "🔍 Igual exato: ${func.nome == recognizedPersonName}")
