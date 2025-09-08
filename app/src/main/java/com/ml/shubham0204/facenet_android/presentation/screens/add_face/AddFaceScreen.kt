@@ -237,6 +237,9 @@ private fun ScreenUI(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White
+                    ),
+                    elevation = CardDefaults.cardElevation(
+                            defaultElevation = 2.dp
                     )
                 ) {
                     Column(
@@ -329,7 +332,7 @@ private fun ScreenUI(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                            containerColor = Color.White
                         ),
                         elevation = CardDefaults.cardElevation(
                             defaultElevation = 2.dp
@@ -338,15 +341,6 @@ private fun ScreenUI(
                         Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            Text(
-                                text = "Gerenciar Status do Funcionário",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            
-                            Spacer(modifier = Modifier.height(16.dp))
-                            
                             // ✅ NOVO: Botão de Ativação/Desativação
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

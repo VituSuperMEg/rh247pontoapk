@@ -90,7 +90,7 @@ fun SobreTab() {
                 )
                 
                 Text(
-                    text = "Desenvolvido por RH247",
+                    text = "Desenvolvido por Itarget Tecnologia",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 
