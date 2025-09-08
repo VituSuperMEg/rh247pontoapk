@@ -16,12 +16,15 @@ import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionO
 import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import com.ml.shubham0204.facenet_android.domain.PersonUseCase
 import com.ml.shubham0204.facenet_android.utils.BitmapUtils
+import com.ml.shubham0204.facenet_android.utils.LocationUtils
+import com.ml.shubham0204.facenet_android.utils.LocationResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlinx.coroutines.runBlocking
 
 @KoinViewModel
 class DetectScreenViewModel(
@@ -31,6 +34,7 @@ class DetectScreenViewModel(
     private val funcionariosDao: FuncionariosDao
 ) : ViewModel(), KoinComponent {
     private val context: Context by inject()
+    private val locationUtils = LocationUtils(context)
     val faceDetectionMetricsState = mutableStateOf<RecognitionMetrics?>(null)
     val isProcessingRecognition = mutableStateOf(false)
     val currentFaceBitmap = mutableStateOf<Bitmap?>(null)
@@ -111,6 +115,13 @@ class DetectScreenViewModel(
                     Log.d("DetectScreenViewModel", "🔍 Tentativa $attempts - Pessoa reconhecida: $recognizedPersonName")
                     
                     if (recognizedPersonName != null && recognizedPersonName != "Not recognized" && recognizedPersonName != "Não Encontrado") {
+                        // ✅ NOVO: Verificar se foi detectado spoofing
+                        if (recognizedPersonName == "SPOOF_DETECTED") {
+                            Log.w("DetectScreenViewModel", "🚫 SPOOF DETECTADO! Bloqueando registro de ponto")
+                            mostrarMensagemSpoofDetectado()
+                            return@launch // Sair sem processar
+                        }
+                        
                         Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida! Processando...")
                         
                         // Aguardar um pouco mais para garantir que a informação está estável
@@ -123,13 +134,22 @@ class DetectScreenViewModel(
                             Log.d("DetectScreenViewModel", "✅ Funcionário reconhecido: ${funcionario.nome}")
                             recognizedPerson.value = funcionario
                             
-                            // Registrar ponto
-                            val ponto = registerPonto(funcionario)
-                            if (ponto != null) {
-                                savedPonto.value = ponto
-                                showSuccessScreen.value = true
-                                Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso")
-                                break
+                            // ✅ NOVO: Verificar POOF antes de registrar ponto
+                            if (verificarPOOF(funcionario)) {
+                                Log.d("DetectScreenViewModel", "✅ POOF válido para: ${funcionario.nome}")
+                                
+                                // Registrar ponto
+                                val ponto = registerPonto(funcionario)
+                                if (ponto != null) {
+                                    savedPonto.value = ponto
+                                    showSuccessScreen.value = true
+                                    Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso")
+                                    break
+                                }
+                            } else {
+                                Log.w("DetectScreenViewModel", "❌ POOF inválido - Registro negado para: ${funcionario.nome}")
+                                mostrarMensagemPOOFInvalido(funcionario)
+                                // Não registra o ponto e continua o loop
                             }
                         } else {
                             Log.w("DetectScreenViewModel", "⚠️ Nenhum funcionário reconhecido")
@@ -234,6 +254,27 @@ class DetectScreenViewModel(
             
             val horarioAtual = System.currentTimeMillis()
             
+            // ✅ NOVO: Obter localização real do dispositivo
+            val locationResult = runBlocking {
+                locationUtils.getCurrentLocation(8000) // 8 segundos de timeout
+            }
+            
+            val latitude: Double
+            val longitude: Double
+            
+            if (locationResult != null) {
+                latitude = locationResult.latitude
+                longitude = locationResult.longitude
+                Log.d("DetectScreenViewModel", " Localização obtida: $latitude, $longitude")
+                Log.d("DetectScreenViewModel", "   - Precisão: ${locationResult.accuracy}m")
+                Log.d("DetectScreenViewModel", "   - Fonte: ${if (locationResult.isFromGPS) "GPS" else "Network"}")
+            } else {
+                // Fallback para coordenadas padrão se não conseguir obter localização
+                latitude = -6.377917793252374
+                longitude = -39.316891286420876
+                Log.w("DetectScreenViewModel", "⚠️ Não foi possível obter localização, usando coordenadas padrão")
+            }
+            
             // ✅ NOVO: Capturar foto do momento do registro
             val fotoBase64 = currentFaceBitmap.value?.let { bitmap ->
                 if (BitmapUtils.isValidBitmap(bitmap)) {
@@ -249,7 +290,7 @@ class DetectScreenViewModel(
                 null
             }
             
-            // Criar ponto com foto
+            // Criar ponto com localização real
             val ponto = PontosGenericosEntity(
                 funcionarioId = funcionario.id.toString(),
                 funcionarioNome = funcionario.nome,
@@ -260,9 +301,9 @@ class DetectScreenViewModel(
                 funcionarioLotacao = funcionario.lotacao,
                 tipoPonto = "PONTO",
                 dataHora = horarioAtual,
-                latitude = -6.377917793252374, // Simular coordenadas
-                longitude = -39.316891286420876,
-                fotoBase64 = fotoBase64, // ✅ NOVO: Incluir foto base64
+                latitude = latitude,
+                longitude = longitude,
+                fotoBase64 = fotoBase64,
                 synced = false
             )
             
@@ -292,5 +333,65 @@ class DetectScreenViewModel(
         savedPonto.value = null
         lastRecognizedPersonName.value = null // ✅ CORRIGIDO: Resetar o nome da pessoa reconhecida
         Log.d("DetectScreenViewModel", "🔄 Estados resetados para nova captura")
+    }
+
+    // ✅ NOVO: Função para verificar POOF
+    private fun verificarPOOF(funcionario: FuncionariosEntity): Boolean {
+        return try {
+            // Verificar se o funcionário está ativo (tem POOF válido)
+            val poofValido = funcionario.ativo == 1
+            
+            Log.d("DetectScreenViewModel", "🔍 Verificando POOF para ${funcionario.nome}:")
+            Log.d("DetectScreenViewModel", "   - Status ativo: ${funcionario.ativo}")
+            Log.d("DetectScreenViewModel", "   - POOF válido: $poofValido")
+            
+            poofValido
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao verificar POOF: ${e.message}")
+            false // Em caso de erro, negar acesso por segurança
+        }
+    }
+
+    // ✅ NOVO: Função para mostrar mensagem de POOF inválido
+    private fun mostrarMensagemPOOFInvalido(funcionario: FuncionariosEntity) {
+        viewModelScope.launch {
+            try {
+                val mensagem = when {
+                    funcionario.ativo == 0 -> "❌ ACESSO NEGADO\n\n${funcionario.nome}\n\nFuncionário INATIVO no sistema.\nProcure o RH para regularizar sua situação."
+                    else -> "❌ ACESSO NEGADO\n\n${funcionario.nome}\n\nPOOF (Proof of Employment) inválido.\nProcure o RH para validação."
+                }
+                
+                Toast.makeText(
+                    context,
+                    mensagem,
+                    Toast.LENGTH_LONG
+                ).show()
+                
+                Log.w("DetectScreenViewModel", "🚫 Acesso negado - POOF inválido para: ${funcionario.nome}")
+                
+            } catch (e: Exception) {
+                Log.e("DetectScreenViewModel", "❌ Erro ao mostrar mensagem de POOF inválido: ${e.message}")
+            }
+        }
+    }
+
+    // ✅ NOVO: Função para mostrar mensagem de spoofing detectado
+    private fun mostrarMensagemSpoofDetectado() {
+        viewModelScope.launch {
+            try {
+                val mensagem = " ACESSO NEGADO\n\nFOTO DETECTADA!\n\nO sistema detectou que você está usando uma foto.\nUse seu rosto real para registrar o ponto."
+                
+                Toast.makeText(
+                    context,
+                    mensagem,
+                    Toast.LENGTH_LONG
+                ).show()
+                
+                Log.w("DetectScreenViewModel", " Acesso negado - Spoofing detectado")
+                
+            } catch (e: Exception) {
+                Log.e("DetectScreenViewModel", "❌ Erro ao mostrar mensagem de spoofing: ${e.message}")
+            }
+        }
     }
 }

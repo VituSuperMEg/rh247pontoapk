@@ -251,9 +251,42 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             }
         }
         AppAlertDialog()
+
+        // ✅ NOVO: Mostrar aviso quando spoofing for detectado
+        val lastRecognizedPersonName by remember { viewModel.lastRecognizedPersonName }
+        DelayedVisibility(lastRecognizedPersonName == "SPOOF_DETECTED") {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .background(
+                        color = Color.Red.copy(alpha = 0.9f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "🚫 FOTO DETECTADA",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "O sistema detectou que você está usando uma foto.\nUse seu rosto real para registrar o ponto.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 
-    // LaunchedEffect para monitorar pessoa reconhecida
     LaunchedEffect(faceDetectionOverlay) {
         if (faceDetectionOverlay != null) {
             while (isActive) { // ✅ CORRIGIDO: Usar isActive para verificar se o job ainda está ativo
@@ -276,6 +309,50 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                 } catch (e: Exception) {
                     android.util.Log.e("DetectScreen", "❌ Erro no monitoramento: ${e.message}")
                     break // Sair do loop em caso de erro
+                }
+            }
+        }
+    }
+
+    val recognizedPerson by remember { viewModel.recognizedPerson }
+    recognizedPerson?.let { funcionario ->
+        if (funcionario.ativo == 0) {
+            DelayedVisibility(true) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                        .background(
+                            color = Color.Red.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "🚫 ACESSO NEGADO",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = funcionario.nome,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Funcionário INATIVO\nPOOF inválido - Procure o RH",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         }

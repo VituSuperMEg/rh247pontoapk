@@ -8,6 +8,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -18,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
+import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -27,31 +32,19 @@ fun PontoSuccessScreen(
     ponto: PontosGenericosEntity,
     onNavigateBack: () -> Unit
 ) {
+    var countdown by mutableIntStateOf(3)
+    
+    LaunchedEffect(countdown) {
+        if (countdown > 0) {
+            delay(1000)
+            countdown--
+        } else {
+            onNavigateBack()
+        }
+    }
+
     FaceNetAndroidTheme {
         Scaffold(
-            // topBar = {
-            //     TopAppBar(
-            //         colors = TopAppBarDefaults.topAppBarColors(
-            //             containerColor = Color.Transparent
-            //         ),
-            //         title = {
-            //             Text(
-            //                 text = "Ponto Facial",
-            //                 style = MaterialTheme.typography.headlineSmall,
-            //                 color = Color.Black
-            //             )
-            //         },
-            //         navigationIcon = {
-            //             IconButton(onClick = onNavigateBack) {
-            //                 Icon(
-            //                     imageVector = Icons.AutoMirrored.Default.ArrowBack,
-            //                     contentDescription = "Voltar",
-            //                     tint = Color.Black
-            //                 )
-            //             }
-            //         }
-            //     )
-            // }
         ) { innerPadding ->
             Box(
                 modifier = Modifier
@@ -59,13 +52,12 @@ fun PontoSuccessScreen(
                     .background(Color(0xFFF9F9F9))
                     .padding(innerPadding)
             ) {
-                // Card principal
                 Card(
                     modifier = Modifier
                         .width(600.dp)
                         .padding(16.dp)
                         .align(Alignment.Center)
-                        .height(430.dp)
+                        .height(450.dp)
                         .shadow(elevation = 0.5.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
@@ -81,7 +73,7 @@ fun PontoSuccessScreen(
                       
                                                
                         Text(
-                            text = "Ponto Registrado com sucesso!",
+                            text = "Ponto Registrado Com Sucesso!",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color.Black,
@@ -176,6 +168,24 @@ fun PontoSuccessScreen(
                         
                         Spacer(modifier = Modifier.height(32.dp))
                         
+                        // Progress indicator
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color(0xFF1976D2),
+                            strokeWidth = 2.dp
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text(
+                            text = "Fechando automaticamente em $countdown segundos...",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
                         // Botão Fechar
                         Button(
                             onClick = onNavigateBack,
@@ -188,7 +198,7 @@ fun PontoSuccessScreen(
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "Fechar",
+                                text = "Fechar Agora",
                                 color = Color.White,
                                 fontWeight = FontWeight.Bold
                             )

@@ -135,10 +135,25 @@ class ImageVectorUseCase(
                     // If the distance > 0.6, we recognize the person
                     // else we conclude that the face does not match enough
                     if (distance > 0.6) {
-                        android.util.Log.d("ImageVectorUseCase", "✅ Face $index reconhecida como: ${recognitionResult.personName}")
-                        faceRecognitionResults.add(
-                            FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
-                        )
+                        // ✅ NOVO: Verificar spoofing ANTES de reconhecer a pessoa
+                        if (spoofResult != null && spoofResult.isSpoof) {
+                            android.util.Log.w("ImageVectorUseCase", "🚫 SPOOF DETECTADO! Bloqueando reconhecimento para face $index")
+                            android.util.Log.w("ImageVectorUseCase", "   - Score de spoof: ${spoofResult.score}")
+                            android.util.Log.w("ImageVectorUseCase", "   - Tempo de detecção: ${spoofResult.timeMillis}ms")
+                            
+                            // Bloquear reconhecimento - tratar como "Not recognized"
+                            faceRecognitionResults.add(
+                                FaceRecognitionResult("SPOOF_DETECTED", boundingBox, spoofResult),
+                            )
+                        } else {
+                            android.util.Log.d("ImageVectorUseCase", "✅ Face $index reconhecida como: ${recognitionResult.personName}")
+                            if (spoofResult != null) {
+                                android.util.Log.d("ImageVectorUseCase", "   - Spoof score: ${spoofResult.score} (válido)")
+                            }
+                            faceRecognitionResults.add(
+                                FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
+                            )
+                        }
                     } else {
                         android.util.Log.d("ImageVectorUseCase", "❌ Face $index não reconhecida (distância: $distance)")
                         faceRecognitionResults.add(

@@ -362,11 +362,13 @@ class FaceDetectionOverlay(
                         personName = "Nenhuma pessoa cadastrada"
                     } else if (name == "Not recognized" || name == "Não Encontrado") {
                         personName = "Pessoa não reconhecida"
+                    } else if (name == "SPOOF_DETECTED") {
+                        // ✅ NOVO: Mensagem específica para spoofing detectado
+                        personName = "🚫 FOTO DETECTADA"
                     }
                     
-                    if (spoofResult != null && spoofResult.isSpoof) {
-                        personName = "$personName (Spoof: ${spoofResult.score})"
-                    }
+                    // ✅ REMOVIDO: Não mostrar mais o score de spoof na interface
+                    // (já está sendo tratado acima)
                     
                     boundingBoxTransform.mapRect(box)
                     predictions.add(Prediction(box, personName))
