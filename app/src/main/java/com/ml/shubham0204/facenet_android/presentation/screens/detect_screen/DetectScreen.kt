@@ -12,18 +12,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -71,55 +78,47 @@ private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<Str
 fun DetectScreen(
     onOpenFaceListClick: (() -> Unit),
     onNavigateBack: (() -> Unit) = {},
-    onPontoSuccess: (PontosGenericosEntity) -> Unit = {}
+    onPontoSuccess: (PontosGenericosEntity) -> Unit = {},
+    onAdminAccessClick: (() -> Unit) = {}
 ) {
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-//             topBar = {
-//                  TopAppBar(
-//                      colors = TopAppBarDefaults.topAppBarColors(),
-//                      title = {
-//                          Text(
-//                              text = "Registrar Ponto",
-//                              style = MaterialTheme.typography.headlineSmall,
-//                          )
-//                      },
-//                      navigationIcon = {
-//                          IconButton(onClick = onNavigateBack) {
-//                              Icon(
-//                                  imageVector = Icons.AutoMirrored.Default.ArrowBack,
-//                                  contentDescription = "Voltar",
-//                              )
-//                          }
-//                      },
-//                      actions = {
-//                           IconButton(onClick = onOpenFaceListClick) {
-//                               Icon(
-//                                   imageVector = Icons.Default.Face,
-//                                   contentDescription = "Open Face List",
-//                               )
-//                           }
-//                           IconButton(
-//                               onClick = {
-//                                   if (cameraFacing.intValue == CameraSelector.LENS_FACING_BACK) {
-//                                       cameraFacing.intValue = CameraSelector.LENS_FACING_FRONT
-//                                   } else {
-//                                       cameraFacing.intValue = CameraSelector.LENS_FACING_BACK
-//                                   }
-//                               },
-//                           ) {
-//                               Icon(
-//                                   imageVector = Icons.Default.Cameraswitch,
-//                                   contentDescription = "Switch Camera",
-//                               )
-//                           }
-//                      },
-//                  )
-//             },
         ) { innerPadding ->
             Column(modifier = Modifier.padding(innerPadding)) { 
                 ScreenUI(onPontoSuccess = onPontoSuccess) 
+            }
+        }
+        
+        // Botão administrativo no bottom
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Button(
+                onClick = onAdminAccessClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .windowInsetsPadding(WindowInsets.navigationBars).height(55.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF264064)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AdminPanelSettings,
+                    contentDescription = "Acesso Administrativo",
+                    modifier = Modifier.size(20.dp),
+                    tint = Color.White
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Acessar Painel Administrativo",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
             }
         }
     }

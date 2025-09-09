@@ -20,6 +20,7 @@ import com.ml.shubham0204.facenet_android.presentation.screens.imported_employee
 import com.ml.shubham0204.facenet_android.presentation.screens.ponto_success.PontoSuccessScreen
 import com.ml.shubham0204.facenet_android.presentation.screens.reports.ReportsScreen
 import com.ml.shubham0204.facenet_android.presentation.screens.settings.SettingsScreen
+import com.ml.shubham0204.facenet_android.presentation.screens.login.LoginScreen
 import com.ml.shubham0204.facenet_android.utils.ClearFacesUtil
 import com.ml.shubham0204.facenet_android.utils.ClearAdeiltonPointsUtil
 
@@ -36,9 +37,10 @@ class MainActivity : ComponentActivity() {
         
         setContent {
             val navHostController = rememberNavController()
+            
             NavHost(
                 navController = navHostController,
-                startDestination = "home",
+                startDestination = "detect",
                 enterTransition = { fadeIn() },
                 exitTransition = { fadeOut() },
             ) {
@@ -48,7 +50,8 @@ class MainActivity : ComponentActivity() {
                         onImportedEmployeesClick = { navHostController.navigate("face-list") },
                         onImportEmployeesClick = { navHostController.navigate("import-employees") },
                         onReportsClick = { navHostController.navigate("reports") },
-                        onSettingsClick = { navHostController.navigate("settings") }
+                        onSettingsClick = { navHostController.navigate("settings") },
+                        onAdminAccessClick = { navHostController.navigate("login") }
                     )
                 }
                 composable(
@@ -135,7 +138,8 @@ class MainActivity : ComponentActivity() {
                         onNavigateBack = { navHostController.navigateUp() },
                         onPontoSuccess = { ponto ->
                             navHostController.navigate("ponto-success/${ponto.id}")
-                        }
+                        },
+                        onAdminAccessClick = { navHostController.navigate("login") }
                     ) 
                 }
                 
@@ -209,6 +213,14 @@ class MainActivity : ComponentActivity() {
                 composable("import-employees") {
                     ImportEmployeesScreen(
                         onNavigateBack = { navHostController.navigateUp() }
+                    )
+                }
+                composable("login") {
+                    LoginScreen(
+                        onNavigateBack = { navHostController.navigateUp() },
+                        onLoginSuccess = { 
+                            navHostController.navigate("home")
+                        }
                     )
                 }
                 composable("settings") {

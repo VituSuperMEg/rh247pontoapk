@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Summarize
+import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,7 +49,8 @@ fun HomeScreen(
     onImportedEmployeesClick: () -> Unit,
     onImportEmployeesClick: () -> Unit,
     onReportsClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onAdminAccessClick: () -> Unit
 ) {
     FaceNetAndroidTheme {
         Scaffold(
@@ -68,7 +70,6 @@ fun HomeScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    // Logo real
                     androidx.compose.foundation.Image(
                         painter = painterResource(id = R.drawable.logo),
                         contentDescription = "Logo RH247",
@@ -79,24 +80,22 @@ fun HomeScreen(
                         text = "Sistema de Ponto",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF424242) // Dark gray
+                        color = Color(0xFF424242) 
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "Bem-vindo ao painel administrativo",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Color(0xFF757575) // Light gray
+                        color = Color(0xFF757575) 
                     )
                 }
                 
                 Spacer(modifier = Modifier.height(40.dp))
                 
-                // Main grid of cards
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Top left card - Funcionários Importados
                     MenuCard(
                         icon = Icons.Default.Group,
                         title = "Funcionários Importados",
@@ -105,7 +104,6 @@ fun HomeScreen(
                         onClick = onImportedEmployeesClick
                     )
                     
-                    // Top right card - Importar Funcionários
                     MenuCard(
                         icon = Icons.Default.Face,
                         title = "Importar Funcionários",
@@ -115,13 +113,13 @@ fun HomeScreen(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Bottom left card - Registrar Ponto
+
                     MenuCard(
                         icon = Icons.Default.Schedule,
                         title = "Registrar Ponto",
@@ -130,7 +128,6 @@ fun HomeScreen(
                         onClick = onRegisterTimeClick
                     )
                     
-                    // Bottom right card - Relatórios
                     MenuCard(
                         icon = Icons.Default.Summarize,
                         title = "Pontos Registrados",
@@ -140,16 +137,20 @@ fun HomeScreen(
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
-                // Settings card at bottom - takes space of two buttons
-                MenuCard(
-                    icon = Icons.Default.Settings,
-                    title = "Configurações",
-                    subtitle = "",
-                    modifier = Modifier.fillMaxWidth().height(180.dp),
-                    onClick = onSettingsClick
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    MenuCard(
+                        icon = Icons.Default.Settings,
+                        title = "Configurações",
+                        subtitle = "",
+                        modifier = Modifier.fillMaxWidth().height(180.dp),
+                        onClick = onSettingsClick
+                    )
+                }
             }
         }
     }
