@@ -128,8 +128,21 @@ fun LoginScreen(
                             modifier = Modifier.size(100.dp)
                         )
                         
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "Login",
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black,
+                            textAlign = TextAlign.Start,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        
                         Spacer(modifier = Modifier.height(24.dp))
-                                   
+
+                        
+
                         OutlinedTextField(
                             value = formatCpf(cpf),
                             onValueChange = { newValue ->

@@ -12,9 +12,8 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
     private const val BASE_URL = "https://api.rh247.com.br"
 
-    // Gson mais leniente para tratar JSON malformado
     private val gson: Gson = GsonBuilder()
-        .setLenient() // Permite JSON malformado
+        .setLenient() 
         .create()
 
     private val okHttpClient = OkHttpClient.Builder()
@@ -30,7 +29,7 @@ object RetrofitClient {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
             .client(okHttpClient)
-            .addConverterFactory(ScalarsConverterFactory.create()) // ✅ NOVO: Para respostas string
+            .addConverterFactory(ScalarsConverterFactory.create())
             .addConverterFactory(GsonConverterFactory.create(gson))
             .build()
             .create(ApiService::class.java)
