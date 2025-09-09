@@ -8,10 +8,17 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
+import java.util.Timer
+import java.util.TimerTask
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
@@ -32,14 +39,40 @@ fun PontoSuccessScreen(
     ponto: PontosGenericosEntity,
     onNavigateBack: () -> Unit
 ) {
-    var countdown by mutableIntStateOf(3)
+    var countdown by mutableStateOf(3)
     
-    LaunchedEffect(countdown) {
-        if (countdown > 0) {
-            delay(1000)
-            countdown--
-        } else {
-            onNavigateBack()
+    // ✅ CORRIGIDO: DisposableEffect com Timer e Handler para thread principal
+    DisposableEffect(Unit) {
+        android.util.Log.d("PontoSuccessScreen", "🕐 Iniciando countdown de 3 segundos...")
+        
+        val timer = Timer()
+        val handler = Handler(Looper.getMainLooper())
+        var currentCount = 3
+        
+        val task = object : TimerTask() {
+            override fun run() {
+                currentCount--
+                countdown = currentCount
+                android.util.Log.d("PontoSuccessScreen", "⏰ Countdown: $countdown segundos restantes")
+                
+                if (currentCount <= 0) {
+                    android.util.Log.d("PontoSuccessScreen", "✅ Countdown finalizado! Navegando de volta...")
+                    timer.cancel()
+                    
+                    // ✅ CORRIGIDO: Executar navegação na thread principal
+                    handler.post {
+                        onNavigateBack()
+                    }
+                }
+            }
+        }
+        
+        // Executar a cada 1 segundo
+        timer.scheduleAtFixedRate(task, 1000, 1000)
+        
+        onDispose {
+            timer.cancel()
+            android.util.Log.d("PontoSuccessScreen", "🔄 Timer cancelado")
         }
     }
 
@@ -168,23 +201,48 @@ fun PontoSuccessScreen(
                         
                         Spacer(modifier = Modifier.height(32.dp))
                         
-                        // Progress indicator
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = Color(0xFF1976D2),
-                            strokeWidth = 2.dp
-                        )
+                        // // Progress indicator
+                        // CircularProgressIndicator(
+                        //     modifier = Modifier.size(24.dp),
+                        //     color = Color(0xFF1976D2),
+                        //     strokeWidth = 2.dp
+                        // )
                         
-                        Spacer(modifier = Modifier.height(8.dp))
+                        // Spacer(modifier = Modifier.height(8.dp))
                         
-                        Text(
-                            text = "Fechando automaticamente em $countdown segundos...",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray,
-                            textAlign = TextAlign.Center
-                        )
+                        // // ✅ MELHORADO: Indicador visual do countdown
+                        // Column(
+                        //     modifier = Modifier.fillMaxWidth(),
+                        //     horizontalAlignment = Alignment.CenterHorizontally
+                        // ) {
+                             
+                        //     Row(
+                        //         horizontalArrangement = Arrangement.Center,
+                        //         verticalAlignment = Alignment.CenterVertically
+                        //     ) {
+                        //         Text(
+                        //             text = "Fechando automaticamente em ",
+                        //             style = MaterialTheme.typography.bodySmall,
+                        //             color = Color.Gray,
+                        //             textAlign = TextAlign.Center
+                        //         )
+                        //         Text(
+                        //             text = "$countdown",
+                        //             style = MaterialTheme.typography.headlineSmall,
+                        //             color = if (countdown <= 1) Color.Red else Color(0xFF1976D2),
+                        //             fontWeight = FontWeight.Bold,
+                        //             textAlign = TextAlign.Center
+                        //         )
+                        //         Text(
+                        //             text = " segundos...",
+                        //             style = MaterialTheme.typography.bodySmall,
+                        //             color = Color.Gray,
+                        //             textAlign = TextAlign.Center
+                        //         )
+                        //     }
+                        // }
                         
-                        Spacer(modifier = Modifier.height(16.dp))
+                        // Spacer(modifier = Modifier.height(16.dp))
                         
                         // Botão Fechar
                         Button(

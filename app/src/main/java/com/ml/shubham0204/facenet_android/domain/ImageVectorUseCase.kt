@@ -109,11 +109,19 @@ class ImageVectorUseCase(
                         continue
                     }
 
-                    val spoofResult = try {
-                        faceSpoofDetector.detectSpoof(frameBitmap, boundingBox)
-                    } catch (e: Exception) {
-                        android.util.Log.e("ImageVectorUseCase", "❌ Erro na detecção de spoof para face $index: ${e.message}")
-                        // Continuar sem spoof detection
+                    // ✅ CORRIGIDO: Opção para desabilitar spoof detection temporariamente
+                    val enableSpoofDetection = true // Mude para false para desabilitar spoof detection
+                    
+                    val spoofResult = if (enableSpoofDetection) {
+                        try {
+                            faceSpoofDetector.detectSpoof(frameBitmap, boundingBox)
+                        } catch (e: Exception) {
+                            android.util.Log.e("ImageVectorUseCase", "❌ Erro na detecção de spoof para face $index: ${e.message}")
+                            // Continuar sem spoof detection
+                            null
+                        }
+                    } else {
+                        android.util.Log.d("ImageVectorUseCase", "⚠️ Spoof detection DESABILITADO para debugging")
                         null
                     }
                     
@@ -135,10 +143,13 @@ class ImageVectorUseCase(
                     // If the distance > 0.6, we recognize the person
                     // else we conclude that the face does not match enough
                     if (distance > 0.6) {
-                        // ✅ NOVO: Verificar spoofing ANTES de reconhecer a pessoa
-                        if (spoofResult != null && spoofResult.isSpoof) {
+                    // ✅ CORRIGIDO: Verificar spoofing com threshold mais permissivo
+                    val spoofThreshold = getSpoofThreshold() // Função para obter threshold dinâmico
+                    val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
+                        
+                        if (isSpoofDetected) {
                             android.util.Log.w("ImageVectorUseCase", "🚫 SPOOF DETECTADO! Bloqueando reconhecimento para face $index")
-                            android.util.Log.w("ImageVectorUseCase", "   - Score de spoof: ${spoofResult.score}")
+                            android.util.Log.w("ImageVectorUseCase", "   - Score de spoof: ${spoofResult.score} (threshold: $spoofThreshold)")
                             android.util.Log.w("ImageVectorUseCase", "   - Tempo de detecção: ${spoofResult.timeMillis}ms")
                             
                             // Bloquear reconhecimento - tratar como "Not recognized"
@@ -148,7 +159,8 @@ class ImageVectorUseCase(
                         } else {
                             android.util.Log.d("ImageVectorUseCase", "✅ Face $index reconhecida como: ${recognitionResult.personName}")
                             if (spoofResult != null) {
-                                android.util.Log.d("ImageVectorUseCase", "   - Spoof score: ${spoofResult.score} (válido)")
+                                android.util.Log.d("ImageVectorUseCase", "   - Spoof score: ${spoofResult.score} (threshold: $spoofThreshold) - VÁLIDO")
+                                android.util.Log.d("ImageVectorUseCase", "   - isSpoof: ${spoofResult.isSpoof}, score > threshold: ${spoofResult.score > spoofThreshold}")
                             }
                             faceRecognitionResults.add(
                                 FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
@@ -272,6 +284,17 @@ class ImageVectorUseCase(
             e.printStackTrace()
             return Result.failure(e)
         }
+    }
+    
+    // ✅ NOVO: Função para obter threshold dinâmico do spoof detection
+    private fun getSpoofThreshold(): Float {
+        // Threshold mais permissivo para reduzir falsos positivos
+        // Valores possíveis:
+        // 0.5f = Muito restritivo (pode bloquear pessoas reais)
+        // 0.7f = Moderado
+        // 0.8f = Permissivo (recomendado para debugging)
+        // 0.9f = Muito permissivo
+        return 0.8f
     }
 }
 

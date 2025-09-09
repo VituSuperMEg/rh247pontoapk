@@ -9,6 +9,7 @@ import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
+import com.ml.shubham0204.facenet_android.data.api.OrgaoModel
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -247,6 +248,46 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         _uiState.update { it.copy(selectedTabIndex = tabIndex) }
     }
     
+    fun setSelectedOrgao(orgao: OrgaoModel?) {
+        _uiState.update { it.copy(selectedOrgao = orgao) }
+        // Recarregar funcionários com o novo filtro de órgão
+        loadFuncionarios()
+    }
+    
+    fun clearOrgaoFilter() {
+        _uiState.update { it.copy(selectedOrgao = null) }
+        // Recarregar funcionários sem filtro de órgão
+        loadFuncionarios()
+    }
+    
+    suspend fun loadOrgaos(): List<OrgaoModel> {
+        return try {
+            val entidadeId = getEntidadeId()
+            
+            if (entidadeId.isEmpty()) {
+                Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID não configurada para carregar órgãos")
+                return emptyList()
+            }
+            
+            Log.d("ImportEmployeesViewModel", "📡 Carregando órgãos para entidade: $entidadeId")
+            
+            // Fazer a chamada assíncrona para a API
+            val response = apiService.getOrgaos(entidadeId)
+            
+            val orgaos = response.data ?: emptyList()
+            Log.d("ImportEmployeesViewModel", "📊 Órgãos carregados: ${orgaos.size}")
+            
+            // Ordenar órgãos alfabeticamente por descrição
+            val orgaosOrdenados = orgaos.sortedBy { it.descricao }
+            Log.d("ImportEmployeesViewModel", "📊 Órgãos ordenados alfabeticamente")
+            
+            orgaosOrdenados
+        } catch (e: Exception) {
+            Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar órgãos", e)
+            emptyList()
+        }
+    }
+    
     fun loadMoreFuncionarios() {
         Log.d("ImportEmployeesViewModel", "🔄 loadMoreFuncionarios chamado")
         Log.d("ImportEmployeesViewModel", "   - isLoadingMore: $isLoadingMore")
@@ -290,7 +331,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 
                 Log.d("ImportEmployeesViewModel", "📡 Carregando funcionários para entidade: $entidadeId")
                 
-                val response = apiService.getFuncionarios(entidadeId, currentPage)
+                // Usar o código do órgão selecionado como filtro
+                val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
+                Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão: $orgaoCodigo")
+                
+                val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo)
                 val funcionarios = response.data ?: emptyList()
                 
                 if (funcionarios.isNotEmpty()) {
@@ -345,7 +390,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 
                 Log.d("ImportEmployeesViewModel", "📡 Fazendo requisição para página $currentPage")
                 
-                val response = apiService.getFuncionarios(entidadeId, currentPage)
+                // Usar o código do órgão selecionado como filtro
+                val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
+                Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão (loadMore): $orgaoCodigo")
+                
+                val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo)
                 val funcionarios = response.data ?: emptyList()
                 
                 Log.d("ImportEmployeesViewModel", "📊 Funcionários recebidos: ${funcionarios.size}")
@@ -448,7 +497,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                         return@launch
                     }
                     
-                    val response = apiService.getFuncionarios(entidadeId, 1, descricao)
+                    // Usar o código do órgão selecionado como filtro
+                    val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
+                    Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão (busca): $orgaoCodigo")
+                    
+                    val response = apiService.getFuncionarios(entidadeId, 1, descricao, orgaoCodigo)
                     val funcionarios = response.data ?: emptyList()
                     
                     Log.d("ImportEmployeesViewModel", "📊 Resultados da busca: ${funcionarios.size}")
@@ -513,5 +566,6 @@ data class ImportEmployeesUiState(
     val importedIds: Set<Long> = emptySet(),
     val showImportDialog: Boolean = false,
     val selectedFuncionario: FuncionariosModel? = null,
-    val selectedTabIndex: Int = 0
+    val selectedTabIndex: Int = 0,
+    val selectedOrgao: OrgaoModel? = null
 ) 

@@ -12,15 +12,32 @@ interface ApiService {
     suspend fun getFuncionarios(
         @Path("entidade") entidade: String,
         @Query("page") page: Int,
-        @Query("descricao") descricao: String? = null
+        @Query("descricao") descricao: String? = null,
+        @Query("orgao") orgao: String? = null
     ): FuncionariosResponse
-    
+
+
+    @GET("/{entidade}/ponto/orgaos/list")
+    suspend fun getOrgaos(
+        @Path("entidade") entidade: String
+    ): OrgaoResponse
+
     @POST("/{entidade}/services/util/sincronizar-ponto-table")
     suspend fun sincronizarPontosCompleto(
         @Path("entidade") entidade: String,
         @Body request: PontoSyncCompleteRequest
     ): Response<String>
 }
+
+data class OrgaoResponse (
+    val data: List<OrgaoModel>?
+)
+
+data class OrgaoModel (
+   val id: Int,
+   val codigo: String,
+   val descricao: String
+)
 
 data class FuncionariosResponse(
     val success: Boolean,

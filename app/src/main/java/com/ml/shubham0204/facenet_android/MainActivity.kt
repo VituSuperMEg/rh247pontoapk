@@ -107,7 +107,6 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 
-                // ✅ MANTIDO: Rota antiga para compatibilidade
                 composable(
                     route = "add-face/{personName}",
                     arguments = listOf(

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Refresh
@@ -57,16 +58,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
+import com.ml.shubham0204.facenet_android.data.api.OrgaoModel
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import kotlinx.coroutines.flow.collectLatest
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +76,13 @@ import kotlinx.coroutines.flow.collectLatest
 fun ImportEmployeesScreen(
     onNavigateBack: () -> Unit
 ) {
+
+    var showFilterDialog by remember { mutableStateOf(false) }
+    var showFilterOrgao by remember { mutableStateOf(false) }
+    
+    val viewModel: ImportEmployeesViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsState()
+
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
@@ -102,13 +111,29 @@ fun ImportEmployeesScreen(
                                 contentDescription = "Sincronizar"
                             )
                         }
+                        Box {
+                            BadgedBox(
+                                badge = {
+                                    if (uiState.selectedOrgao != null) {
+                                        Badge(
+                                            containerColor = Color(0xFF4CAF50)
+                                        )
+                                    }
+                                }
+                            ) {
+                                IconButton(onClick = { showFilterDialog = true}) {
+                                    Icon(
+                                        imageVector = Icons.Default.FilterList,
+                                        contentDescription = "Filtros",
+                                        tint = if (uiState.selectedOrgao != null) Color(0xFF4CAF50) else Color(0xFF264064)
+                                    )
+                                }
+                            }
+                        }
                     }
                 )
             },
             floatingActionButton = {
-                val viewModel: ImportEmployeesViewModel = koinViewModel()
-                val uiState by viewModel.uiState.collectAsState()
-                
                 // Mostrar FAB apenas na segunda aba e quando há funcionários na lista
                 if (uiState.selectedTabIndex == 1 && uiState.funcionariosParaImportar.isNotEmpty()) {
                     FloatingActionButton(
@@ -133,9 +158,36 @@ fun ImportEmployeesScreen(
                 }
             }
         ) { innerPadding ->
-            val viewModel: ImportEmployeesViewModel = koinViewModel()
-            val uiState by viewModel.uiState.collectAsState()
-            
+
+
+            if(showFilterDialog) {
+                FilterDialog (
+                    onDismiss = { showFilterDialog = false},
+                    onOrgaoFilter = {
+                        showFilterDialog = false
+                        showFilterOrgao = true
+                    },
+                    selectedOrgao = uiState.selectedOrgao,
+                    onClearOrgaoFilter = { viewModel.clearOrgaoFilter() }
+                )
+            }
+
+
+            if(showFilterOrgao) {
+                FilterOrgao (
+                    onDismiss = {
+                        showFilterOrgao = false
+                        showFilterDialog = true
+                    },
+                    onOrgaoSelected = { orgao ->
+                        viewModel.setSelectedOrgao(orgao)
+                        showFilterOrgao = false
+                        showFilterDialog = false
+                    },
+                    viewModel = viewModel
+                )
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -784,6 +836,395 @@ private fun QueuedFuncionarioCard(
 //                Spacer(modifier = Modifier.width(8.dp))
 //                Text("Importar Funcionário")
 //            }
+        }
+    }
+}
+
+@Composable
+private fun FilterDialog(
+    onDismiss: () -> Unit,
+    onOrgaoFilter: () -> Unit,
+    selectedOrgao: OrgaoModel? = null,
+    onClearOrgaoFilter: () -> Unit = {}
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Filtros",
+                    tint = Color(0xFF264064),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Filtros",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color(0xFF264064)
+                )
+            }
+        },
+        text = {
+           Column {
+               // Órgão selecionado
+               if (selectedOrgao != null) {
+                   Card(
+                       colors = CardDefaults.cardColors(
+                           containerColor = Color(0xFFE3F2FD)
+                       )
+                   ) {
+                       Row(
+                           modifier = Modifier
+                               .fillMaxWidth()
+                               .padding(16.dp),
+                           verticalAlignment = Alignment.CenterVertically
+                       ) {
+                           Column(modifier = Modifier.weight(1f)) {
+                               Text(
+                                   text = "Órgão selecionado:",
+                                   style = MaterialTheme.typography.bodySmall,
+                                   color = Color.Gray
+                               )
+                               Text(
+                                   text = "${selectedOrgao.codigo} - ${selectedOrgao.descricao}",
+                                   style = MaterialTheme.typography.bodyMedium,
+                                   fontWeight = FontWeight.Medium,
+                                   color = Color(0xFF264064)
+                               )
+                           }
+                           IconButton(
+                               onClick = onClearOrgaoFilter
+                           ) {
+                               Icon(
+                                   imageVector = Icons.Default.Clear,
+                                   contentDescription = "Limpar filtro",
+                                   tint = Color.Red
+                               )
+                           }
+                       }
+                   }
+                   Spacer(modifier = Modifier.height(8.dp))
+               }
+               
+               // Botão para selecionar órgão
+               Card(
+                   onClick = onOrgaoFilter,
+                   colors = CardDefaults.cardColors(
+                       containerColor = if (selectedOrgao != null) Color(0xFFF5F5F5) else Color.White
+                   )
+               ) {
+                   Row(
+                       modifier = Modifier
+                           .fillMaxWidth()
+                           .padding(16.dp),
+                       verticalAlignment = Alignment.CenterVertically
+                   ) {
+                       Icon(
+                           imageVector = Icons.Default.FilterList,
+                           contentDescription = "Filtro de Órgão",
+                           tint = Color(0xFF264064),
+                           modifier = Modifier.size(20.dp)
+                       )
+                       Spacer(modifier = Modifier.width(12.dp))
+                       Text(
+                           text = if (selectedOrgao != null) "Alterar Órgão" else "Selecionar Órgão",
+                           style = MaterialTheme.typography.bodyLarge,
+                           fontWeight = FontWeight.Medium,
+                           color = Color(0xFF264064)
+                       )
+                   }
+               }
+           }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Fechar")
+            }
+        }
+    )
+}
+
+@Composable
+private fun FilterOrgao(
+    onDismiss: () -> Unit,
+    onOrgaoSelected: (OrgaoModel) -> Unit = {},
+    viewModel: ImportEmployeesViewModel
+) {
+    var orgaos by remember { mutableStateOf<List<OrgaoModel>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedOrgao by remember { mutableStateOf<OrgaoModel?>(null) }
+
+    // Carregar órgãos quando o composable é criado
+    LaunchedEffect(Unit) {
+        isLoading = true
+        error = null
+        
+        // Carregar órgãos da API
+        val orgaosCarregados = viewModel.loadOrgaos()
+        
+        if (orgaosCarregados.isEmpty()) {
+            // Fallback para dados mockados se a API não retornar dados
+            val mockOrgaos = listOf(
+                OrgaoModel(16, "18", "SECRETARIA DE ESPORTES"),
+                OrgaoModel(15, "15", "FUNDO MUNICIPAL DE ASSISTENCIA SOCIAL"),
+                OrgaoModel(14, "10", "SECRETARIA DE FINANCAS"),
+                OrgaoModel(13, "09", "SECRETARIA DE CULTURA"),
+                OrgaoModel(12, "08", "SECRETARIA DA INDUSTRIA E COMERCIO"),
+                OrgaoModel(11, "07", "SECRETARIA DE OBRAS MEIO AMBIENTE"),
+                OrgaoModel(10, "06", "SECRETARIA DE AGRICULTURA E ABASTECIMENTO"),
+                OrgaoModel(9, "05", "SECRETARIA DE ACAO SOCIAL"),
+                OrgaoModel(8, "04", "SAUDE FUNDO MUNICIPAL DE SAUDE"),
+                OrgaoModel(7, "03", "SECRETARIA DE EDUCACAO E DESPORTO"),
+                OrgaoModel(6, "02", "SECRETARIA DE ADMINISTRACAO"),
+                OrgaoModel(5, "01", "GABINETE DO PREFEITO")
+            )
+            // Ordenar dados mockados alfabeticamente por descrição
+            orgaos = mockOrgaos.sortedBy { it.descricao }
+        } else {
+            orgaos = orgaosCarregados
+        }
+        
+        isLoading = false
+    }
+
+    // Filtrar órgãos baseado na busca
+    val filteredOrgaos = remember(orgaos, searchQuery) {
+        if (searchQuery.isBlank()) {
+            orgaos
+        } else {
+            orgaos.filter { orgao ->
+                orgao.descricao.contains(searchQuery, ignoreCase = true) ||
+                orgao.codigo.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Filtro de Órgãos",
+                    tint = Color(0xFF264064),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Selecionar Órgão",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color(0xFF264064)
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(400.dp)
+            ) {
+                // Campo de busca
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Buscar órgão...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar"
+                        )
+                    },
+                    singleLine = true
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Lista de órgãos
+                when {
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Carregando órgãos...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+                    
+                    error != null -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.Red
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = error!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Red,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                    
+                    filteredOrgaos.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = if (searchQuery.isBlank()) "Nenhum órgão encontrado" else "Nenhum órgão corresponde à busca",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                    
+                    else -> {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(filteredOrgaos) { orgao ->
+                                OrgaoItem(
+                                    orgao = orgao,
+                                    isSelected = selectedOrgao?.id == orgao.id,
+                                    onClick = { selectedOrgao = orgao }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancelar")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        selectedOrgao?.let { orgao ->
+                            onOrgaoSelected(orgao)
+                        }
+                        onDismiss()
+                    },
+                    enabled = selectedOrgao != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    )
+                ) {
+                    Text("Selecionar")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun OrgaoItem(
+    orgao: OrgaoModel,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color(0xFFE3F2FD) else Color.White
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 1.dp
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Código do órgão
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = if (isSelected) Color(0xFF264064) else Color(0xFFE0E0E0),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = orgao.codigo,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color.White else Color.Black
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            // Descrição do órgão
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = orgao.descricao,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) Color(0xFF264064) else Color.Black
+                )
+            }
+            
+            // Indicador de seleção
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Selecionado",
+                    tint = Color(0xFF264064),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
