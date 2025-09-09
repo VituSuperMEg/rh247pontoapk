@@ -79,7 +79,11 @@ fun ConfiguracoesTab(
                 
                 OutlinedTextField(
                     value = uiState.localizacaoId,
-                    onValueChange = { viewModel.updateLocalizacaoId(it) },
+                    onValueChange = { newValue ->
+                        // Aceitar apenas números
+                        val filteredValue = newValue.filter { it.isDigit() }
+                        viewModel.updateLocalizacaoId(filteredValue)
+                    },
                     label = { Text("ID da Localização") },
                     modifier = Modifier.fillMaxWidth(),
                     isError = uiState.localizacaoIdError != null
@@ -95,7 +99,11 @@ fun ConfiguracoesTab(
                 
                 OutlinedTextField(
                     value = uiState.codigoSincronizacao,
-                    onValueChange = { viewModel.updateCodigoSincronizacao(it) },
+                    onValueChange = { newValue ->
+                        // Aceitar apenas números
+                        val filteredValue = newValue.filter { it.isDigit() }
+                        viewModel.updateCodigoSincronizacao(filteredValue)
+                    },
                     label = { Text("Código de Sincronização") },
                     modifier = Modifier.fillMaxWidth(),
                     isError = uiState.codigoSincronizacaoError != null
@@ -153,7 +161,11 @@ fun ConfiguracoesTab(
                 
                 OutlinedTextField(
                     value = uiState.entidadeId,
-                    onValueChange = { viewModel.updateEntidadeId(it) },
+                    onValueChange = { newValue ->
+                        // Aceitar apenas números e limitar a 9 dígitos
+                        val filteredValue = newValue.filter { it.isDigit() }.take(9)
+                        viewModel.updateEntidadeId(filteredValue)
+                    },
                     label = { Text("Código da Entidade (9 dígitos)") },
                     modifier = Modifier.fillMaxWidth(),
                     isError = uiState.entidadeIdError != null

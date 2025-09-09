@@ -1,5 +1,6 @@
 package com.ml.shubham0204.facenet_android.data.api
 
+import com.ml.shubham0204.facenet_android.data.model.VerificacaoCodigoClienteResponse
 import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -27,6 +28,11 @@ interface ApiService {
         @Path("entidade") entidade: String,
         @Body request: PontoSyncCompleteRequest
     ): Response<String>
+
+    @GET("/{entidade}/services/util/verificar-codigo-cliente")
+    suspend fun verificarCodigoCliente(
+        @Path("entidade") entidade: String
+    ): VerificacaoCodigoClienteResponse
 }
 
 data class OrgaoResponse (

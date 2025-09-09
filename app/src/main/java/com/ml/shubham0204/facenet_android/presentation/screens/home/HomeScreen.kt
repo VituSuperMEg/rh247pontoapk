@@ -39,8 +39,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.ml.shubham0204.facenet_android.R
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +55,9 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     onAdminAccessClick: () -> Unit
 ) {
+    val viewModel: HomeViewModel = koinViewModel()
+    val uiState by viewModel.uiState.collectAsState()
+    
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize()
@@ -63,9 +69,8 @@ fun HomeScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(60.dp))
+                Spacer(modifier = Modifier.height(40.dp))
                 
-                // Logo e título
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxWidth()
@@ -75,19 +80,62 @@ fun HomeScreen(
                         contentDescription = "Logo RH247",
                         modifier = Modifier.size(80.dp)
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "Sistema de Ponto",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF424242) 
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Bem-vindo ao painel administrativo",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Color(0xFF757575) 
                     )
+                    
+                    uiState.entidadeInfo?.let { entidade ->
+                        if (entidade.nomeEntidade != null || entidade.municipio != null || entidade.municipioUf != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.9f)
+                                        .padding(horizontal = 16.dp),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = Color.Transparent
+                                    ),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = entidade.nomeEntidade ?: "Entidade não informada",
+                                            style = MaterialTheme.typography.headlineMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF264064),
+                                            textAlign = TextAlign.Center
+                                        )
+                                        
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        
+                                        Text(
+                                            text = "${entidade.municipio ?: "N/A"} - ${entidade.municipioUf ?: "N/A"}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color(0xFF757575),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 Spacer(modifier = Modifier.height(40.dp))

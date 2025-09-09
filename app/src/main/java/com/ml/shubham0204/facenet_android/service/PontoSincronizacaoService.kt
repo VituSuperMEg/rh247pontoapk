@@ -10,6 +10,7 @@ import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import com.ml.shubham0204.facenet_android.data.api.PontoSyncRequest
 import com.ml.shubham0204.facenet_android.data.api.PontoSyncCompleteRequest
 import com.ml.shubham0204.facenet_android.data.api.PontoSyncFlexibleResponse
+import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -57,12 +58,12 @@ class PontoSincronizacaoService {
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 
                 if (configuracoes == null) {
-                    return@withContext SincronizacaoResult(false, 0, 0, "Configurações não encontradas")
+                    return@withContext SincronizacaoResult(false, 0, 0, "⚠️ Configurações não encontradas. Verifique as configurações do aplicativo.")
                 }
                 
                 // Verificar se as configurações estão válidas
                 if (configuracoes.entidadeId.isEmpty() || configuracoes.localizacaoId.isEmpty() || configuracoes.codigoSincronizacao.isEmpty()) {
-                    return@withContext SincronizacaoResult(false, 0, 0, "Configurações de entidade/localização/código não preenchidas")
+                    return@withContext SincronizacaoResult(false, 0, 0, "⚠️ Configurações incompletas. Preencha todos os campos obrigatórios nas configurações.")
                 }
                 
                 // Buscar pontos não sincronizados
@@ -71,7 +72,7 @@ class PontoSincronizacaoService {
                 
                 if (pontosPendentes.isEmpty()) {
                     Log.d(TAG, "ℹ️ Nenhum ponto pendente para sincronização")
-                    return@withContext SincronizacaoResult(true, 0, 0, "Nenhum ponto pendente para sincronização")
+                    return@withContext SincronizacaoResult(true, 0, 0, "✅ Nenhum ponto pendente para sincronização")
                 }
                 
                 Log.d(TAG, "📊 Total de pontos para sincronizar: ${pontosPendentes.size}")
@@ -163,7 +164,7 @@ class PontoSincronizacaoService {
                             sucesso = true,
                             quantidadePontos = pontosPendentes.size,
                             duracaoSegundos = duracaoSegundos,
-                            mensagem = "Pontos sincronizados com sucesso!"
+                            mensagem = "✅ Pontos sincronizados com sucesso!"
                         )
                     } else {
                         Log.e(TAG, "❌ API retornou erro: $responseBody")
@@ -172,7 +173,7 @@ class PontoSincronizacaoService {
                             sucesso = false,
                             quantidadePontos = 0,
                             duracaoSegundos = duracaoSegundos,
-                            mensagem = "Erro na API: $responseBody"
+                            mensagem = ErrorMessageHelper.getFriendlyErrorMessage("Erro na API: $responseBody")
                         )
                     }
                 } else {
@@ -183,7 +184,7 @@ class PontoSincronizacaoService {
                         sucesso = false,
                         quantidadePontos = 0,
                         duracaoSegundos = duracaoSegundos,
-                        mensagem = "Erro HTTP ${response.code()}: $errorBody"
+                        mensagem = ErrorMessageHelper.getFriendlyErrorMessage("Erro HTTP ${response.code()}: $errorBody")
                     )
                 }
                 
@@ -192,7 +193,7 @@ class PontoSincronizacaoService {
                 Log.e(TAG, "❌ Erro na sincronização: ${e.message}")
                 e.printStackTrace()
                 Log.d(TAG, "🚀 === SINCRONIZAÇÃO COM ERRO ===")
-                SincronizacaoResult(false, 0, duracaoSegundos, "Erro na sincronização: ${e.message}")
+                SincronizacaoResult(false, 0, duracaoSegundos, ErrorMessageHelper.getFriendlyErrorMessage(e))
             }
         }
     }

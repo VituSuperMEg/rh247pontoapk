@@ -1063,7 +1063,7 @@ private fun PointCard(
                 )
                 
                 Text(
-                    text = "Secretaria: ${ponto.funcionarioSecretaria}",
+                    text = "Órgão: ${ponto.funcionarioSecretaria}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF666666)
                 )
@@ -1102,8 +1102,8 @@ private fun PointCard(
                 )
                 Text(
                     text = "${dateFormat.format(Date(ponto.dataHora))}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color(0xFF666666)
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = Color(0xFF666666),
                 )
                 // Status (laranja/amarelo)
                 Text(

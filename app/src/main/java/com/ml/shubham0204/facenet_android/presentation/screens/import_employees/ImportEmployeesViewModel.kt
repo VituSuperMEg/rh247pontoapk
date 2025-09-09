@@ -11,6 +11,7 @@ import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
 import com.ml.shubham0204.facenet_android.data.api.OrgaoModel
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
+import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -260,6 +261,42 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         loadFuncionarios()
     }
     
+    fun showError(errorMessage: String) {
+        val friendlyMessage = when {
+            errorMessage.contains("Código do cliente errado ou não configurado", ignoreCase = true) -> {
+                "🔐 Código do cliente incorreto ou não configurado. Verifique as configurações de sincronização."
+            }
+            errorMessage.contains("access-control-allow-origin", ignoreCase = true) -> {
+                "🌐 Problema de configuração do servidor. Entre em contato com o suporte técnico."
+            }
+            else -> {
+                ErrorMessageHelper.getFriendlyErrorMessage(errorMessage)
+            }
+        }
+        
+        _uiState.update { 
+            it.copy(
+                errorMessage = friendlyMessage,
+                showErrorDialog = true
+            )
+        }
+    }
+    
+    fun hideError() {
+        _uiState.update { 
+            it.copy(
+                errorMessage = null,
+                showErrorDialog = false
+            )
+        }
+    }
+    
+    // Função para testar o erro específico mencionado
+    fun testSpecificError() {
+        val testErrorMessage = "access-control-allow-origin: *\n2025-09-09 16:22:45.197 22531-30521 okhttp.OkHttpClient     com.ml.shubham0204.facenet_android   I  {\"message\":\"Código do cliente errado ou não configurado.\"}"
+        showError(testErrorMessage)
+    }
+    
     suspend fun loadOrgaos(): List<OrgaoModel> {
         return try {
             val entidadeId = getEntidadeId()
@@ -284,6 +321,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             orgaosOrdenados
         } catch (e: Exception) {
             Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar órgãos", e)
+            
+            // Mostrar erro amigável
+            val errorMessage = e.message ?: "Erro desconhecido ao carregar órgãos"
+            showError(errorMessage)
+            
             emptyList()
         }
     }
@@ -362,8 +404,12 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 }
                 
             } catch (e: Exception) {
+                Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar funcionários", e)
                 _uiState.update { it.copy(isLoading = false) }
-                // TODO: Mostrar erro
+                
+                // Mostrar erro amigável
+                val errorMessage = e.message ?: "Erro desconhecido ao carregar funcionários"
+                showError(errorMessage)
             } finally {
                 isLoading = false
             }
@@ -439,6 +485,10 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             } catch (e: Exception) {
                 Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar mais funcionários", e)
                 _uiState.update { it.copy(isLoadingMore = false) }
+                
+                // Mostrar erro amigável
+                val errorMessage = e.message ?: "Erro desconhecido ao carregar mais funcionários"
+                showError(errorMessage)
             } finally {
                 isLoadingMore = false
             }
@@ -520,6 +570,10 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     
                 } catch (e: Exception) {
                     Log.e("ImportEmployeesViewModel", "❌ Erro na busca", e)
+                    
+                    // Mostrar erro amigável
+                    val errorMessage = e.message ?: "Erro desconhecido na busca"
+                    showError(errorMessage)
                 }
             }
         }
@@ -567,5 +621,7 @@ data class ImportEmployeesUiState(
     val showImportDialog: Boolean = false,
     val selectedFuncionario: FuncionariosModel? = null,
     val selectedTabIndex: Int = 0,
-    val selectedOrgao: OrgaoModel? = null
+    val selectedOrgao: OrgaoModel? = null,
+    val errorMessage: String? = null,
+    val showErrorDialog: Boolean = false
 ) 

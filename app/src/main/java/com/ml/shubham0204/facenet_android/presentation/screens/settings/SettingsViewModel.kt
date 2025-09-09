@@ -11,12 +11,15 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesEntity
+import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import com.ml.shubham0204.facenet_android.data.config.ServerConfig
+import com.ml.shubham0204.facenet_android.data.model.EntidadeInfo
 import com.ml.shubham0204.facenet_android.data.model.TabletVersionData
 import com.ml.shubham0204.facenet_android.data.repository.TabletUpdateRepository
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.worker.SincronizacaoAutomaticaWorker
+import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -100,7 +103,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     mensagem = if (resultado.sucesso) 
                         "Sincronização manual: ${resultado.quantidadePontos} pontos sincronizados" 
                     else 
-                        "Sincronização manual falhou: ${resultado.mensagem}",
+                        ErrorMessageHelper.getFriendlySyncMessage("Sincronização manual falhou: ${resultado.mensagem}", false),
                     status = if (resultado.sucesso) "Sucesso" else "Erro"
                 )
                 
@@ -119,16 +122,17 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 } else {
                     Toast.makeText(
                         context, 
-                        "❌ Erro na sincronização: ${resultado.mensagem}", 
+                        ErrorMessageHelper.getFriendlyErrorMessage(resultado.mensagem), 
                         Toast.LENGTH_LONG
                     ).show()
                 }
                 
             } catch (e: Exception) {
                 val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
+                val friendlyMessage = ErrorMessageHelper.getFriendlyErrorMessage(e)
                 val historico = HistoricoSincronizacao(
                     dataHora = dataHora,
-                    mensagem = "Erro na sincronização: ${e.message}",
+                    mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro na sincronização: ${e.message}", false),
                     status = "Erro"
                 )
                 
@@ -138,7 +142,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     )
                 }
                 
-                Toast.makeText(context, "❌ Erro na sincronização: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, friendlyMessage, Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -173,26 +177,99 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             return
         }
         
-                        if (currentState.entidadeId.length != 9) {
-                    _uiState.update { it.copy(entidadeIdError = "Código da Entidade deve ter 9 dígitos") }
-                    Toast.makeText(context, "❌ Código da Entidade deve ter 9 dígitos", Toast.LENGTH_SHORT).show()
-                    return
-                }
-                
-                if (currentState.serverUrl.isEmpty()) {
-                    _uiState.update { it.copy(serverUrlError = "URL do Servidor é obrigatória") }
-                    Toast.makeText(context, "❌ URL do Servidor é obrigatória", Toast.LENGTH_SHORT).show()
-                    return
-                }
-                
-                if (!currentState.serverUrl.startsWith("http://") && !currentState.serverUrl.startsWith("https://")) {
-                    _uiState.update { it.copy(serverUrlError = "URL deve começar com http:// ou https://") }
-                    Toast.makeText(context, "❌ URL deve começar com http:// ou https://", Toast.LENGTH_SHORT).show()
-                    return
-                }
+        if (currentState.entidadeId.length != 9) {
+            _uiState.update { it.copy(entidadeIdError = "Código da Entidade deve ter 9 dígitos") }
+            Toast.makeText(context, "❌ Código da Entidade deve ter 9 dígitos", Toast.LENGTH_SHORT).show()
+            return
+        }
         
+        if (currentState.serverUrl.isEmpty()) {
+            _uiState.update { it.copy(serverUrlError = "URL do Servidor é obrigatória") }
+            Toast.makeText(context, "❌ URL do Servidor é obrigatória", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        if (!currentState.serverUrl.startsWith("http://") && !currentState.serverUrl.startsWith("https://")) {
+            _uiState.update { it.copy(serverUrlError = "URL deve começar com http:// ou https://") }
+            Toast.makeText(context, "❌ URL deve começar com http:// ou https://", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Validar código do cliente antes de salvar
+        validarCodigoCliente(currentState.entidadeId)
+    }
+    
+    private fun validarCodigoCliente(entidadeId: String) {
         viewModelScope.launch {
             try {
+                Log.d("SettingsViewModel", "🔍 Validando código do cliente: $entidadeId")
+                Toast.makeText(context, "🔍 Validando código do cliente...", Toast.LENGTH_SHORT).show()
+                
+                val apiService = RetrofitClient.instance
+                val response = apiService.verificarCodigoCliente(entidadeId)
+                
+                Log.d("SettingsViewModel", "📡 Resposta da validação: $response")
+                
+                if (response.status == "SUCCESS" && response.entidade != null) {
+                    // Salvar informações da entidade
+                    appPreferences.entidadeInfo = response.entidade
+                    
+                    Log.d("SettingsViewModel", "✅ Código do cliente válido!")
+                    Log.d("SettingsViewModel", "   - Entidade: ${response.entidade.nomeEntidade}")
+                    Log.d("SettingsViewModel", "   - Município: ${response.entidade.municipio}")
+                    Log.d("SettingsViewModel", "   - UF: ${response.entidade.municipioUf}")
+                    
+                    Toast.makeText(
+                        context, 
+                        "✅ Código válido! Entidade: ${response.entidade.nomeEntidade}", 
+                        Toast.LENGTH_LONG
+                    ).show()
+                    
+                    // Continuar com o salvamento das configurações
+                    salvarConfiguracoesAposValidacao()
+                    
+                } else {
+                    val errorMessage = response.message ?: "Código do cliente inválido"
+                    Log.e("SettingsViewModel", "❌ Validação falhou: $errorMessage")
+                    
+                    _uiState.update { it.copy(entidadeIdError = errorMessage) }
+                    Toast.makeText(context, "❌ $errorMessage", Toast.LENGTH_LONG).show()
+                }
+                
+            } catch (e: retrofit2.HttpException) {
+                // Tratar erro HTTP específico
+                val errorBody = e.response()?.errorBody()?.string()
+                Log.e("SettingsViewModel", "❌ HTTP Error: ${e.code()}, Body: $errorBody")
+                
+                val errorMessage = if (errorBody != null) {
+                    try {
+                        val gson = com.google.gson.Gson()
+                        val errorResponse = gson.fromJson(errorBody, com.ml.shubham0204.facenet_android.data.model.VerificacaoCodigoClienteResponse::class.java)
+                        errorResponse.message ?: "Código do cliente inválido"
+                    } catch (parseException: Exception) {
+                        "Código do cliente inválido"
+                    }
+                } else {
+                    "Código do cliente inválido"
+                }
+                
+                _uiState.update { it.copy(entidadeIdError = errorMessage) }
+                Toast.makeText(context, "❌ $errorMessage", Toast.LENGTH_LONG).show()
+                
+            } catch (e: Exception) {
+                val errorMessage = "Erro ao validar código do cliente: ${e.message}"
+                Log.e("SettingsViewModel", "❌ Erro na validação", e)
+                
+                _uiState.update { it.copy(entidadeIdError = errorMessage) }
+                Toast.makeText(context, "❌ $errorMessage", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    
+    private fun salvarConfiguracoesAposValidacao() {
+        viewModelScope.launch {
+            try {
+                val currentState = _uiState.value
                 Log.d("SettingsViewModel", "🔄 Criando entidade de configurações")
                 
                 val configuracoes = ConfiguracoesEntity(
@@ -304,23 +381,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         }
                     },
                     onFailure = { exception ->
-                        val errorMessage = when (exception) {
-                            is java.net.UnknownServiceException -> {
-                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
-                            }
-                            is java.net.ConnectException -> {
-                                "🔌 Erro de conexão com o servidor."
-                            }
-                            is java.net.SocketTimeoutException -> {
-                                "⏰ Timeout na conexão com o servidor."
-                            }
-                            is IllegalArgumentException -> {
-                                "🔗 URL inválida para verificação."
-                            }
-                            else -> {
-                                "❌ Erro ao verificar atualizações: ${exception.message}"
-                            }
-                        }
+                        val errorMessage = ErrorMessageHelper.getFriendlyErrorMessage(exception)
                         
                         _uiState.update { 
                             it.copy(
@@ -332,7 +393,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
-                            mensagem = "Erro na verificação: ${exception.message}",
+                            mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro na verificação: ${exception.message}", false),
                             status = "Erro"
                         )
                         
@@ -435,23 +496,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         
                     },
                     onFailure = { exception ->
-                        val errorMessage = when (exception) {
-                            is java.net.UnknownServiceException -> {
-                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
-                            }
-                            is java.net.ConnectException -> {
-                                "🔌 Erro de conexão com o servidor."
-                            }
-                            is java.net.SocketTimeoutException -> {
-                                "⏰ Timeout na conexão com o servidor."
-                            }
-                            is IllegalArgumentException -> {
-                                "🔗 URL inválida para download."
-                            }
-                            else -> {
-                                "❌ Erro ao baixar atualização: ${exception.message}"
-                            }
-                        }
+                        val errorMessage = ErrorMessageHelper.getFriendlyErrorMessage(exception)
                         
                         _uiState.update { 
                             it.copy(
@@ -464,7 +509,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
-                            mensagem = "Erro no download direto v$versao: ${exception.message}",
+                            mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro no download direto v$versao: ${exception.message}", false),
                             status = "Erro"
                         )
                         
@@ -570,23 +615,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         
                     },
                     onFailure = { exception ->
-                        val errorMessage = when (exception) {
-                            is java.net.UnknownServiceException -> {
-                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
-                            }
-                            is java.net.ConnectException -> {
-                                "🔌 Erro de conexão com o servidor."
-                            }
-                            is java.net.SocketTimeoutException -> {
-                                "⏰ Timeout na conexão com o servidor."
-                            }
-                            is IllegalArgumentException -> {
-                                "🔗 URL inválida para download."
-                            }
-                            else -> {
-                                "❌ Erro ao baixar atualização: ${exception.message}"
-                            }
-                        }
+                        val errorMessage = ErrorMessageHelper.getFriendlyErrorMessage(exception)
                         
                         _uiState.update { 
                             it.copy(
@@ -599,7 +628,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
-                            mensagem = "Erro no download direto: ${exception.message}",
+                            mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro no download direto: ${exception.message}", false),
                             status = "Erro"
                         )
                         
@@ -715,23 +744,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         }
                     },
                     onFailure = { exception ->
-                        val errorMessage = when (exception) {
-                            is java.net.UnknownServiceException -> {
-                                "🔒 Erro de segurança de rede. Verifique a configuração de segurança."
-                            }
-                            is java.net.ConnectException -> {
-                                "🔌 Erro de conexão com o servidor."
-                            }
-                            is java.net.SocketTimeoutException -> {
-                                "⏰ Timeout na conexão com o servidor."
-                            }
-                            is IllegalArgumentException -> {
-                                "🔗 URL inválida para download."
-                            }
-                            else -> {
-                                "❌ Erro no download: ${exception.message}"
-                            }
-                        }
+                        val errorMessage = ErrorMessageHelper.getFriendlyErrorMessage(exception)
                         
                         _uiState.update { 
                             it.copy(
@@ -744,7 +757,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
-                            mensagem = "Erro no download: ${exception.message}",
+                            mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro no download: ${exception.message}", false),
                             status = "Erro"
                         )
                         

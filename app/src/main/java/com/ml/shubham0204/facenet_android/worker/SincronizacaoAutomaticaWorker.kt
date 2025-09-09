@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
+import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -46,7 +47,7 @@ class SincronizacaoAutomaticaWorker(
                 // Adicionar ao histórico
                 adicionarAoHistorico(
                     dataHora = dataHora,
-                    mensagem = "Sincronização automática: ${resultado.quantidadePontos} pontos sincronizados",
+                    mensagem = "✅ Sincronização automática: ${resultado.quantidadePontos} pontos sincronizados",
                     status = "Sucesso"
                 )
                 
@@ -62,7 +63,7 @@ class SincronizacaoAutomaticaWorker(
                 // Adicionar erro ao histórico
                 adicionarAoHistorico(
                     dataHora = dataHora,
-                    mensagem = "Sincronização automática falhou: ${resultado.mensagem}",
+                    mensagem = ErrorMessageHelper.getFriendlySyncMessage("Sincronização automática falhou: ${resultado.mensagem}", false),
                     status = "Erro"
                 )
                 
@@ -82,7 +83,7 @@ class SincronizacaoAutomaticaWorker(
             val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
             adicionarAoHistorico(
                 dataHora = dataHora,
-                mensagem = "Erro na sincronização automática: ${e.message}",
+                mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro na sincronização automática: ${e.message}", false),
                 status = "Erro"
             )
             
