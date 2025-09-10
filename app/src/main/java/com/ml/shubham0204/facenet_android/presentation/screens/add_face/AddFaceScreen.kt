@@ -118,6 +118,7 @@ fun AddFaceScreen(
                 )
                 ImageReadProgressDialog(viewModel, onNavigateBack)
                 DuplicateFaceDialog(viewModel)
+                DeleteConfirmationDialog(viewModel)
                 AppAlertDialog()
             }
         }
@@ -170,16 +171,21 @@ private fun ScreenUI(
     var isActive by remember { mutableStateOf(true) }
     
     LaunchedEffect(funcionarioId) {
+        android.util.Log.d("AddFaceScreen", "🔍 LaunchedEffect - funcionarioId: $funcionarioId")
         if (funcionarioId > 0) {
             viewModel.funcionarioId = funcionarioId
+            android.util.Log.d("AddFaceScreen", "✅ funcionarioId definido no ViewModel: ${viewModel.funcionarioId}")
             
             // ✅ NOVO: Buscar o status atual do funcionário
             try {
                 val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
                 isActive = funcionariosDao.isFuncionarioActive(funcionarioId)
+                android.util.Log.d("AddFaceScreen", "📊 Status do funcionário: ${if (isActive) "ATIVO" else "INATIVO"}")
             } catch (e: Exception) {
                 android.util.Log.e("AddFaceScreen", "❌ Erro ao verificar status: ${e.message}")
             }
+        } else {
+            android.util.Log.w("AddFaceScreen", "⚠️ funcionarioId inválido: $funcionarioId")
         }
     }
     
@@ -529,8 +535,12 @@ private fun ScreenUI(
             // ✅ NOVO: Botão para excluir usuário (apenas se há um funcionário válido)
             if (funcionarioId > 0) {
                 item {
+                    android.util.Log.d("AddFaceScreen", "🔘 Renderizando botão de exclusão - funcionarioId: $funcionarioId")
                     Button(
-                        onClick = { viewModel.showDeleteConfirmationDialog() },
+                        onClick = { 
+                            android.util.Log.d("AddFaceScreen", "🔘 Botão de exclusão clicado!")
+                            viewModel.showDeleteConfirmationDialog() 
+                        },
                         colors = ButtonDefaults.outlinedButtonColors(
                             containerColor = Color.Transparent // garante que não tenha fundo
                         ),
@@ -1591,6 +1601,106 @@ private fun DuplicateFaceDialog(viewModel: AddFaceScreenViewModel) {
             dismissButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { viewModel.cancelDuplicateFaceRegistration() }
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun DeleteConfirmationDialog(viewModel: AddFaceScreenViewModel) {
+    val showDialog by remember { viewModel.showDeleteConfirmation }
+    
+    android.util.Log.d("DeleteConfirmationDialog", "🔍 Verificando diálogo - showDialog: $showDialog")
+    
+    if (showDialog) {
+        android.util.Log.d("DeleteConfirmationDialog", "✅ Exibindo diálogo de confirmação de exclusão")
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.cancelDeleteUser() },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Aviso",
+                        tint = Color(0xFFD32F2F),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Confirmar Exclusão",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Tem certeza que deseja excluir a face deste funcionário?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFD32F2F)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Text(
+                                text = "⚠️ ATENÇÃO:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color(0xFFD32F2F),
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Esta ação irá remover permanentemente todas as faces cadastradas para este funcionário do sistema de reconhecimento facial.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFD32F2F),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "Após a exclusão, o funcionário não conseguirá mais registrar ponto através do reconhecimento facial até que novas faces sejam cadastradas.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.confirmDeleteUser() },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFD32F2F)
+                    )
+                ) {
+                    Text(
+                        text = "Excluir",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.cancelDeleteUser() }
                 ) {
                     Text(
                         text = "Cancelar",

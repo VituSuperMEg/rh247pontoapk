@@ -331,7 +331,10 @@ class AddFaceScreenViewModel(
     
     // ✅ NOVO: Função para mostrar diálogo de confirmação de exclusão
     fun showDeleteConfirmationDialog() {
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteConfirmationDialog() chamada")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 funcionarioId atual: $funcionarioId")
         showDeleteConfirmation.value = true
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteConfirmation.value = ${showDeleteConfirmation.value}")
     }
     
     // ✅ NOVO: Função para confirmar exclusão

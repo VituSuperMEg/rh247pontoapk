@@ -18,6 +18,8 @@ import com.ml.shubham0204.facenet_android.domain.PersonUseCase
 import com.ml.shubham0204.facenet_android.utils.BitmapUtils
 import com.ml.shubham0204.facenet_android.utils.LocationUtils
 import com.ml.shubham0204.facenet_android.utils.LocationResult
+import com.ml.shubham0204.facenet_android.utils.ConnectivityUtils
+import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -31,7 +33,8 @@ class DetectScreenViewModel(
     val personUseCase: PersonUseCase,
     val imageVectorUseCase: ImageVectorUseCase,
     private val pontosGenericosDao: PontosGenericosDao,
-    private val funcionariosDao: FuncionariosDao
+    private val funcionariosDao: FuncionariosDao,
+    private val pontoSincronizacaoService: PontoSincronizacaoService
 ) : ViewModel(), KoinComponent {
     private val context: Context by inject()
     private val locationUtils = LocationUtils(context)
@@ -314,6 +317,9 @@ class DetectScreenViewModel(
                 Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso")
             }
             
+            // ✅ NOVO: Tentar sincronização automática se houver internet
+            attemptAutoSync()
+            
             ponto
         } catch (e: Exception) {
             Log.e("DetectScreenViewModel", "❌ Erro ao registrar ponto: ${e.message}")
@@ -391,6 +397,53 @@ class DetectScreenViewModel(
                 
             } catch (e: Exception) {
                 Log.e("DetectScreenViewModel", "❌ Erro ao mostrar mensagem de spoofing: ${e.message}")
+            }
+        }
+    }
+    
+    // ✅ NOVO: Função para tentar sincronização automática
+    private fun attemptAutoSync() {
+        viewModelScope.launch {
+            try {
+                Log.d("DetectScreenViewModel", "🔄 Verificando conectividade para sincronização automática...")
+                
+                // Verificar se há internet disponível
+                val hasInternet = ConnectivityUtils.isInternetAvailableWithTimeout(context, 3000)
+                
+                if (hasInternet) {
+                    Log.d("DetectScreenViewModel", "🌐 Internet disponível - Iniciando sincronização automática...")
+                    
+                    // Verificar se há pontos pendentes para sincronizar
+                    val pontosPendentes = pontoSincronizacaoService.getQuantidadePontosPendentes(context)
+                    
+                    if (pontosPendentes > 0) {
+                        Log.d("DetectScreenViewModel", "📊 Encontrados $pontosPendentes pontos pendentes para sincronização")
+                        
+                        // Executar sincronização
+                        val resultado = pontoSincronizacaoService.sincronizarPontosPendentes(context)
+                        
+                        if (resultado.sucesso) {
+                            Log.d("DetectScreenViewModel", "✅ Sincronização automática bem-sucedida: ${resultado.quantidadePontos} pontos sincronizados")
+                            Toast.makeText(
+                                context,
+                                "✅ ${resultado.quantidadePontos} ponto(s) sincronizado(s) automaticamente!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else {
+                            Log.w("DetectScreenViewModel", "⚠️ Falha na sincronização automática: ${resultado.mensagem}")
+                            // Não mostrar toast de erro para não incomodar o usuário
+                        }
+                    } else {
+                        Log.d("DetectScreenViewModel", "ℹ️ Nenhum ponto pendente para sincronização")
+                    }
+                } else {
+                    Log.d("DetectScreenViewModel", "📵 Sem internet - Ponto salvo localmente para sincronização posterior")
+                    // Não mostrar toast, pois é comportamento normal
+                }
+                
+            } catch (e: Exception) {
+                Log.e("DetectScreenViewModel", "❌ Erro na sincronização automática: ${e.message}")
+                // Não mostrar toast de erro para não incomodar o usuário
             }
         }
     }
