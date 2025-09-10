@@ -98,42 +98,24 @@ fun HomeScreen(
                         if (entidade.nomeEntidade != null || entidade.municipio != null || entidade.municipioUf != null) {
                             Spacer(modifier = Modifier.height(16.dp))
                             
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.9f)
-                                        .padding(horizontal = 16.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color.Transparent
-                                    ),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(16.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Text(
-                                            text = entidade.nomeEntidade ?: "Entidade não informada",
-                                            style = MaterialTheme.typography.headlineMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF264064),
-                                            textAlign = TextAlign.Center
-                                        )
-                                        
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        
-                                        Text(
-                                            text = "${entidade.municipio ?: "N/A"} - ${entidade.municipioUf ?: "N/A"}",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = Color(0xFF757575),
-                                            textAlign = TextAlign.Center
-                                        )
-                                    }
-                                }
-                            }
+                            Text(
+                                text = entidade.nomeEntidade ?: "Entidade não informada",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF264064),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Text(
+                                text = "${entidade.municipio ?: "N/A"} - ${entidade.municipioUf ?: "N/A"}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color(0xFF757575),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }
