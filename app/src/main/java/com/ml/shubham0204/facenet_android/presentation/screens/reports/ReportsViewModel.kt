@@ -238,8 +238,8 @@ class ReportsViewModel(
                 funcionarioLotacao = "SAUDE FUNDO MUNICIPAL DE SAUDE - PLANTAO",
                 dataHora = calendar.timeInMillis,
                 tipoPonto = "PONTO",
-                latitude = -6.377917793252374,
-                longitude = -39.316891286420876,
+                latitude = null,
+                longitude = null,
                 observacao = null,
                 fotoBase64 = null,
                 synced = false
@@ -262,8 +262,8 @@ class ReportsViewModel(
                 funcionarioLotacao = "SAUDE FUNDO MUNICIPAL DE SAUDE - PLANTAO",
                 dataHora = calendar.timeInMillis,
                 tipoPonto = "PONTO",
-                latitude = -6.377917793252374,
-                longitude = -39.316891286420876,
+                latitude = null,
+                longitude = null,
                 observacao = null,
                 fotoBase64 = null,
                 synced = true

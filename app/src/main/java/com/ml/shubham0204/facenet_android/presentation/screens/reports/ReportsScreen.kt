@@ -1067,7 +1067,7 @@ private fun PointCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF666666)
                 )
-                // Cargo e Lotação
+                // Cargo e Setor
                 Text(
                     text = "Cargo: ${ponto.funcionarioCargo}",
                     style = MaterialTheme.typography.bodyMedium,
@@ -1075,16 +1075,10 @@ private fun PointCard(
                 )
 
                 Text(
-                    text = "Lotação: ${ponto.funcionarioLotacao}",
+                    text = "Setor: ${ponto.funcionarioLotacao}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = Color(0xFF666666),
                 )
-                
-//                Text(
-//                    text = "Data: ${dateFormat.format(Date(ponto.dataHora))}",
-//                    style = MaterialTheme.typography.bodyMedium,
-//                    color = Color(0xFF666666)
-//                )
             }
             
             // Lado direito - Detalhes adicionais e status

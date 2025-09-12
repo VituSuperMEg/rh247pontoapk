@@ -192,7 +192,7 @@ fun LoginScreen(
                             },
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Password
+                                keyboardType = KeyboardType.Number
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,

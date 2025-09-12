@@ -142,7 +142,7 @@ class ImageVectorUseCase(
                     
                     // If the distance > 0.6, we recognize the person
                     // else we conclude that the face does not match enough
-                    if (distance > 0.6) {
+                    if (distance > 0.7) {
                     // ✅ CORRIGIDO: Verificar spoofing com threshold mais permissivo
                     val spoofThreshold = getSpoofThreshold() // Função para obter threshold dinâmico
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold

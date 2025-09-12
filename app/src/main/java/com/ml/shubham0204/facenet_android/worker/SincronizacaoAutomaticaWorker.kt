@@ -64,7 +64,8 @@ class SincronizacaoAutomaticaWorker(
                 adicionarAoHistorico(
                     dataHora = dataHora,
                     mensagem = ErrorMessageHelper.getFriendlySyncMessage("Sincronização automática falhou: ${resultado.mensagem}", false),
-                    status = "Erro"
+                    status = "Erro",
+                    detalhesTecnicos = resultado.erroOriginal
                 )
                 
                 // Se for sincronização frequente, agendar a próxima mesmo com erro
@@ -84,7 +85,8 @@ class SincronizacaoAutomaticaWorker(
             adicionarAoHistorico(
                 dataHora = dataHora,
                 mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro na sincronização automática: ${e.message}", false),
-                status = "Erro"
+                status = "Erro",
+                detalhesTecnicos = e.stackTraceToString()
             )
             
             // Se for sincronização frequente, agendar a próxima mesmo com erro
@@ -121,20 +123,21 @@ class SincronizacaoAutomaticaWorker(
         }
     }
     
-    private fun adicionarAoHistorico(dataHora: String, mensagem: String, status: String) {
+    private fun adicionarAoHistorico(dataHora: String, mensagem: String, status: String, detalhesTecnicos: String? = null) {
         try {
             val prefs = applicationContext.getSharedPreferences("historico_sincronizacao", Context.MODE_PRIVATE)
             val historicoJson = prefs.getString("historico", "[]") ?: "[]"
             
             // Parse do JSON existente e adicionar nova entrada
             val gson = com.google.gson.Gson()
-            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-            val historicoList = gson.fromJson<List<Map<String, String>>>(historicoJson, type).toMutableList()
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String?>>>() {}.type
+            val historicoList = gson.fromJson<List<Map<String, String?>>>(historicoJson, type).toMutableList()
             
             historicoList.add(mapOf(
                 "dataHora" to dataHora,
                 "mensagem" to mensagem,
-                "status" to status
+                "status" to status,
+                "detalhesTecnicos" to detalhesTecnicos
             ))
             
             // Manter apenas os últimos 50 registros

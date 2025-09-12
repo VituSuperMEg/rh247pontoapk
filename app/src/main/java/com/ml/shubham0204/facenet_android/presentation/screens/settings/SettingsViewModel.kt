@@ -104,7 +104,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         "Sincronização manual: ${resultado.quantidadePontos} pontos sincronizados" 
                     else 
                         ErrorMessageHelper.getFriendlySyncMessage("Sincronização manual falhou: ${resultado.mensagem}", false),
-                    status = if (resultado.sucesso) "Sucesso" else "Erro"
+                    status = if (resultado.sucesso) "Sucesso" else "Erro",
+                    detalhesTecnicos = if (!resultado.sucesso) resultado.erroOriginal else null
                 )
                 
                 _uiState.update { 
@@ -133,7 +134,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 val historico = HistoricoSincronizacao(
                     dataHora = dataHora,
                     mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro na sincronização: ${e.message}", false),
-                    status = "Erro"
+                    status = "Erro",
+                    detalhesTecnicos = e.stackTraceToString()
                 )
                 
                 _uiState.update { 
@@ -394,7 +396,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
                             mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro na verificação: ${exception.message}", false),
-                            status = "Erro"
+                            status = "Erro",
+                            detalhesTecnicos = exception.stackTraceToString()
                         )
                         
                         _uiState.update { 
@@ -510,7 +513,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
                             mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro no download direto v$versao: ${exception.message}", false),
-                            status = "Erro"
+                            status = "Erro",
+                            detalhesTecnicos = exception.stackTraceToString()
                         )
                         
                         _uiState.update { 
@@ -629,7 +633,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
                             mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro no download direto: ${exception.message}", false),
-                            status = "Erro"
+                            status = "Erro",
+                            detalhesTecnicos = exception.stackTraceToString()
                         )
                         
                         _uiState.update { 
@@ -758,7 +763,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                         val historico = HistoricoSincronizacao(
                             dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date()),
                             mensagem = ErrorMessageHelper.getFriendlySyncMessage("Erro no download: ${exception.message}", false),
-                            status = "Erro"
+                            status = "Erro",
+                            detalhesTecnicos = exception.stackTraceToString()
                         )
                         
                         _uiState.update { 
@@ -829,14 +835,15 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             val historicoJson = prefs.getString("historico", "[]") ?: "[]"
             
             val gson = com.google.gson.Gson()
-            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String>>>() {}.type
-            val historicoList = gson.fromJson<List<Map<String, String>>>(historicoJson, type)
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, String?>>>() {}.type
+            val historicoList = gson.fromJson<List<Map<String, String?>>>(historicoJson, type)
             
             val historico = historicoList.map { item ->
                 HistoricoSincronizacao(
                     dataHora = item["dataHora"] ?: "",
                     mensagem = item["mensagem"] ?: "",
-                    status = item["status"] ?: ""
+                    status = item["status"] ?: "",
+                    detalhesTecnicos = item["detalhesTecnicos"]
                 )
             }
             
@@ -1008,5 +1015,6 @@ data class SettingsUiState(
 data class HistoricoSincronizacao(
     val dataHora: String,
     val mensagem: String,
-    val status: String
+    val status: String,
+    val detalhesTecnicos: String? = null
 ) 

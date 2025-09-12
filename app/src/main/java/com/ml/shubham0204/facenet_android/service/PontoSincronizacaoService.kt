@@ -20,7 +20,8 @@ data class SincronizacaoResult(
     val sucesso: Boolean,
     val quantidadePontos: Int,
     val duracaoSegundos: Long,
-    val mensagem: String
+    val mensagem: String,
+    val erroOriginal: String? = null
 )
 
 class PontoSincronizacaoService {
@@ -58,12 +59,12 @@ class PontoSincronizacaoService {
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 
                 if (configuracoes == null) {
-                    return@withContext SincronizacaoResult(false, 0, 0, "⚠️ Configurações não encontradas. Verifique as configurações do aplicativo.")
+                    return@withContext SincronizacaoResult(false, 0, 0, "⚠️ Configurações não encontradas. Verifique as configurações do aplicativo.", null)
                 }
                 
                 // Verificar se as configurações estão válidas
                 if (configuracoes.entidadeId.isEmpty() || configuracoes.localizacaoId.isEmpty() || configuracoes.codigoSincronizacao.isEmpty()) {
-                    return@withContext SincronizacaoResult(false, 0, 0, "⚠️ Configurações incompletas. Preencha todos os campos obrigatórios nas configurações.")
+                    return@withContext SincronizacaoResult(false, 0, 0, "⚠️ Configurações incompletas. Preencha todos os campos obrigatórios nas configurações.", null)
                 }
                 
                 // Buscar pontos não sincronizados
@@ -72,7 +73,7 @@ class PontoSincronizacaoService {
                 
                 if (pontosPendentes.isEmpty()) {
                     Log.d(TAG, "ℹ️ Nenhum ponto pendente para sincronização")
-                    return@withContext SincronizacaoResult(true, 0, 0, "✅ Nenhum ponto pendente para sincronização")
+                    return@withContext SincronizacaoResult(true, 0, 0, "✅ Nenhum ponto pendente para sincronização", null)
                 }
                 
                 Log.d(TAG, "📊 Total de pontos para sincronizar: ${pontosPendentes.size}")
@@ -164,7 +165,8 @@ class PontoSincronizacaoService {
                             sucesso = true,
                             quantidadePontos = pontosPendentes.size,
                             duracaoSegundos = duracaoSegundos,
-                            mensagem = "✅ Pontos sincronizados com sucesso!"
+                            mensagem = "✅ Pontos sincronizados com sucesso!",
+                            erroOriginal = null
                         )
                     } else {
                         Log.e(TAG, "❌ API retornou erro: $responseBody")
@@ -173,7 +175,8 @@ class PontoSincronizacaoService {
                             sucesso = false,
                             quantidadePontos = 0,
                             duracaoSegundos = duracaoSegundos,
-                            mensagem = ErrorMessageHelper.getFriendlyErrorMessage("Erro na API: $responseBody")
+                            mensagem = ErrorMessageHelper.getFriendlyErrorMessage("Erro na API: $responseBody"),
+                            erroOriginal = responseBody
                         )
                     }
                 } else {
@@ -184,7 +187,8 @@ class PontoSincronizacaoService {
                         sucesso = false,
                         quantidadePontos = 0,
                         duracaoSegundos = duracaoSegundos,
-                        mensagem = ErrorMessageHelper.getFriendlyErrorMessage("Erro HTTP ${response.code()}: $errorBody")
+                        mensagem = ErrorMessageHelper.getFriendlyErrorMessage("Erro HTTP ${response.code()}: $errorBody"),
+                        erroOriginal = "Erro HTTP ${response.code()}: $errorBody"
                     )
                 }
                 
@@ -193,7 +197,13 @@ class PontoSincronizacaoService {
                 Log.e(TAG, "❌ Erro na sincronização: ${e.message}")
                 e.printStackTrace()
                 Log.d(TAG, "🚀 === SINCRONIZAÇÃO COM ERRO ===")
-                SincronizacaoResult(false, 0, duracaoSegundos, ErrorMessageHelper.getFriendlyErrorMessage(e))
+                SincronizacaoResult(
+                    sucesso = false, 
+                    quantidadePontos = 0, 
+                    duracaoSegundos = duracaoSegundos, 
+                    mensagem = ErrorMessageHelper.getFriendlyErrorMessage(e),
+                    erroOriginal = e.stackTraceToString()
+                )
             }
         }
     }

@@ -4,6 +4,10 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">api.rh247.com.br</domain>
         <domain includeSubdomains="true">rh247.com.br</domain>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
     </domain-config>
     
     <!-- Configuração base com certificados do sistema -->
