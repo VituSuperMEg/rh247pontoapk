@@ -8,16 +8,20 @@
             <certificates src="system"/>
             <certificates src="user"/>
         </trust-anchors>
+        <pin-set>
+            <!-- Desabilita pinning de certificados para aceitar qualquer certificado -->
+        </pin-set>
     </domain-config>
     
-    <!-- Configuração base com certificados do sistema -->
-    <base-config cleartextTrafficPermitted="false">
+    <!-- Configuração base mais permissiva -->
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system"/>
+            <certificates src="user"/>
         </trust-anchors>
     </base-config>
     
-    <!-- Configuração para debug (remover em produção) -->
+    <!-- Configuração para debug (aceita todos os certificados) -->
     <debug-overrides>
         <trust-anchors>
             <certificates src="system"/>
@@ -29,5 +33,16 @@
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">192.168.1.1</domain>
+        <domain includeSubdomains="true">192.168.0.1</domain>
+    </domain-config>
+    
+    <!-- Configuração global para aceitar todos os certificados SSL -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">*</domain>
+        <trust-anchors>
+            <certificates src="system"/>
+            <certificates src="user"/>
+        </trust-anchors>
     </domain-config>
 </network-security-config> 
