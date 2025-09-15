@@ -140,11 +140,9 @@ class ImageVectorUseCase(
                     
                     android.util.Log.d("ImageVectorUseCase", "📊 Face $index - Distância: $distance, Pessoa: ${recognitionResult.personName}")
                     
-                    // If the distance > 0.6, we recognize the person
-                    // else we conclude that the face does not match enough
+
                     if (distance > 0.7) {
-                    // ✅ CORRIGIDO: Verificar spoofing com threshold mais permissivo
-                    val spoofThreshold = getSpoofThreshold() // Função para obter threshold dinâmico
+                    val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
                         if (isSpoofDetected) {

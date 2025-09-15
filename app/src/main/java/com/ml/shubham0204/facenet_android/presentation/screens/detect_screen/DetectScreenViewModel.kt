@@ -257,28 +257,21 @@ class DetectScreenViewModel(
             
             val horarioAtual = System.currentTimeMillis()
             
-            // ✅ NOVO: Obter localização real do dispositivo
             val locationResult = runBlocking {
                 locationUtils.getCurrentLocation(8000) // 8 segundos de timeout
             }
             
-            val latitude: Double
-            val longitude: Double
+            val latitude: Double?
+            val longitude: Double?
             
             if (locationResult != null) {
                 latitude = locationResult.latitude
                 longitude = locationResult.longitude
-                Log.d("DetectScreenViewModel", " Localização obtida: $latitude, $longitude")
-                Log.d("DetectScreenViewModel", "   - Precisão: ${locationResult.accuracy}m")
-                Log.d("DetectScreenViewModel", "   - Fonte: ${if (locationResult.isFromGPS) "GPS" else "Network"}")
             } else {
-                // Fallback para coordenadas padrão se não conseguir obter localização
-                latitude = -6.377917793252374
-                longitude = -39.316891286420876
-                Log.w("DetectScreenViewModel", "⚠️ Não foi possível obter localização, usando coordenadas padrão")
+                latitude = null
+                longitude = null
             }
             
-            // ✅ NOVO: Capturar foto do momento do registro
             val fotoBase64 = currentFaceBitmap.value?.let { bitmap ->
                 if (BitmapUtils.isValidBitmap(bitmap)) {
                     val base64 = BitmapUtils.bitmapToBase64(bitmap, 80)
@@ -293,7 +286,6 @@ class DetectScreenViewModel(
                 null
             }
             
-            // Criar ponto com localização real
             val ponto = PontosGenericosEntity(
                 funcionarioId = funcionario.id.toString(),
                 funcionarioNome = funcionario.nome,
@@ -310,14 +302,12 @@ class DetectScreenViewModel(
                 synced = false
             )
             
-            // Salvar no banco
             val pontoId = pontosGenericosDao.insert(ponto)
-            Log.d("DetectScreenViewModel", "✅ Ponto salvo com ID: $pontoId")
+
             if (fotoBase64 != null) {
                 Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso")
             }
             
-            // ✅ NOVO: Tentar sincronização automática se houver internet
             attemptAutoSync()
             
             ponto
@@ -328,7 +318,6 @@ class DetectScreenViewModel(
     }
     
     fun resetRecognition() {
-        // ✅ CORRIGIDO: Cancelar job de reconhecimento
         recognitionJob?.cancel()
         recognitionJob = null
         
@@ -337,8 +326,7 @@ class DetectScreenViewModel(
         recognizedPerson.value = null
         showSuccessScreen.value = false
         savedPonto.value = null
-        lastRecognizedPersonName.value = null // ✅ CORRIGIDO: Resetar o nome da pessoa reconhecida
-        Log.d("DetectScreenViewModel", "🔄 Estados resetados para nova captura")
+        lastRecognizedPersonName.value = null
     }
 
     // ✅ NOVO: Função para verificar POOF

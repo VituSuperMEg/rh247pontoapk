@@ -168,26 +168,26 @@ fun PontoSuccessScreen(
                             }
                         }
                         
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        if (ponto.latitude != null && ponto.longitude != null) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "Latitude - Longitude",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.Gray
-                                )
-                                Text(
-                                    text = "${ponto.latitude} | ${ponto.longitude}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF1976D2),
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
+//                        Spacer(modifier = Modifier.height(16.dp))
+//
+//                        if (ponto.latitude != null && ponto.longitude != null) {
+//                            Column(
+//                                modifier = Modifier.fillMaxWidth()
+//                            ) {
+//                                Text(
+//                                    text = "Latitude - Longitude",
+//                                    style = MaterialTheme.typography.bodyMedium,
+//                                    color = Color.Gray
+//                                )
+//                                Text(
+//                                    text = "${ponto.latitude} | ${ponto.longitude}",
+//                                    style = MaterialTheme.typography.bodyMedium,
+//                                    fontWeight = FontWeight.Bold,
+//                                    color = Color(0xFF1976D2),
+//                                    fontSize = 12.sp
+//                                )
+//                            }
+//                        }
                         
                         if (ponto.fotoBase64?.isNotEmpty() == true) {
                             Spacer(modifier = Modifier.height(16.dp))
