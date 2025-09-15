@@ -19,6 +19,7 @@ import com.ml.shubham0204.facenet_android.utils.BitmapUtils
 import com.ml.shubham0204.facenet_android.utils.LocationUtils
 import com.ml.shubham0204.facenet_android.utils.LocationResult
 import com.ml.shubham0204.facenet_android.utils.ConnectivityUtils
+import com.ml.shubham0204.facenet_android.utils.SoundUtils
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -306,6 +307,14 @@ class DetectScreenViewModel(
 
             if (fotoBase64 != null) {
                 Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso")
+            }
+            
+            // 🔊 Reproduzir som de beep quando ponto for registrado
+            try {
+                Log.d("DetectScreenViewModel", "🔊 Reproduzindo som de confirmação...")
+                SoundUtils.playBeepSound(context)
+            } catch (e: Exception) {
+                Log.w("DetectScreenViewModel", "⚠️ Erro ao reproduzir som: ${e.message}")
             }
             
             attemptAutoSync()

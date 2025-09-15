@@ -49,6 +49,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -125,6 +128,50 @@ fun DetectScreen(
 }
 
 @Composable
+private fun DateTimeHeader() {
+    var currentTime by remember { mutableStateOf("") }
+    var currentDate by remember { mutableStateOf("") }
+    
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            val now = Date()
+            val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+            val dateFormat = SimpleDateFormat("EEE, dd 'DE' MMMM", Locale("pt", "BR"))
+            
+            currentTime = timeFormat.format(now)
+            currentDate = dateFormat.format(now).uppercase().replace(".", "")
+            
+            delay(1000) // Atualizar a cada segundo
+        }
+    }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = currentTime,
+                style = MaterialTheme.typography.displayMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = currentDate,
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
 private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     val viewModel: DetectScreenViewModel = koinViewModel()
     
@@ -167,6 +214,9 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         Camera(viewModel, onOverlayCreated = { overlay ->
             faceDetectionOverlay = overlay
         })
+        
+        // Header com data e hora no topo
+        DateTimeHeader()
         
         // Indicador de processamento
         if (isProcessingRecognition) {

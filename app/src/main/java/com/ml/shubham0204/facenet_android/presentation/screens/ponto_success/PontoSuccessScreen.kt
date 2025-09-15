@@ -90,8 +90,7 @@ fun PontoSuccessScreen(
                         .width(600.dp)
                         .padding(16.dp)
                         .align(Alignment.Center)
-                        .height(450.dp)
-                        .shadow(elevation = 0.5.dp),
+                        .height(250.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White
@@ -245,22 +244,22 @@ fun PontoSuccessScreen(
                         // Spacer(modifier = Modifier.height(16.dp))
                         
                         // Botão Fechar
-                        Button(
-                            onClick = onNavigateBack,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF1976D2)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Fechar Agora",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+//                        Button(
+//                            onClick = onNavigateBack,
+//                            modifier = Modifier
+//                                .fillMaxWidth()
+//                                .height(48.dp),
+//                            colors = ButtonDefaults.buttonColors(
+//                                containerColor = Color(0xFF1976D2)
+//                            ),
+//                            shape = RoundedCornerShape(8.dp)
+//                        ) {
+//                            Text(
+//                                text = "Fechar Agora",
+//                                color = Color.White,
+//                                fontWeight = FontWeight.Bold
+//                            )
+//                        }
                     }
                 }
             }
