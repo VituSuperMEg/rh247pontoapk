@@ -29,11 +29,26 @@ class PersonDB {
             .flow()
             .flowOn(Dispatchers.IO)
             
-    // ✅ NOVO: Função para buscar pessoa por funcionarioId
     suspend fun getPersonByFuncionarioId(funcionarioId: Long): PersonRecord? {
-        return personBox
+        android.util.Log.d("PersonDB", "🔍 Buscando pessoa com funcionarioId: $funcionarioId")
+        
+        val result = personBox
             .query(PersonRecord_.funcionarioId.equal(funcionarioId))
             .build()
             .findFirst()
+            
+        if (result != null) {
+            android.util.Log.d("PersonDB", "✅ Pessoa encontrada: ${result.personName} (personID: ${result.personID}, funcionarioId: ${result.funcionarioId})")
+        } else {
+            android.util.Log.d("PersonDB", "❌ Nenhuma pessoa encontrada com funcionarioId: $funcionarioId")
+            
+            val allPersons = personBox.all
+            android.util.Log.d("PersonDB", "📋 Todas as pessoas no banco:")
+            allPersons.forEach { person ->
+                android.util.Log.d("PersonDB", "   - ${person.personName} (personID: ${person.personID}, funcionarioId: ${person.funcionarioId})")
+            }
+        }
+        
+        return result
     }
 }

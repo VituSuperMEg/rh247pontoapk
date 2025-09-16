@@ -13,10 +13,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ml.shubham0204.facenet_android.data.BackupService
+// Imports USB comentados - funcionalidade desabilitada
+// import com.ml.shubham0204.facenet_android.utils.USBUtils
+// import com.ml.shubham0204.facenet_android.utils.USBStorageInfo
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -35,12 +39,21 @@ fun BackupTab() {
     var showRestoreProgress by remember { mutableStateOf(false) }
     var showRestartAlert by remember { mutableStateOf(false) }
     var selectedBackupUri by remember { mutableStateOf<Uri?>(null) }
+    // Variáveis USB removidas - funcionalidade comentada
     
     // Função para mostrar mensagem
     fun displayMessage(text: String) {
         message = text
         showMessage = true
     }
+    
+    // Função para mostrar erro de USB (COMENTADA)
+    /*
+    fun showUSBError(message: String) {
+        usbErrorMessage = message
+        showUSBErrorDialog = true
+    }
+    */
     
     // Função para restaurar backup a partir de URI
     fun restoreBackupFromUri(uri: Uri) {
@@ -90,7 +103,7 @@ fun BackupTab() {
         }
     }
     
-    // Função para criar backup via Downloads (pen drive)
+    // Função para criar backup via Downloads
     fun createBackupToDownloads() {
         scope.launch {
             isLoading = true
@@ -109,6 +122,65 @@ fun BackupTab() {
             }
         }
     }
+    
+    // Função para criar backup diretamente no pen drive USB (COMENTADA)
+    /*
+    fun createBackupToUSB() {
+        scope.launch {
+            isLoading = true
+            try {
+                // Verificar se há pen drive conectado
+                val currentUSBInfo = USBUtils.getUSBStorageInfo(context)
+                if (currentUSBInfo == null) {
+                    showUSBError("Nenhum pen drive USB encontrado. Conecte um pen drive para continuar.")
+                    return@launch
+                }
+                
+                if (!currentUSBInfo.isWritable) {
+                    showUSBError("Pen drive USB não tem permissão de escrita. Verifique as permissões.")
+                    return@launch
+                }
+                
+                // Criar backup
+                val result = backupService.createBackup()
+                result.fold(
+                    onSuccess = { filePath ->
+                        // Ler o arquivo de backup criado
+                        val backupFile = File(filePath)
+                        if (backupFile.exists()) {
+                            val backupContent = backupFile.readText()
+                            
+                            // Salvar no pen drive USB
+                            val usbResult = USBUtils.createBackupOnUSB(
+                                context, 
+                                backupContent, 
+                                "backup_${System.currentTimeMillis()}.json"
+                            )
+                            
+                            usbResult.fold(
+                                onSuccess = { usbPath ->
+                                    displayMessage("Backup criado com sucesso no pen drive USB!")
+                                    // Limpar arquivo temporário
+                                    backupFile.delete()
+                                },
+                                onFailure = { error ->
+                                    displayMessage("Erro ao salvar no pen drive: ${error.message}")
+                                }
+                            )
+                        } else {
+                            displayMessage("Erro: arquivo de backup não encontrado")
+                        }
+                    },
+                    onFailure = { error ->
+                        displayMessage("Erro ao criar backup: ${error.message}")
+                    }
+                )
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+    */
     
     // Função para criar backup na nuvem (placeholder)
     fun createBackupToCloud() {
@@ -218,21 +290,21 @@ fun BackupTab() {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                
                 Text(
-                    text = "Formato do arquivo: codigo_localizacao_20250715_171930.json",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "O backup será salvo automaticamente na pasta Downloads",
+                    text = "Escolha onde salvar o backup: Downloads ou nuvem",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                
                 Button(
                     onClick = { showBackupMethodSelection() },
                     enabled = !isLoading,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    )
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -241,12 +313,6 @@ fun BackupTab() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Icon(
-                        imageVector = Icons.Default.CloudUpload,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text("Criar Backup")
                 }
             }
@@ -276,14 +342,9 @@ fun BackupTab() {
                     enabled = !isLoading,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary
+                        containerColor = Color(0xFF264064)
                     )
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Restore,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Selecionar e Restaurar Backup")
                 }
@@ -306,7 +367,7 @@ fun BackupTab() {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Card para Pen Drive
+                    // Card para Downloads
                     Card(
                         onClick = {
                             showBackupMethodDialog = false
@@ -316,7 +377,7 @@ fun BackupTab() {
                             .weight(1f)
                             .aspectRatio(1f),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
                         ),
                         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
@@ -328,23 +389,24 @@ fun BackupTab() {
                             verticalArrangement = Arrangement.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Usb,
+                                imageVector = Icons.Default.Download,
                                 contentDescription = null,
                                 modifier = Modifier.size(48.dp),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "Via Pen Drive",
+                                text = "Via Downloads",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "Salva na pasta Downloads para transferir via USB",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                         }
@@ -375,7 +437,7 @@ fun BackupTab() {
                                 imageVector = Icons.Default.CloudUpload,
                                 contentDescription = null,
                                 modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color(0xFF264064)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
@@ -435,7 +497,7 @@ fun BackupTab() {
                         selectedBackupUri = null
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error
+                        containerColor = Color(0xFF264064)
                     )
                 ) {
                     Text("Sim, Restaurar")
@@ -536,7 +598,7 @@ fun BackupTab() {
                         restartApplication()
                     },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
+                        containerColor = Color(0xFF264064)
                     )
                 ) {
                     Icon(
@@ -557,6 +619,73 @@ fun BackupTab() {
             }
         )
     }
+    
+    // Modal de erro de USB (COMENTADO)
+    /*
+    if (showUSBErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { showUSBErrorDialog = false },
+            title = {
+                Text(
+                    text = "Pen Drive USB Não Encontrado",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.UsbOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(56.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        text = usbErrorMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                    Text(
+                        text = "Para usar o backup direto no pen drive, conecte um pen drive USB ao tablet e tente novamente.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { 
+                        showUSBErrorDialog = false
+                        // Atualizar status do USB
+                        usbStorageInfo = USBUtils.getUSBStorageInfo(context)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Verificar Novamente")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showUSBErrorDialog = false }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+    */
     
     // Snackbar para mensagens
 

@@ -100,7 +100,6 @@ fun ConfiguracoesTab(
                 OutlinedTextField(
                     value = uiState.codigoSincronizacao,
                     onValueChange = { newValue ->
-                        // Aceitar apenas números
                         val filteredValue = newValue.filter { it.isDigit() }
                         viewModel.updateCodigoSincronizacao(filteredValue)
                     },

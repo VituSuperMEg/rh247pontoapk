@@ -130,7 +130,6 @@ class BackupService(private val context: Context) {
                 throw Exception("Arquivo de backup não encontrado")
             }
             
-            // Ler arquivo de backup
             val backupContent = FileInputStream(backupFile).use { fis ->
                 fis.bufferedReader().use { it.readText() }
             }
@@ -138,24 +137,26 @@ class BackupService(private val context: Context) {
             val backupData = JSONObject(backupContent)
             val data = backupData.getJSONObject("data")
             
-            // Limpar dados existentes
             clearAllData()
             
-            // Restaurar dados
-            if (data.has("funcionarios")) {
+            val funcionarioIdMapping = if (data.has("funcionarios")) {
                 importFuncionarios(data.getJSONArray("funcionarios"))
+            } else {
+                emptyMap()
             }
             
             if (data.has("configuracoes")) {
                 importConfiguracoes(data.getJSONArray("configuracoes"))
             }
             
-            if (data.has("pessoas")) {
-                importPessoas(data.getJSONArray("pessoas"))
+            val personIdMapping = if (data.has("pessoas")) {
+                importPessoas(data.getJSONArray("pessoas"), funcionarioIdMapping)
+            } else {
+                emptyMap()
             }
             
             if (data.has("faceImages")) {
-                importFaceImages(data.getJSONArray("faceImages"))
+                importFaceImages(data.getJSONArray("faceImages"), personIdMapping)
             }
             
             if (data.has("pontosGenericos")) {
@@ -386,26 +387,43 @@ class BackupService(private val context: Context) {
     }
     
     // Métodos privados para importar dados
-    private fun importFuncionarios(funcionariosArray: JSONArray) {
+    private fun importFuncionarios(funcionariosArray: JSONArray): Map<Long, Long> {
         val funcionariosDao = FuncionariosDao()
+        val funcionarioIdMapping = mutableMapOf<Long, Long>() // Mapeamento: funcionarioId_antigo -> funcionarioId_novo
+        
+        Log.d(TAG, "🔄 Importando ${funcionariosArray.length()} funcionários...")
         
         for (i in 0 until funcionariosArray.length()) {
-            val json = funcionariosArray.getJSONObject(i)
-            val funcionario = FuncionariosEntity(
-                id = json.getLong("id"),
-                codigo = json.getString("codigo"),
-                nome = json.getString("nome"),
-                ativo = json.getInt("ativo"),
-                matricula = json.getString("matricula"),
-                cpf = json.getString("cpf"),
-                cargo = json.getString("cargo"),
-                secretaria = json.getString("secretaria"),
-                lotacao = json.getString("lotacao"),
-                apiId = json.getLong("apiId"),
-                dataImportacao = json.getLong("dataImportacao")
-            )
-            funcionariosDao.insert(funcionario)
+            try {
+                val json = funcionariosArray.getJSONObject(i)
+                val oldFuncionarioId = json.getLong("id") // ID original do backup
+                
+                val funcionario = FuncionariosEntity(
+                    id = 0, // ObjectBox vai gerar novo ID automaticamente
+                    codigo = json.getString("codigo"),
+                    nome = json.getString("nome"),
+                    ativo = json.getInt("ativo"),
+                    matricula = json.getString("matricula"),
+                    cpf = json.getString("cpf"),
+                    cargo = json.getString("cargo"),
+                    secretaria = json.getString("secretaria"),
+                    lotacao = json.getString("lotacao"),
+                    apiId = json.getLong("apiId"),
+                    dataImportacao = json.getLong("dataImportacao")
+                )
+                val newFuncionarioId = funcionariosDao.insert(funcionario)
+                
+                // Mapear ID antigo para novo
+                funcionarioIdMapping[oldFuncionarioId] = newFuncionarioId
+                
+                Log.d(TAG, "✅ Funcionário importado: ${funcionario.nome} (ID antigo: $oldFuncionarioId -> ID novo: $newFuncionarioId)")
+            } catch (e: Exception) {
+                Log.e(TAG, "❌ Erro ao importar funcionário $i: ${e.message}")
+            }
         }
+        
+        Log.d(TAG, "✅ Importação de funcionários concluída. Mapeamento: $funcionarioIdMapping")
+        return funcionarioIdMapping
     }
     
     private fun importConfiguracoes(configuracoesArray: JSONArray) {
@@ -426,37 +444,50 @@ class BackupService(private val context: Context) {
         }
     }
     
-    private fun importPessoas(pessoasArray: JSONArray) {
+    private fun importPessoas(pessoasArray: JSONArray, funcionarioIdMapping: Map<Long, Long>): Map<Long, Long> {
         val personBox = ObjectBoxStore.store.boxFor(PersonRecord::class.java)
+        val personIdMapping = mutableMapOf<Long, Long>() // Mapeamento: personID_antigo -> personID_novo
         
         Log.d(TAG, "🔄 Importando ${pessoasArray.length()} pessoas...")
+        Log.d(TAG, "📋 Mapeamento de funcionários: $funcionarioIdMapping")
         
         for (i in 0 until pessoasArray.length()) {
             try {
                 val json = pessoasArray.getJSONObject(i)
+                val oldPersonID = json.getLong("personID") // ID original do backup
+                val oldFuncionarioId = json.getLong("funcionarioId") // ID original do funcionário
+                
+                // Usar o mapeamento para encontrar o novo funcionarioId
+                val newFuncionarioId = funcionarioIdMapping[oldFuncionarioId] ?: oldFuncionarioId
+                
                 val pessoa = PersonRecord(
                     personID = 0, // ObjectBox vai gerar novo ID automaticamente
                     personName = json.getString("personName"),
                     numImages = json.getLong("numImages"),
                     addTime = json.getLong("addTime"),
-                    funcionarioId = json.getLong("funcionarioId"),
+                    funcionarioId = newFuncionarioId, // Usar o novo funcionarioId mapeado
                     funcionarioApiId = json.getLong("funcionarioApiId")
                 )
-                val insertedId = personBox.put(pessoa)
-                Log.d(TAG, "✅ Pessoa importada: ${pessoa.personName} (ID: $insertedId)")
+                val newPersonID = personBox.put(pessoa)
+                
+                // Mapear ID antigo para novo
+                personIdMapping[oldPersonID] = newPersonID
+                
+                Log.d(TAG, "✅ Pessoa importada: ${pessoa.personName} (ID antigo: $oldPersonID -> ID novo: $newPersonID, funcionarioId antigo: $oldFuncionarioId -> novo: $newFuncionarioId)")
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Erro ao importar pessoa $i: ${e.message}")
             }
         }
         
-        Log.d(TAG, "✅ Importação de pessoas concluída")
+        Log.d(TAG, "✅ Importação de pessoas concluída. Mapeamento: $personIdMapping")
+        return personIdMapping
     }
     
-    private fun importFaceImages(faceImagesArray: JSONArray) {
+    private fun importFaceImages(faceImagesArray: JSONArray, personIdMapping: Map<Long, Long>) {
         val faceBox = ObjectBoxStore.store.boxFor(FaceImageRecord::class.java)
-        val personBox = ObjectBoxStore.store.boxFor(PersonRecord::class.java)
         
         Log.d(TAG, "🔄 Importando ${faceImagesArray.length()} imagens de face...")
+        Log.d(TAG, "📋 Mapeamento de IDs: $personIdMapping")
         
         for (i in 0 until faceImagesArray.length()) {
             try {
@@ -466,21 +497,23 @@ class BackupService(private val context: Context) {
                     embeddingArray.getDouble(j).toFloat()
                 }
                 
-                // Buscar a pessoa correspondente pelo nome (já que os IDs mudaram)
+                val oldPersonID = json.getLong("personID") // ID original do backup
                 val personName = json.getString("personName")
-                val pessoa = personBox.all.find { it.personName == personName }
                 
-                if (pessoa != null) {
+                // Usar o mapeamento para encontrar o novo personID
+                val newPersonID = personIdMapping[oldPersonID]
+                
+                if (newPersonID != null) {
                     val faceImage = FaceImageRecord(
                         recordID = 0, // ObjectBox vai gerar novo ID automaticamente
-                        personID = pessoa.personID, // Usar o novo personID da pessoa importada
+                        personID = newPersonID, // Usar o novo personID mapeado
                         personName = personName,
                         faceEmbedding = embedding
                     )
                     val insertedId = faceBox.put(faceImage)
-                    Log.d(TAG, "✅ Imagem de face importada: ${faceImage.personName} (ID: $insertedId, personID: ${pessoa.personID})")
+                    Log.d(TAG, "✅ Imagem de face importada: ${faceImage.personName} (recordID: $insertedId, personID antigo: $oldPersonID -> novo: $newPersonID)")
                 } else {
-                    Log.w(TAG, "⚠️ Pessoa não encontrada para imagem de face: $personName")
+                    Log.w(TAG, "⚠️ PersonID não encontrado no mapeamento para imagem de face: $personName (personID antigo: $oldPersonID)")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "❌ Erro ao importar imagem de face $i: ${e.message}")
