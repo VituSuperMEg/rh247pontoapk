@@ -51,7 +51,7 @@ fun SettingsScreen(
             }
         ) { innerPadding ->
             var selectedTabIndex by remember { mutableIntStateOf(0) }
-            val tabs = listOf("Configurações", "Histórico", "Sobre")
+            val tabs = listOf("Configurações", "Backup", "Histórico", "Sobre")
             
             Column(
                 modifier = Modifier
@@ -74,8 +74,9 @@ fun SettingsScreen(
                         onCancelar = onNavigateBack,
                         onSair = { /* TODO */ }
                     )
-                    1 -> HistoricoTab()
-                    2 -> SobreTab()
+                    1 -> BackupTab()
+                    2 -> HistoricoTab()
+                    3 -> SobreTab()
                 }
             }
         }
