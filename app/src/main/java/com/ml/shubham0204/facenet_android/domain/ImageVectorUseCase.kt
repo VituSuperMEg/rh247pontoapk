@@ -76,7 +76,7 @@ class ImageVectorUseCase(
 
             for ((index, result) in faceDetectionResult.withIndex()) {
                 try {
-                    android.util.Log.d("ImageVectorUseCase", "🔍 Processando face $index/${faceDetectionResult.size}")
+
                     
                     // Get the embedding for the cropped face (query embedding)
                     val (croppedBitmap, boundingBox) = result
@@ -109,19 +109,15 @@ class ImageVectorUseCase(
                         continue
                     }
 
-                    // ✅ CORRIGIDO: Opção para desabilitar spoof detection temporariamente
-                    val enableSpoofDetection = true // Mude para false para desabilitar spoof detection
+                    val enableSpoofDetection = true
                     
                     val spoofResult = if (enableSpoofDetection) {
                         try {
                             faceSpoofDetector.detectSpoof(frameBitmap, boundingBox)
                         } catch (e: Exception) {
-                            android.util.Log.e("ImageVectorUseCase", "❌ Erro na detecção de spoof para face $index: ${e.message}")
-                            // Continuar sem spoof detection
                             null
                         }
                     } else {
-                        android.util.Log.d("ImageVectorUseCase", "⚠️ Spoof detection DESABILITADO para debugging")
                         null
                     }
                     
@@ -134,23 +130,14 @@ class ImageVectorUseCase(
                     val distance = try {
                         cosineDistance(embedding, recognitionResult.faceEmbedding)
                     } catch (e: Exception) {
-                        android.util.Log.e("ImageVectorUseCase", "❌ Erro no cálculo de similaridade para face $index: ${e.message}")
-                        0.0f // Distância mínima em caso de erro
+                        0.0f
                     }
-                    
-                    android.util.Log.d("ImageVectorUseCase", "📊 Face $index - Distância: $distance, Pessoa: ${recognitionResult.personName}")
-                    
 
-                    if (distance > 0.7) {
+                    if (distance > 0.73) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
                         if (isSpoofDetected) {
-                            android.util.Log.w("ImageVectorUseCase", "🚫 SPOOF DETECTADO! Bloqueando reconhecimento para face $index")
-                            android.util.Log.w("ImageVectorUseCase", "   - Score de spoof: ${spoofResult.score} (threshold: $spoofThreshold)")
-                            android.util.Log.w("ImageVectorUseCase", "   - Tempo de detecção: ${spoofResult.timeMillis}ms")
-                            
-                            // Bloquear reconhecimento - tratar como "Not recognized"
                             faceRecognitionResults.add(
                                 FaceRecognitionResult("SPOOF_DETECTED", boundingBox, spoofResult),
                             )
@@ -165,15 +152,12 @@ class ImageVectorUseCase(
                             )
                         }
                     } else {
-                        android.util.Log.d("ImageVectorUseCase", "❌ Face $index não reconhecida (distância: $distance)")
                         faceRecognitionResults.add(
                             FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
                         )
                     }
                     
                 } catch (e: Exception) {
-                    android.util.Log.e("ImageVectorUseCase", "❌ Erro geral ao processar face $index: ${e.message}")
-                    // ✅ CORRIGIDO: Usar boundingBox do resultado atual
                     val (_, boundingBox) = result
                     faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
                 }
@@ -190,11 +174,9 @@ class ImageVectorUseCase(
                 null
             }
 
-            android.util.Log.d("ImageVectorUseCase", "✅ Reconhecimento concluído: ${faceRecognitionResults.size} resultados")
             Pair(metrics, faceRecognitionResults)
             
         } catch (e: Exception) {
-            android.util.Log.e("ImageVectorUseCase", "❌ Erro fatal no reconhecimento: ${e.message}")
             e.printStackTrace()
             Pair(null, listOf())
         }
@@ -221,21 +203,17 @@ class ImageVectorUseCase(
         imagesVectorDB.removeFaceRecordsWithPersonID(personID)
     }
 
-    // Get all face images for a specific person
     fun getImagesByPersonID(personID: Long): List<FaceImageRecord> {
         return imagesVectorDB.getFaceImagesByPersonID(personID)
     }
 
-    // ✅ NOVO: Função para verificar se uma face já existe no sistema
     suspend fun checkIfFaceAlreadyExists(
         imageUri: Uri,
         currentPersonID: Long? = null, // ID da pessoa atual (para permitir atualização da própria face)
-        similarityThreshold: Float = 0.7f // Limiar de similaridade (mais restritivo que reconhecimento)
+        similarityThreshold: Float = 0.73f // Limiar de similaridade (mais restritivo que reconhecimento)
     ): Result<FaceAlreadyExistsResult> {
         return try {
-            android.util.Log.d("ImageVectorUseCase", "🔍 Verificando se face já existe no sistema...")
-            
-            // Detectar e extrair a face da imagem
+
             val faceDetectionResult = mediapipeFaceDetector.getCroppedFace(imageUri)
             if (faceDetectionResult.isFailure) {
                 android.util.Log.e("ImageVectorUseCase", "❌ Erro ao detectar face na imagem")
@@ -243,12 +221,9 @@ class ImageVectorUseCase(
             }
             
             val croppedFace = faceDetectionResult.getOrNull()!!
-            android.util.Log.d("ImageVectorUseCase", "✅ Face detectada na imagem")
-            
-            // Gerar embedding da face
+
             val newEmbedding = faceNet.getFaceEmbedding(croppedFace)
-            android.util.Log.d("ImageVectorUseCase", "✅ Embedding gerado para verificação")
-            
+
             // Buscar a face mais similar no banco
             val nearestFace = imagesVectorDB.getNearestEmbeddingPersonName(newEmbedding)
             

@@ -29,12 +29,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // ✅ COMENTADO: Não limpar faces cadastradas automaticamente
+        // Limpar as faces
         //ClearFacesUtil.clearAllFaces()
-        
-        // Limpar pontos do ADEILTON (CPF incorreto)
-        //ClearAdeiltonPointsUtil.clearAdeiltonPoints()
-        
+
         setContent {
             val navHostController = rememberNavController()
             

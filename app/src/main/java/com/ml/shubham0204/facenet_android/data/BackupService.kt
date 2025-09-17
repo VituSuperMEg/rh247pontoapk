@@ -13,11 +13,19 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileInputStream
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.zip.ZipOutputStream
+import java.util.zip.ZipEntry
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import retrofit2.Response
 
 class BackupService(private val context: Context) {
     
@@ -47,7 +55,7 @@ class BackupService(private val context: Context) {
         val localizacaoIdLimpo = localizacaoId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
         
         // Formato: codigo_cliente + localizacao_id + data(20250715) + HHMMSS(171930)
-        val fileName = "${codigoClienteLimpo}_${localizacaoIdLimpo}_${data}_$hora.json"
+        val fileName = "${codigoClienteLimpo}_${localizacaoIdLimpo}_${data}_$hora.zip"
         
         Log.d(TAG, "📝 Nome do arquivo de backup gerado: $fileName")
         return fileName
@@ -103,6 +111,106 @@ class BackupService(private val context: Context) {
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao criar backup", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Cria um backup e faz upload para a nuvem
+     */
+    suspend fun createBackupToCloud(): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "🔄 Iniciando backup para nuvem...")
+            
+            // Obter configurações
+            val configuracoesDao = ConfiguracoesDao()
+            val configuracoes = configuracoesDao.getConfiguracoes()
+            
+            if (configuracoes == null || configuracoes.entidadeId.isEmpty() || configuracoes.localizacaoId.isEmpty()) {
+                throw Exception("Configurações de entidade ou localização não encontradas")
+            }
+            
+            // Gerar nome do arquivo com nomenclatura específica
+            val backupFileName = generateBackupFileName(configuracoes)
+            
+            // Criar arquivo temporário para o backup
+            val tempDir = File(context.cacheDir, "temp_backups")
+            if (!tempDir.exists()) {
+                tempDir.mkdirs()
+            }
+            val tempBackupFile = File(tempDir, backupFileName)
+            
+            // Encontrar diretório de banco de dados ObjectBox
+            val objectBoxDir = findObjectBoxDatabaseDirectory()
+            if (objectBoxDir == null || !objectBoxDir.exists()) {
+                throw Exception("Diretório de banco de dados ObjectBox não encontrado")
+            }
+            
+            // Criar arquivo ZIP com o diretório ObjectBox
+            createZipFromDirectory(objectBoxDir, tempBackupFile)
+            
+            Log.d(TAG, "📁 Arquivo de backup criado: ${tempBackupFile.absolutePath} (${tempBackupFile.length()} bytes)")
+            Log.d(TAG, "📊 Diretório original: ${objectBoxDir.absolutePath}")
+            
+            // Preparar upload do arquivo para nuvem
+            val mediaType = "application/zip".toMediaTypeOrNull()
+            val requestBody = tempBackupFile.asRequestBody(mediaType)
+            val multipartBody = MultipartBody.Part.createFormData(
+                "file", 
+                backupFileName, 
+                requestBody
+            )
+            
+            // Criar RequestBody para localizacaoId
+            val localizacaoIdBody = configuracoes.localizacaoId.toRequestBody("text/plain".toMediaTypeOrNull())
+            
+            Log.d(TAG, "📤 Enviando arquivo: ${tempBackupFile.absolutePath}")
+            Log.d(TAG, "📊 Tamanho do arquivo: ${tempBackupFile.length()} bytes")
+            Log.d(TAG, "🏷️ Nome do arquivo: $backupFileName")
+            
+            // Fazer upload
+            val apiService = RetrofitClient.instance
+            val response: Response<com.ml.shubham0204.facenet_android.data.api.BackupUploadResponse> = 
+                apiService.uploadBackupToCloud(
+                    entidade = configuracoes.entidadeId,
+                    localizacaoId = localizacaoIdBody,
+                    file = multipartBody
+                )
+            
+            // Limpar arquivo temporário
+            try {
+                tempBackupFile.delete()
+                Log.d(TAG, "🗑️ Arquivo temporário removido")
+            } catch (e: Exception) {
+                Log.w(TAG, "⚠️ Erro ao remover arquivo temporário: ${e.message}")
+            }
+            
+            if (response.isSuccessful) {
+                val uploadResponse = response.body()
+                Log.d(TAG, "📡 Resposta do servidor recebida: $uploadResponse")
+                
+                // Verificar se a resposta indica sucesso
+                val isSuccess = uploadResponse?.success == true || 
+                               uploadResponse?.message?.contains("sucesso", ignoreCase = true) == true ||
+                               uploadResponse?.message?.contains("importado", ignoreCase = true) == true
+                
+                if (isSuccess) {
+                    val message = uploadResponse?.message ?: "Arquivo importado com sucesso!"
+                    Log.d(TAG, "✅ Backup enviado para nuvem com sucesso: $message")
+                    Result.success(message)
+                } else {
+                    val message = uploadResponse?.message ?: "Resposta inválida do servidor"
+                    throw Exception("Erro no servidor: $message")
+                }
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Log.e(TAG, "❌ Erro HTTP ${response.code()}: ${response.message()}")
+                Log.e(TAG, "❌ Corpo do erro: $errorBody")
+                throw Exception("Erro HTTP ${response.code()}: ${response.message()}")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro ao fazer backup na nuvem", e)
             Result.failure(e)
         }
     }
@@ -565,6 +673,123 @@ class BackupService(private val context: Context) {
         ObjectBoxStore.store.boxFor(PersonRecord::class.java).removeAll()
         ObjectBoxStore.store.boxFor(FaceImageRecord::class.java).removeAll()
         ObjectBoxStore.store.boxFor(PontosGenericosEntity::class.java).removeAll()
+    }
+    
+    /**
+     * Encontra o diretório de banco de dados ObjectBox
+     */
+    private fun findObjectBoxDatabaseDirectory(): File? {
+        val possiblePaths = listOf(
+            // Caminho real do ObjectBox (diretório)
+            File(context.filesDir, "objectbox"),
+            // Caminho alternativo
+            File(context.dataDir, "objectbox"),
+            // Caminho no diretório de cache
+            File(context.cacheDir, "objectbox")
+        )
+        
+        Log.d(TAG, "🔍 Procurando diretório de banco de dados ObjectBox...")
+        
+        for (path in possiblePaths) {
+            Log.d(TAG, "   Verificando: ${path.absolutePath}")
+            if (path.exists() && path.isDirectory) {
+                Log.d(TAG, "✅ Diretório encontrado: ${path.absolutePath}")
+                return path
+            }
+        }
+        
+        return null
+    }
+    
+    /**
+     * Cria um arquivo ZIP a partir de um diretório
+     */
+    private fun createZipFromDirectory(sourceDir: File, zipFile: File) {
+        Log.d(TAG, "📦 Criando ZIP do diretório: ${sourceDir.absolutePath}")
+        
+        FileOutputStream(zipFile).use { fos ->
+            ZipOutputStream(fos).use { zos ->
+                addDirectoryToZip(sourceDir, sourceDir.name, zos)
+            }
+        }
+        
+        Log.d(TAG, "✅ ZIP criado com sucesso: ${zipFile.absolutePath} (${zipFile.length()} bytes)")
+    }
+    
+    /**
+     * Adiciona um diretório e seus arquivos ao ZIP
+     */
+    private fun addDirectoryToZip(dir: File, baseName: String, zos: ZipOutputStream) {
+        val files = dir.listFiles() ?: return
+        
+        for (file in files) {
+            val entryName = if (baseName.isEmpty()) file.name else "$baseName/${file.name}"
+            
+            if (file.isDirectory) {
+                // Adicionar entrada de diretório
+                val dirEntry = ZipEntry("$entryName/")
+                zos.putNextEntry(dirEntry)
+                zos.closeEntry()
+                
+                // Recursivamente adicionar conteúdo do diretório
+                addDirectoryToZip(file, entryName, zos)
+            } else {
+                // Adicionar arquivo
+                val fileEntry = ZipEntry(entryName)
+                zos.putNextEntry(fileEntry)
+                
+                FileInputStream(file).use { fis ->
+                    fis.copyTo(zos)
+                }
+                
+                zos.closeEntry()
+                Log.d(TAG, "   📄 Adicionado ao ZIP: $entryName (${file.length()} bytes)")
+            }
+        }
+    }
+    
+    /**
+     * Encontra o arquivo de banco de dados ObjectBox (método antigo - mantido para compatibilidade)
+     */
+    private fun findObjectBoxDatabaseFile(): File? {
+        val possiblePaths = listOf(
+            // Caminho real do ObjectBox (arquivo sem extensão)
+            File(context.filesDir, "objectbox/objectbox"),
+            // Caminho padrão do ObjectBox
+            File(context.filesDir, "objectbox/data.mdb"),
+            // Caminho alternativo
+            File(context.filesDir, "objectbox/data"),
+            // Caminho com nome do pacote
+            File(context.filesDir, "objectbox/${context.packageName}/data.mdb"),
+            // Caminho no diretório de dados
+            File(context.dataDir, "objectbox/data.mdb"),
+            // Caminho no diretório de cache
+            File(context.cacheDir, "objectbox/data.mdb")
+        )
+        
+        Log.d(TAG, "🔍 Procurando arquivo de banco de dados ObjectBox...")
+        
+        for (path in possiblePaths) {
+            Log.d(TAG, "   Verificando: ${path.absolutePath}")
+            if (path.exists()) {
+                Log.d(TAG, "✅ Arquivo encontrado: ${path.absolutePath} (${path.length()} bytes)")
+                return path
+            }
+        }
+        
+        // Se não encontrou, listar arquivos no diretório filesDir para debug
+        Log.d(TAG, "📁 Listando arquivos em filesDir: ${context.filesDir.absolutePath}")
+        context.filesDir.listFiles()?.forEach { file ->
+            Log.d(TAG, "   - ${file.name} (${if (file.isDirectory) "diretório" else "arquivo"})")
+            if (file.isDirectory && file.name.contains("objectbox", ignoreCase = true)) {
+                Log.d(TAG, "     📁 Conteúdo do diretório ${file.name}:")
+                file.listFiles()?.forEach { subFile ->
+                    Log.d(TAG, "       - ${subFile.name} (${subFile.length()} bytes)")
+                }
+            }
+        }
+        
+        return null
     }
     
     /**

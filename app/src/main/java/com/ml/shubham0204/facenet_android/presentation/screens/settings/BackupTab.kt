@@ -181,14 +181,19 @@ fun BackupTab() {
         }
     }
     */
-    
-    // Função para criar backup na nuvem (placeholder)
     fun createBackupToCloud() {
         scope.launch {
             isLoading = true
             try {
-                // TODO: Implementar upload para nuvem
-                displayMessage("Funcionalidade de backup na nuvem será implementada em breve!")
+                val result = backupService.createBackupToCloud()
+                result.fold(
+                    onSuccess = { message ->
+                        displayMessage(message)
+                    },
+                    onFailure = { error ->
+                        displayMessage("Erro ao fazer backup na nuvem: ${error.message}")
+                    }
+                )
             } finally {
                 isLoading = false
             }
@@ -218,6 +223,7 @@ fun BackupTab() {
                         onSuccess = {
                             tempFile.delete() // Limpar arquivo temporário
                             showRestoreProgress = false
+                            displayMessage("Backup restaurado com sucesso!")
                             showRestartAlert = true
                         },
                         onFailure = { error ->
