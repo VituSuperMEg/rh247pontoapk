@@ -21,6 +21,8 @@ import java.util.zip.ZipOutputStream
 import java.util.zip.ZipEntry
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
+import com.ml.shubham0204.facenet_android.utils.FileIntegrityManager
+import com.ml.shubham0204.facenet_android.utils.ProtectedFileData
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -33,6 +35,8 @@ class BackupService(private val context: Context) {
         private const val TAG = "BackupService"
         private const val BACKUP_FOLDER = "backups"
     }
+    
+    private val fileIntegrityManager = FileIntegrityManager()
     
     /**
      * Gera o nome do arquivo de backup seguindo a nomenclatura:
@@ -55,25 +59,26 @@ class BackupService(private val context: Context) {
         val localizacaoIdLimpo = localizacaoId.replace(Regex("[^a-zA-Z0-9_-]"), "_")
         
         // Formato: codigo_cliente + localizacao_id + data(20250715) + HHMMSS(171930)
-        val fileName = "${codigoClienteLimpo}_${localizacaoIdLimpo}_${data}_$hora.zip"
+        val fileName = "${codigoClienteLimpo}_${localizacaoIdLimpo}_${data}_$hora.json"
         
         Log.d(TAG, "📝 Nome do arquivo de backup gerado: $fileName")
         return fileName
     }
     
     /**
-     * Cria um backup completo do banco de dados ObjectBox e salva na pasta Downloads
+     * Cria um backup completo do banco de dados ObjectBox (SEMPRE PROTEGIDO)
+     * Todos os arquivos gerados são protegidos contra alterações
      */
     suspend fun createBackup(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔄 Iniciando criação de backup...")
+            Log.d(TAG, "🔒 Iniciando criação de backup PROTEGIDO...")
             
             // Obter configurações para gerar nome do arquivo
             val configuracoesDao = ConfiguracoesDao()
             val configuracoes = configuracoesDao.getConfiguracoes()
             
-            // Gerar nome do arquivo com nomenclatura específica
-            val backupFileName = generateBackupFileName(configuracoes)
+            // Gerar nome do arquivo com nomenclatura específica (SEMPRE protegido)
+            val backupFileName = generateBackupFileName(configuracoes).replace(".json", "_protected.json")
             
             // Salvar na pasta Downloads
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -101,26 +106,30 @@ class BackupService(private val context: Context) {
                 })
             }
             
-            // Salvar arquivo de backup
-            FileOutputStream(backupFile).use { fos ->
-                fos.write(backupData.toString(2).toByteArray())
+            // SEMPRE criar arquivo protegido com integridade
+            val backupContent = backupData.toString(2)
+            val integrityResult = fileIntegrityManager.createProtectedFile(backupContent, backupFile)
+            if (integrityResult.isFailure) {
+                throw Exception("Falha ao criar proteção de integridade: ${integrityResult.exceptionOrNull()?.message}")
             }
             
-            Log.d(TAG, "✅ Backup criado com sucesso: ${backupFile.absolutePath}")
+            Log.d(TAG, "🔒 Backup PROTEGIDO criado com sucesso: ${backupFile.absolutePath}")
+            Log.d(TAG, "🛡️ Arquivo protegido contra alterações - qualquer modificação bloqueará a importação")
             Result.success(backupFile.absolutePath)
             
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Erro ao criar backup", e)
+            Log.e(TAG, "❌ Erro ao criar backup protegido", e)
             Result.failure(e)
         }
     }
     
+    
     /**
-     * Cria um backup e faz upload para a nuvem
+     * Cria um backup protegido e faz upload para a nuvem
      */
     suspend fun createBackupToCloud(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔄 Iniciando backup para nuvem...")
+            Log.d(TAG, "🔒 Iniciando backup PROTEGIDO para nuvem...")
             
             // Obter configurações
             val configuracoesDao = ConfiguracoesDao()
@@ -130,8 +139,8 @@ class BackupService(private val context: Context) {
                 throw Exception("Configurações de entidade ou localização não encontradas")
             }
             
-            // Gerar nome do arquivo com nomenclatura específica
-            val backupFileName = generateBackupFileName(configuracoes)
+            // Gerar nome do arquivo com nomenclatura específica (SEMPRE protegido)
+            val backupFileName = generateBackupFileName(configuracoes).replace(".json", "_protected.json")
             
             // Criar arquivo temporário para o backup
             val tempDir = File(context.cacheDir, "temp_backups")
@@ -146,14 +155,26 @@ class BackupService(private val context: Context) {
                 throw Exception("Diretório de banco de dados ObjectBox não encontrado")
             }
             
-            // Criar arquivo ZIP com o diretório ObjectBox
-            createZipFromDirectory(objectBoxDir, tempBackupFile)
+            // Criar arquivo ZIP temporário
+            val tempZipFile = File(tempDir, "temp_backup.zip")
+            createZipFromDirectory(objectBoxDir, tempZipFile)
             
-            Log.d(TAG, "📁 Arquivo de backup criado: ${tempBackupFile.absolutePath} (${tempBackupFile.length()} bytes)")
+            Log.d(TAG, "📁 Arquivo ZIP temporário criado: ${tempZipFile.absolutePath} (${tempZipFile.length()} bytes)")
+            
+            // Criar arquivo protegido a partir do ZIP
+            val integrityResult = fileIntegrityManager.createProtectedFileFromBinary(tempZipFile, tempBackupFile)
+            if (integrityResult.isFailure) {
+                throw Exception("Falha ao criar proteção de integridade: ${integrityResult.exceptionOrNull()?.message}")
+            }
+            
+            // Limpar arquivo ZIP temporário
+            tempZipFile.delete()
+            
+            Log.d(TAG, "🔒 Arquivo protegido criado: ${tempBackupFile.absolutePath} (${tempBackupFile.length()} bytes)")
             Log.d(TAG, "📊 Diretório original: ${objectBoxDir.absolutePath}")
             
-            // Preparar upload do arquivo para nuvem
-            val mediaType = "application/zip".toMediaTypeOrNull()
+            // Preparar upload do arquivo protegido para nuvem
+            val mediaType = "application/json".toMediaTypeOrNull()
             val requestBody = tempBackupFile.asRequestBody(mediaType)
             val multipartBody = MultipartBody.Part.createFormData(
                 "file", 
@@ -235,46 +256,128 @@ class BackupService(private val context: Context) {
             
             val backupFile = File(backupFilePath)
             if (!backupFile.exists()) {
-                throw Exception("Arquivo de backup não encontrado")
+                throw Exception("Arquivo de backup não encontrado: $backupFilePath")
             }
             
-            val backupContent = FileInputStream(backupFile).use { fis ->
-                fis.bufferedReader().use { it.readText() }
+            Log.d(TAG, "📁 Arquivo encontrado: ${backupFile.absolutePath} (${backupFile.length()} bytes)")
+            
+            // SEMPRE validar integridade - todos os arquivos devem ser protegidos
+            Log.d(TAG, "🔒 Validando integridade do arquivo protegido...")
+            
+            // Validar integridade do arquivo protegido
+            val validationResult = fileIntegrityManager.validateProtectedFile(backupFile)
+            if (validationResult.isFailure) {
+                throw Exception("❌ Arquivo corrompido ou alterado! ${validationResult.exceptionOrNull()?.message}")
             }
             
-            val backupData = JSONObject(backupContent)
-            val data = backupData.getJSONObject("data")
+            // Verificar se é arquivo binário ou JSON
+            Log.d(TAG, "📖 Lendo conteúdo do arquivo...")
+            val jsonContent = backupFile.readText()
+            Log.d(TAG, "📄 Conteúdo lido: ${jsonContent.length} caracteres")
             
-            clearAllData()
+            Log.d(TAG, "🔍 Parseando dados protegidos...")
+            val protectedData = ProtectedFileData.fromJson(jsonContent)
+            Log.d(TAG, "✅ Dados parseados - isBinary: ${protectedData.isBinary}, originalFileName: ${protectedData.originalFileName}")
             
-            val funcionarioIdMapping = if (data.has("funcionarios")) {
-                importFuncionarios(data.getJSONArray("funcionarios"))
+            val backupContent = if (protectedData.isBinary) {
+                Log.d(TAG, "📦 Arquivo binário detectado - extraindo ZIP...")
+                
+                // Extrair arquivo binário para um arquivo temporário
+                val tempZipFile = File(context.cacheDir, "temp_restore.zip")
+                Log.d(TAG, "📦 Extraindo arquivo binário para: ${tempZipFile.absolutePath}")
+                
+                val extractResult = fileIntegrityManager.extractOriginalBinaryFile(backupFile, tempZipFile)
+                if (extractResult.isFailure) {
+                    throw Exception("❌ Falha ao extrair arquivo binário: ${extractResult.exceptionOrNull()?.message}")
+                }
+                
+                Log.d(TAG, "✅ Arquivo binário extraído: ${tempZipFile.absolutePath} (${tempZipFile.length()} bytes)")
+                
+                // Extrair ZIP para diretório temporário
+                val tempExtractDir = File(context.cacheDir, "temp_extract")
+                Log.d(TAG, "📁 Preparando diretório de extração: ${tempExtractDir.absolutePath}")
+                
+                if (tempExtractDir.exists()) {
+                    tempExtractDir.deleteRecursively()
+                }
+                tempExtractDir.mkdirs()
+                
+                Log.d(TAG, "📦 Extraindo ZIP...")
+                extractZipFile(tempZipFile, tempExtractDir)
+                
+                // Limpar arquivo ZIP temporário
+                tempZipFile.delete()
+                
+                Log.d(TAG, "✅ Arquivo ZIP extraído com sucesso")
+                
+                // Retornar conteúdo vazio pois não é JSON
+                ""
             } else {
-                emptyMap()
+                Log.d(TAG, "📄 Arquivo JSON detectado - extraindo conteúdo...")
+                
+                // Extrair conteúdo JSON
+                val extractResult = fileIntegrityManager.extractOriginalContent(backupFile)
+                if (extractResult.isFailure) {
+                    throw Exception("❌ Falha ao extrair conteúdo JSON: ${extractResult.exceptionOrNull()?.message}")
+                }
+                
+                val jsonContent = extractResult.getOrThrow()
+                Log.d(TAG, "✅ Conteúdo JSON extraído: ${jsonContent.length} caracteres")
+                jsonContent
             }
             
-            if (data.has("configuracoes")) {
-                importConfiguracoes(data.getJSONArray("configuracoes"))
-            }
+            Log.d(TAG, "✅ Integridade do arquivo validada com sucesso")
             
-            val personIdMapping = if (data.has("pessoas")) {
-                importPessoas(data.getJSONArray("pessoas"), funcionarioIdMapping)
+            // Processar backup baseado no tipo
+            if (protectedData.isBinary) {
+                Log.d(TAG, "🔄 Processando backup binário (ObjectBox)...")
+                // Para arquivos binários (ZIP), restaurar diretamente do diretório extraído
+                val tempExtractDir = File(context.cacheDir, "temp_extract")
+                restoreFromObjectBoxDirectory(tempExtractDir)
+                
+                // Limpar diretório temporário
+                tempExtractDir.deleteRecursively()
+                Log.d(TAG, "✅ Backup binário processado com sucesso")
             } else {
-                emptyMap()
+                Log.d(TAG, "🔄 Processando backup JSON...")
+                // Para arquivos JSON, processar normalmente
+                val backupData = JSONObject(backupContent)
+                val data = backupData.getJSONObject("data")
+                
+                Log.d(TAG, "🗑️ Limpando dados atuais...")
+                clearAllData()
+                
+                val funcionarioIdMapping = if (data.has("funcionarios")) {
+                    importFuncionarios(data.getJSONArray("funcionarios"))
+                } else {
+                    emptyMap()
+                }
+                
+                if (data.has("configuracoes")) {
+                    importConfiguracoes(data.getJSONArray("configuracoes"))
+                }
+                
+                val personIdMapping = if (data.has("pessoas")) {
+                    importPessoas(data.getJSONArray("pessoas"), funcionarioIdMapping)
+                } else {
+                    emptyMap()
+                }
+                
+                if (data.has("faceImages")) {
+                    importFaceImages(data.getJSONArray("faceImages"), personIdMapping)
+                }
+                
+                if (data.has("pontosGenericos")) {
+                    importPontosGenericos(data.getJSONArray("pontosGenericos"))
+                }
+                
+                // Atualizar informações da entidade após restauração
+                Log.d(TAG, "🔄 Atualizando informações da entidade...")
+                atualizarInformacoesEntidade()
+                Log.d(TAG, "✅ Backup JSON processado com sucesso")
             }
             
-            if (data.has("faceImages")) {
-                importFaceImages(data.getJSONArray("faceImages"), personIdMapping)
-            }
-            
-            if (data.has("pontosGenericos")) {
-                importPontosGenericos(data.getJSONArray("pontosGenericos"))
-            }
-            
-            // Atualizar informações da entidade após restauração
-            atualizarInformacoesEntidade()
-            
-            Log.d(TAG, "✅ Backup restaurado com sucesso")
+            Log.d(TAG, "🎉 Backup restaurado com sucesso!")
             Result.success(Unit)
             
         } catch (e: Exception) {
@@ -699,6 +802,79 @@ class BackupService(private val context: Context) {
         }
         
         return null
+    }
+    
+    /**
+     * Extrai um arquivo ZIP para um diretório
+     */
+    private fun extractZipFile(zipFile: File, extractDir: File) {
+        Log.d(TAG, "📦 Extraindo ZIP: ${zipFile.absolutePath} -> ${extractDir.absolutePath}")
+        
+        FileInputStream(zipFile).use { fis ->
+            java.util.zip.ZipInputStream(fis).use { zis ->
+                var entry: java.util.zip.ZipEntry? = zis.nextEntry
+                while (entry != null) {
+                    val entryFile = File(extractDir, entry.name)
+                    
+                    if (entry.isDirectory) {
+                        entryFile.mkdirs()
+                    } else {
+                        entryFile.parentFile?.mkdirs()
+                        FileOutputStream(entryFile).use { fos ->
+                            zis.copyTo(fos)
+                        }
+                        Log.d(TAG, "   📄 Extraído: ${entry.name}")
+                    }
+                    
+                    entry = zis.nextEntry
+                }
+            }
+        }
+        
+        Log.d(TAG, "✅ ZIP extraído com sucesso")
+    }
+    
+    /**
+     * Restaura dados a partir de um diretório ObjectBox extraído
+     */
+    private fun restoreFromObjectBoxDirectory(objectBoxDir: File) {
+        Log.d(TAG, "🔄 Restaurando dados do diretório ObjectBox: ${objectBoxDir.absolutePath}")
+        
+        // Encontrar diretório atual do ObjectBox
+        val currentObjectBoxDir = findObjectBoxDatabaseDirectory()
+        if (currentObjectBoxDir == null) {
+            throw Exception("Diretório ObjectBox atual não encontrado")
+        }
+        
+        // Limpar dados atuais
+        clearAllData()
+        
+        // Copiar arquivos do diretório extraído para o diretório atual
+        copyDirectory(objectBoxDir, currentObjectBoxDir)
+        
+        Log.d(TAG, "✅ Dados restaurados do diretório ObjectBox")
+    }
+    
+    /**
+     * Copia um diretório recursivamente
+     */
+    private fun copyDirectory(source: File, destination: File) {
+        if (source.isDirectory) {
+            if (!destination.exists()) {
+                destination.mkdirs()
+            }
+            
+            val files = source.listFiles() ?: return
+            for (file in files) {
+                val destFile = File(destination, file.name)
+                if (file.isDirectory) {
+                    copyDirectory(file, destFile)
+                } else {
+                    file.copyTo(destFile, overwrite = true)
+                    Log.d(TAG, "   📄 Copiado: ${file.name}")
+                }
+            }
+        }
     }
     
     /**

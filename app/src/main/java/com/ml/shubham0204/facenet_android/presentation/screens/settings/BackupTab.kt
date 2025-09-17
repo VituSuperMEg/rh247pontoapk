@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ml.shubham0204.facenet_android.data.BackupService
+import com.ml.shubham0204.facenet_android.utils.BackupTestHelper
 // Imports USB comentados - funcionalidade desabilitada
 // import com.ml.shubham0204.facenet_android.utils.USBUtils
 // import com.ml.shubham0204.facenet_android.utils.USBStorageInfo
@@ -30,6 +31,7 @@ fun BackupTab() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val backupService = remember { BackupService(context) }
+    val backupTestHelper = remember { BackupTestHelper(context) }
     
     var isLoading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
@@ -62,8 +64,8 @@ fun BackupTab() {
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
                 if (inputStream != null) {
-                    // Criar arquivo temporário
-                    val tempFile = File(context.cacheDir, "temp_backup.json")
+                    // Criar arquivo temporário (sem extensão específica para detectar automaticamente)
+                    val tempFile = File(context.cacheDir, "temp_backup")
                     tempFile.outputStream().use { output ->
                         inputStream.copyTo(output)
                     }
@@ -212,8 +214,8 @@ fun BackupTab() {
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
                 if (inputStream != null) {
-                    // Criar arquivo temporário
-                    val tempFile = File(context.cacheDir, "temp_backup.json")
+                    // Criar arquivo temporário (sem extensão específica para detectar automaticamente)
+                    val tempFile = File(context.cacheDir, "temp_backup")
                     tempFile.outputStream().use { output ->
                         inputStream.copyTo(output)
                     }
@@ -264,20 +266,34 @@ fun BackupTab() {
         restoreLauncher.launch(restoreIntent)
     }
     
+    // Função para testar o sistema de backup
+    fun testBackupSystem() {
+        scope.launch {
+            isLoading = true
+            try {
+                displayMessage("Iniciando teste do sistema de backup...")
+                backupTestHelper.testBackupSystem()
+                displayMessage("Teste concluído! Verifique os logs para detalhes.")
+            } catch (e: Exception) {
+                displayMessage("Erro no teste: ${e.message}")
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Título
         Text(
             text = "Backup do Banco de Dados",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
         
-        // Botão para criar backup
         Card(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -324,7 +340,6 @@ fun BackupTab() {
             }
         }
         
-        // Botão para restaurar backup
         Card(
             modifier = Modifier.fillMaxWidth(),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -356,9 +371,9 @@ fun BackupTab() {
                 }
             }
         }
+                
     }
     
-    // Modal de seleção de método de backup
     if (showBackupMethodDialog) {
         AlertDialog(
             onDismissRequest = { showBackupMethodDialog = false },
