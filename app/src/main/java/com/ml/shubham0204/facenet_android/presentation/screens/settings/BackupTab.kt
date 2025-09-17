@@ -24,6 +24,14 @@ import com.ml.shubham0204.facenet_android.utils.BackupTestHelper
 // import com.ml.shubham0204.facenet_android.utils.USBStorageInfo
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
+
+data class BackupFileInfo(
+    val fileName: String,
+    val fileDate: String,
+    val fileTime: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +49,7 @@ fun BackupTab() {
     var showRestoreProgress by remember { mutableStateOf(false) }
     var showRestartAlert by remember { mutableStateOf(false) }
     var selectedBackupUri by remember { mutableStateOf<Uri?>(null) }
+    var backupFileInfo by remember { mutableStateOf<BackupFileInfo?>(null) }
     // Variáveis USB removidas - funcionalidade comentada
     
     // Função para mostrar mensagem
@@ -49,16 +58,63 @@ fun BackupTab() {
         showMessage = true
     }
     
-    // Função para mostrar erro de USB (COMENTADA)
-    /*
-    fun showUSBError(message: String) {
-        usbErrorMessage = message
-        showUSBErrorDialog = true
+    // Função para extrair informações do arquivo de backup
+    fun extractBackupFileInfo(uri: Uri): BackupFileInfo? {
+        return try {
+            val cursor = context.contentResolver.query(uri, null, null, null, null)
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val displayNameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = it.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    
+                    val fileName = if (displayNameIndex >= 0) {
+                        it.getString(displayNameIndex) ?: "backup_desconhecido"
+                    } else {
+                        "backup_desconhecido"
+                    }
+                    
+                    val datePattern = Regex("backup_(\\d{8})_(\\d{6})")
+                    val match = datePattern.find(fileName)
+                    
+                    if (match != null) {
+                        val dateStr = match.groupValues[1] 
+                        val timeStr = match.groupValues[2] 
+                        
+                        val year = dateStr.substring(0, 4)
+                        val month = dateStr.substring(4, 6)
+                        val day = dateStr.substring(6, 8)
+                        val formattedDate = "$day/$month/$year"
+                        
+                        val hour = timeStr.substring(0, 2)
+                        val minute = timeStr.substring(2, 4)
+                        val second = timeStr.substring(4, 6)
+                        val formattedTime = "$hour:$minute:$second"
+                        
+                        BackupFileInfo(fileName, formattedDate, formattedTime)
+                    } else {
+                        val lastModifiedIndex = it.getColumnIndex("last_modified")
+                        val lastModified = if (lastModifiedIndex >= 0) {
+                            it.getLong(lastModifiedIndex)
+                        } else {
+                            System.currentTimeMillis()
+                        }
+                        
+                        val date = Date(lastModified)
+                        val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+                        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale("pt", "BR"))
+                        
+                        BackupFileInfo(fileName, dateFormat.format(date), timeFormat.format(date))
+                    }
+                } else {
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
-    */
     
-    // Função para restaurar backup a partir de URI
-    fun restoreBackupFromUri(uri: Uri) {
+        fun restoreBackupFromUri(uri: Uri) {
         scope.launch {
             isLoading = true
             try {
@@ -100,6 +156,8 @@ fun BackupTab() {
             val uri: Uri? = result.data?.data
             if (uri != null) {
                 selectedBackupUri = uri
+                // Extrair informações do arquivo
+                backupFileInfo = extractBackupFileInfo(uri)
                 showRestoreConfirmation = true
             }
         }
@@ -289,7 +347,7 @@ fun BackupTab() {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = "Backup do Banco de Dados",
+            text = "Backup/Restauração do Banco de Dados",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold
         )
@@ -313,13 +371,6 @@ fun BackupTab() {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                
-                Text(
-                    text = "Escolha onde salvar o backup: Downloads ou nuvem",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
                 Button(
                     onClick = { showBackupMethodSelection() },
                     enabled = !isLoading,
@@ -335,7 +386,7 @@ fun BackupTab() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text("Criar Backup")
+                    Text("Gerar Backup")
                 }
             }
         }
@@ -367,7 +418,7 @@ fun BackupTab() {
                     )
                 ) {
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Selecionar e Restaurar Backup")
+                    Text("Restaurar Backup")
                 }
             }
         }
@@ -413,11 +464,11 @@ fun BackupTab() {
                                 imageVector = Icons.Default.Download,
                                 contentDescription = null,
                                 modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.primary
+                                tint = Color.White
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "Via Downloads",
+                                text = "Local",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -462,7 +513,7 @@ fun BackupTab() {
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "Via Nuvem",
+                                text = "Online",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -494,6 +545,7 @@ fun BackupTab() {
             onDismissRequest = { 
                 showRestoreConfirmation = false
                 selectedBackupUri = null
+                backupFileInfo = null
             },
             title = {
                 Text(
@@ -503,10 +555,28 @@ fun BackupTab() {
                 )
             },
             text = {
-                Text(
-                    text = "Você deseja realmente restaurar o backup? Esta ação irá substituir todos os dados atuais do sistema e não pode ser desfeita.",
-                    style = MaterialTheme.typography.bodyMedium
-                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (backupFileInfo != null) {
+                        Text(
+                            text = "Você deseja restaurar o backup \${backupFileInfo!!.fileName}\ do dia ${backupFileInfo!!.fileDate} feito às ${backupFileInfo!!.fileTime}?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    } else {
+                        Text(
+                            text = "Você deseja realmente restaurar o backup?",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    Text(
+                        text = "Esta ação irá substituir todos os dados atuais do sistema e não pode ser desfeita.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -529,6 +599,7 @@ fun BackupTab() {
                     onClick = { 
                         showRestoreConfirmation = false
                         selectedBackupUri = null
+                        backupFileInfo = null
                     }
                 ) {
                     Text("Cancelar")
