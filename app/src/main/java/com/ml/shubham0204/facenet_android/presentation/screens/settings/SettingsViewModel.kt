@@ -18,6 +18,7 @@ import com.ml.shubham0204.facenet_android.data.model.EntidadeInfo
 import com.ml.shubham0204.facenet_android.data.model.TabletVersionData
 import com.ml.shubham0204.facenet_android.data.repository.TabletUpdateRepository
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
+import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import com.ml.shubham0204.facenet_android.worker.SincronizacaoAutomaticaWorker
 import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,16 +95,17 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             try {
                 Toast.makeText(context, "🔄 Iniciando sincronização...", Toast.LENGTH_SHORT).show()
                 
-                val pontoSincronizacaoService = PontoSincronizacaoService()
-                val resultado = pontoSincronizacaoService.sincronizarPontosPendentes(context)
+                // ✅ NOVO: Usar sincronização por blocos de entidade
+                val pontoSincronizacaoPorBlocosService = PontoSincronizacaoPorBlocosService()
+                val resultado = pontoSincronizacaoPorBlocosService.sincronizarPontosPorBlocos(context)
                 
                 val dataHora = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date())
                 val historico = HistoricoSincronizacao(
                     dataHora = dataHora,
                     mensagem = if (resultado.sucesso) 
-                        "Sincronização manual: ${resultado.quantidadePontos} pontos sincronizados" 
+                        "Sincronização por blocos: ${resultado.pontosSincronizados} pontos sincronizados em ${resultado.entidadesProcessadas} entidades" 
                     else 
-                        ErrorMessageHelper.getFriendlySyncMessage("Sincronização manual falhou: ${resultado.mensagem}", false),
+                        ErrorMessageHelper.getFriendlySyncMessage("Sincronização por blocos falhou: ${resultado.mensagem}", false),
                     status = if (resultado.sucesso) "Sucesso" else "Erro",
                     detalhesTecnicos = if (!resultado.sucesso) resultado.erroOriginal else null
                 )
@@ -115,11 +117,12 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 }
                 
                 if (resultado.sucesso) {
-                    Toast.makeText(
-                        context, 
-                        "✅ ${resultado.quantidadePontos} pontos sincronizados com sucesso!", 
-                        Toast.LENGTH_LONG
-                    ).show()
+                    val mensagemToast = if (resultado.entidadesProcessadas > 1) {
+                        "✅ ${resultado.pontosSincronizados} pontos sincronizados em ${resultado.entidadesProcessadas} entidades!"
+                    } else {
+                        "✅ ${resultado.pontosSincronizados} pontos sincronizados com sucesso!"
+                    }
+                    Toast.makeText(context, mensagemToast, Toast.LENGTH_LONG).show()
                 } else {
                     Toast.makeText(
                         context, 

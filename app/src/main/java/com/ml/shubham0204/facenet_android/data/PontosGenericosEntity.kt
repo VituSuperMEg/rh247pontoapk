@@ -19,5 +19,6 @@ data class PontosGenericosEntity(
     var longitude: Double? = null,
     var observacao: String? = null,
     var fotoBase64: String? = null,
-    var synced: Boolean = false
+    var synced: Boolean = false,
+    var entidadeId: String? = null // ✅ NOVO: ID da entidade para agrupamento por blocos
 ) 

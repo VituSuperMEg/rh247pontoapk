@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
+import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,18 +37,24 @@ class SincronizacaoAutomaticaWorker(
             val isFrequente = inputData.getBoolean("isFrequente", false)
             val intervalo = inputData.getInt("intervalo", 15)
             
-            // Executar sincronização
-            val pontoSincronizacaoService = PontoSincronizacaoService()
-            val resultado = pontoSincronizacaoService.sincronizarPontosPendentes(applicationContext)
+            // ✅ NOVO: Executar sincronização por blocos
+            val pontoSincronizacaoPorBlocosService = PontoSincronizacaoPorBlocosService()
+            val resultado = pontoSincronizacaoPorBlocosService.sincronizarPontosPorBlocos(applicationContext)
             
             if (resultado.sucesso) {
-                Log.d(TAG, "✅ Sincronização automática executada com sucesso!")
-                Log.d(TAG, "📊 ${resultado.quantidadePontos} pontos sincronizados em ${resultado.duracaoSegundos} segundos")
+                Log.d(TAG, "✅ Sincronização automática por blocos executada com sucesso!")
+                Log.d(TAG, "📊 ${resultado.pontosSincronizados} pontos sincronizados em ${resultado.entidadesProcessadas} entidades em ${resultado.duracaoSegundos} segundos")
                 
                 // Adicionar ao histórico
+                val mensagemHistorico = if (resultado.entidadesProcessadas > 1) {
+                    "✅ Sincronização automática por blocos: ${resultado.pontosSincronizados} pontos sincronizados em ${resultado.entidadesProcessadas} entidades"
+                } else {
+                    "✅ Sincronização automática por blocos: ${resultado.pontosSincronizados} pontos sincronizados"
+                }
+                
                 adicionarAoHistorico(
                     dataHora = dataHora,
-                    mensagem = "✅ Sincronização automática: ${resultado.quantidadePontos} pontos sincronizados",
+                    mensagem = mensagemHistorico,
                     status = "Sucesso"
                 )
                 

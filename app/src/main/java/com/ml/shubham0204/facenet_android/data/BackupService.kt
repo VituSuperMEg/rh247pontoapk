@@ -853,6 +853,7 @@ class BackupService(private val context: Context) {
                     put("observacao", ponto.observacao)
                     put("fotoBase64", ponto.fotoBase64)
                     put("synced", ponto.synced)
+                    put("entidadeId", ponto.entidadeId) // ✅ NOVO: Campo entidadeId
                 })
             }
         }
@@ -1018,7 +1019,8 @@ class BackupService(private val context: Context) {
                     longitude = if (json.has("longitude") && !json.isNull("longitude")) json.getDouble("longitude") else null,
                     observacao = if (json.has("observacao") && !json.isNull("observacao")) json.getString("observacao") else null,
                     fotoBase64 = if (json.has("fotoBase64") && !json.isNull("fotoBase64")) json.getString("fotoBase64") else null,
-                    synced = json.getBoolean("synced")
+                    synced = json.getBoolean("synced"),
+                    entidadeId = if (json.has("entidadeId") && !json.isNull("entidadeId")) json.getString("entidadeId") else null // ✅ NOVO: Campo entidadeId
                 )
                 val insertedId = pontosDao.insert(ponto)
                 Log.d(TAG, "✅ Ponto importado: ${ponto.funcionarioNome} (ID: $insertedId)")

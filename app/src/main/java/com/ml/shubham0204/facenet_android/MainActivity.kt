@@ -175,7 +175,8 @@ class MainActivity : ComponentActivity() {
                             funcionarioNome = "Funcionário não encontrado",
                             dataHora = System.currentTimeMillis(),
                             latitude = 0.0,
-                            longitude = 0.0
+                            longitude = 0.0,
+                            entidadeId = "FALLBACK" // ✅ NOVO: Entidade para fallback
                         )
                         PontoSuccessScreen(
                             ponto = fallbackPonto,

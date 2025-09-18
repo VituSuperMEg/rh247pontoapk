@@ -7,6 +7,7 @@ import android.widget.Toast
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
 import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
@@ -21,6 +22,7 @@ import com.ml.shubham0204.facenet_android.utils.LocationResult
 import com.ml.shubham0204.facenet_android.utils.ConnectivityUtils
 import com.ml.shubham0204.facenet_android.utils.SoundUtils
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
+import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -35,7 +37,8 @@ class DetectScreenViewModel(
     val imageVectorUseCase: ImageVectorUseCase,
     private val pontosGenericosDao: PontosGenericosDao,
     private val funcionariosDao: FuncionariosDao,
-    private val pontoSincronizacaoService: PontoSincronizacaoService
+    private val pontoSincronizacaoService: PontoSincronizacaoService,
+    private val pontoSincronizacaoPorBlocosService: PontoSincronizacaoPorBlocosService // ✅ NOVO: Serviço por blocos
 ) : ViewModel(), KoinComponent {
     private val context: Context by inject()
     private val locationUtils = LocationUtils(context)
@@ -287,6 +290,18 @@ class DetectScreenViewModel(
                 null
             }
             
+            // ✅ NOVO: Garantir que sempre tenha uma entidade válida
+            val entidadeId = if (!funcionario.entidadeId.isNullOrEmpty()) {
+                funcionario.entidadeId
+            } else {
+                // Fallback: usar entidade das configurações
+                val configuracoesDao = ConfiguracoesDao()
+                val configuracoes = configuracoesDao.getConfiguracoes()
+                configuracoes?.entidadeId ?: "ENTIDADE_PADRAO"
+            }
+            
+            Log.d("DetectScreenViewModel", "🏢 Criando ponto para entidade: $entidadeId")
+            
             val ponto = PontosGenericosEntity(
                 funcionarioId = funcionario.id.toString(),
                 funcionarioNome = funcionario.nome,
@@ -300,7 +315,8 @@ class DetectScreenViewModel(
                 latitude = latitude,
                 longitude = longitude,
                 fotoBase64 = fotoBase64,
-                synced = false
+                synced = false,
+                entidadeId = entidadeId // ✅ NOVO: Sempre ter entidade válida
             )
             
             val pontoId = pontosGenericosDao.insert(ponto)
@@ -416,16 +432,17 @@ class DetectScreenViewModel(
                     if (pontosPendentes > 0) {
                         Log.d("DetectScreenViewModel", "📊 Encontrados $pontosPendentes pontos pendentes para sincronização")
                         
-                        // Executar sincronização
-                        val resultado = pontoSincronizacaoService.sincronizarPontosPendentes(context)
+                        // ✅ NOVO: Executar sincronização por blocos
+                        val resultado = pontoSincronizacaoPorBlocosService.sincronizarPontosPorBlocos(context)
                         
                         if (resultado.sucesso) {
-                            Log.d("DetectScreenViewModel", "✅ Sincronização automática bem-sucedida: ${resultado.quantidadePontos} pontos sincronizados")
-                            Toast.makeText(
-                                context,
-                                "✅ ${resultado.quantidadePontos} ponto(s) sincronizado(s) automaticamente!",
-                                Toast.LENGTH_SHORT
-                            ).show()
+                            Log.d("DetectScreenViewModel", "✅ Sincronização automática por blocos bem-sucedida: ${resultado.pontosSincronizados} pontos sincronizados em ${resultado.entidadesProcessadas} entidades")
+                            val mensagemToast = if (resultado.entidadesProcessadas > 1) {
+                                "✅ ${resultado.pontosSincronizados} ponto(s) sincronizado(s) automaticamente em ${resultado.entidadesProcessadas} entidades!"
+                            } else {
+                                "✅ ${resultado.pontosSincronizados} ponto(s) sincronizado(s) automaticamente!"
+                            }
+                            Toast.makeText(context, mensagemToast, Toast.LENGTH_SHORT).show()
                         } else {
                             Log.w("DetectScreenViewModel", "⚠️ Falha na sincronização automática: ${resultado.mensagem}")
                             // Não mostrar toast de erro para não incomodar o usuário

@@ -12,6 +12,7 @@ import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
+import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
@@ -37,6 +38,7 @@ class ReportsViewModel(
     
     val reportsState = mutableStateOf(ReportsState())
     private val pontoSincronizacaoService = PontoSincronizacaoService()
+    private val pontoSincronizacaoPorBlocosService = PontoSincronizacaoPorBlocosService() 
     
     fun loadReports() {
         viewModelScope.launch {
@@ -74,26 +76,30 @@ class ReportsViewModel(
             try {
                 reportsState.value = reportsState.value.copy(isLoading = true, error = null)
                 
-                // Verificar quantidade de pontos pendentes
-                val pontosPendentes = pontoSincronizacaoService.getQuantidadePontosPendentes(context)
+                // ✅ NOVO: Usar sincronização por blocos de entidade
+                val pontosPorEntidade = pontoSincronizacaoPorBlocosService.getQuantidadePontosPendentesPorEntidade(context)
                 
-                if (pontosPendentes == 0) {
+                if (pontosPorEntidade.isEmpty()) {
                     Toast.makeText(context, "ℹ️ Não há pontos para sincronizar", Toast.LENGTH_LONG).show()
                     reportsState.value = reportsState.value.copy(isLoading = false)
                     return@launch
                 }
                 
-                Toast.makeText(context, "📊 Sincronizando $pontosPendentes pontos...", Toast.LENGTH_LONG).show()
+                val totalPontos = pontosPorEntidade.values.sum()
+                val entidades = pontosPorEntidade.keys.joinToString(", ")
+                Toast.makeText(context, "📊 Sincronizando $totalPontos pontos de ${pontosPorEntidade.size} entidades ($entidades)...", Toast.LENGTH_LONG).show()
                 
-                // Executar sincronização
-                val resultado = pontoSincronizacaoService.sincronizarPontosPendentes(context)
+                // Executar sincronização por blocos
+                val resultado = pontoSincronizacaoPorBlocosService.sincronizarPontosPorBlocos(context)
                 
                 if (resultado.sucesso) {
-                    Toast.makeText(
-                        context, 
-                        "✅ ${resultado.quantidadePontos} pontos sincronizados com sucesso!", 
-                        Toast.LENGTH_LONG
-                    ).show()
+                    val mensagemDetalhada = if (resultado.entidadesProcessadas > 1) {
+                        "✅ ${resultado.pontosSincronizados} pontos sincronizados em ${resultado.entidadesProcessadas} entidades!"
+                    } else {
+                        "✅ ${resultado.pontosSincronizados} pontos sincronizados com sucesso!"
+                    }
+                    
+                    Toast.makeText(context, mensagemDetalhada, Toast.LENGTH_LONG).show()
                     
                     // Aguardar um pouco e recarregar a lista
                     delay(1000)
@@ -101,11 +107,13 @@ class ReportsViewModel(
                     loadReports() // Recarregar a lista após sincronização
                     
                 } else {
-                    Toast.makeText(
-                        context, 
-                        "❌ Erro na sincronização: ${resultado.mensagem}", 
-                        Toast.LENGTH_LONG
-                    ).show()
+                    val mensagemErro = if (resultado.pontosSincronizados > 0) {
+                        "⚠️ Sincronização parcial: ${resultado.pontosSincronizados} pontos sincronizados, mas houve erros em algumas entidades."
+                    } else {
+                        "❌ Erro na sincronização: ${resultado.mensagem}"
+                    }
+                    
+                    Toast.makeText(context, mensagemErro, Toast.LENGTH_LONG).show()
                     reportsState.value = reportsState.value.copy(
                         isLoading = false,
                         error = resultado.mensagem
@@ -242,7 +250,8 @@ class ReportsViewModel(
                 longitude = null,
                 observacao = null,
                 fotoBase64 = null,
-                synced = false
+                synced = false,
+                entidadeId = "ENTIDADE_TESTE" // ✅ NOVO: Entidade para dados de teste
             )
             samplePoints.add(ponto)
         }
@@ -266,7 +275,8 @@ class ReportsViewModel(
                 longitude = null,
                 observacao = null,
                 fotoBase64 = null,
-                synced = true
+                synced = true,
+                entidadeId = "ENTIDADE_TESTE" // ✅ NOVO: Entidade para dados de teste
             )
             samplePoints.add(ponto)
         }
