@@ -26,7 +26,7 @@ class FileIntegrityManager {
     companion object {
         private const val TAG = "FileIntegrityManager"
         private const val ALGORITHM = "SHA-256"
-        private const val ENCRYPTION_ALGORITHM = "AES"
+        private const val ENCRYPTION_ALGORITHM = "AES/ECB/PKCS5Padding"
         private const val KEY_LENGTH = 256
         
         private val SECRET_KEY = generateSecureKey()

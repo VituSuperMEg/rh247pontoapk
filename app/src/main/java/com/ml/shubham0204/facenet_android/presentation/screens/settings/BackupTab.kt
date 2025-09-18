@@ -410,7 +410,22 @@ fun BackupTab() {
                         
                         // Log para debug
                         android.util.Log.d("BackupTab", "📁 Arquivo baixado: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
-                        android.util.Log.d("BackupTab", "📄 Primeiros 200 caracteres: ${tempFile.readText().take(200)}")
+                        
+                        // Ler apenas os primeiros 200 caracteres sem carregar o arquivo inteiro
+                        val firstChars = try {
+                            tempFile.inputStream().use { inputStream ->
+                                val buffer = ByteArray(200)
+                                val bytesRead = inputStream.read(buffer)
+                                if (bytesRead > 0) {
+                                    String(buffer, 0, bytesRead)
+                                } else {
+                                    "Arquivo vazio"
+                                }
+                            }
+                        } catch (e: Exception) {
+                            "Erro ao ler arquivo: ${e.message}"
+                        }
+                        android.util.Log.d("BackupTab", "📄 Primeiros 200 caracteres: $firstChars")
                         
                         val result = backupService.restoreBackup(tempFile.absolutePath)
                         result.fold(
