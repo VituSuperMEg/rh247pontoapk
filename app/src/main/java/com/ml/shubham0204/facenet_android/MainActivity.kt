@@ -54,7 +54,7 @@ class MainActivity : ComponentActivity() {
                     )
                 }
                 composable(
-                    route = "add-face/{personName}/{funcionarioId}/{funcionarioCpf}/{funcionarioCargo}/{funcionarioOrgao}/{funcionarioLotacao}",
+                    route = "add-face/{personName}/{funcionarioId}/{funcionarioCpf}/{funcionarioCargo}/{funcionarioOrgao}/{funcionarioLotacao}/{funcionarioEntidadeId}",
                     arguments = listOf(
                         androidx.navigation.navArgument("personName") {
                             type = androidx.navigation.NavType.StringType
@@ -79,6 +79,10 @@ class MainActivity : ComponentActivity() {
                         androidx.navigation.navArgument("funcionarioLotacao") {
                             type = androidx.navigation.NavType.StringType
                             defaultValue = ""
+                        },
+                        androidx.navigation.navArgument("funcionarioEntidadeId") {
+                            type = androidx.navigation.NavType.StringType
+                            defaultValue = ""
                         }
                     )
                 ) { backStackEntry ->
@@ -88,6 +92,7 @@ class MainActivity : ComponentActivity() {
                     val funcionarioCargo = backStackEntry.arguments?.getString("funcionarioCargo")?.replace("_", " ") ?: ""
                     val funcionarioOrgao = backStackEntry.arguments?.getString("funcionarioOrgao")?.replace("_", " ") ?: ""
                     val funcionarioLotacao = backStackEntry.arguments?.getString("funcionarioLotacao")?.replace("_", " ") ?: ""
+                    val funcionarioEntidadeId = backStackEntry.arguments?.getString("funcionarioEntidadeId")?.replace("_", "") ?: ""
                     
                     // ✅ NOVO: Logs para verificar os dados passados
                     android.util.Log.d("MainActivity", "🚀 === NAVEGAÇÃO PARA ADD FACE SCREEN ===")
@@ -97,6 +102,7 @@ class MainActivity : ComponentActivity() {
                     android.util.Log.d("MainActivity", "🚀 Cargo: '$funcionarioCargo'")
                     android.util.Log.d("MainActivity", "🚀 Órgão: '$funcionarioOrgao'")
                     android.util.Log.d("MainActivity", "🚀 Lotação: '$funcionarioLotacao'")
+                    android.util.Log.d("MainActivity", "🚀 ID da Entidade: '$funcionarioEntidadeId'")
                     
                     AddFaceScreen(
                         personName = personName,
@@ -105,6 +111,7 @@ class MainActivity : ComponentActivity() {
                         funcionarioCargo = funcionarioCargo,
                         funcionarioOrgao = funcionarioOrgao,
                         funcionarioLotacao = funcionarioLotacao,
+                        funcionarioEntidadeId = funcionarioEntidadeId,
                         onNavigateBack = { navHostController.navigateUp() }
                     )
                 }
@@ -186,6 +193,7 @@ class MainActivity : ComponentActivity() {
                             val encodedCargo = funcionario.cargo.replace("/", "_").replace(" ", "_")
                             val encodedOrgao = funcionario.secretaria.replace("/", "_").replace(" ", "_")
                             val encodedLotacao = funcionario.lotacao.replace("/", "_").replace(" ", "_")
+                            val encodedEntidadeId = (funcionario.entidadeId ?: "").replace("/", "_").replace(" ", "_")
                             
                             // ✅ NOVO: Logs para verificar os dados originais e codificados
                             android.util.Log.d("MainActivity", "📤 === DADOS ORIGINAIS DO FUNCIONÁRIO ===")
@@ -194,6 +202,7 @@ class MainActivity : ComponentActivity() {
                             android.util.Log.d("MainActivity", "📤 Cargo original: '${funcionario.cargo}'")
                             android.util.Log.d("MainActivity", "📤 Órgão original: '${funcionario.secretaria}'")
                             android.util.Log.d("MainActivity", "📤 Lotação original: '${funcionario.lotacao}'")
+                            android.util.Log.d("MainActivity", "📤 ID da Entidade original: '${funcionario.entidadeId ?: "null"}'")
                             
                             android.util.Log.d("MainActivity", "📤 === DADOS CODIFICADOS ===")
                             android.util.Log.d("MainActivity", "📤 Nome codificado: '$encodedNome'")
@@ -201,8 +210,9 @@ class MainActivity : ComponentActivity() {
                             android.util.Log.d("MainActivity", "📤 Cargo codificado: '$encodedCargo'")
                             android.util.Log.d("MainActivity", "📤 Órgão codificado: '$encodedOrgao'")
                             android.util.Log.d("MainActivity", "📤 Lotação codificada: '$encodedLotacao'")
+                            android.util.Log.d("MainActivity", "📤 ID da Entidade codificado: '$encodedEntidadeId'")
                             
-                            val route = "add-face/$encodedNome/${funcionario.id}/$encodedCpf/$encodedCargo/$encodedOrgao/$encodedLotacao"
+                            val route = "add-face/$encodedNome/${funcionario.id}/$encodedCpf/$encodedCargo/$encodedOrgao/$encodedLotacao/$encodedEntidadeId"
                             android.util.Log.d("MainActivity", "📤 Rota completa: '$route'")
                             
                             navHostController.navigate(route)

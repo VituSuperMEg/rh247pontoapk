@@ -87,6 +87,7 @@ fun EmployeeDetailScreen(
         Log.d("EmployeeDetailScreen", "🔍 Cargo: ${funcionario.cargo}")
         Log.d("EmployeeDetailScreen", "🔍 Órgão: ${funcionario.secretaria}")
         Log.d("EmployeeDetailScreen", "🔍 Lotação: ${funcionario.lotacao}")
+        Log.d("EmployeeDetailScreen", "🔍 ID da Entidade: ${funcionario.entidadeId ?: "null"}")
         Log.d("EmployeeDetailScreen", "🔍 Status: ${if (funcionario.ativo == 1) "Ativo" else "Inativo"}")
         Log.d("EmployeeDetailScreen", "🔍 API ID: ${funcionario.apiId}")
         Log.d("EmployeeDetailScreen", "🔍 Código: ${funcionario.codigo}")
@@ -285,6 +286,7 @@ fun EmployeeDetailScreen(
                                 InfoRow("Cargo", if (funcionario.cargo.isNotEmpty()) funcionario.cargo else "Não informado")
                                 InfoRow("Órgão", if (funcionario.secretaria.isNotEmpty()) funcionario.secretaria else "Não informado")
                                 InfoRow("Lotação", if (funcionario.lotacao.isNotEmpty()) funcionario.lotacao else "Não informado")
+                                InfoRow("ID da Entidade", if (!funcionario.entidadeId.isNullOrEmpty()) funcionario.entidadeId else "Não configurado")
                                 
                                 // ✅ NOVO: Aviso se os dados principais estão vazios
                                 if (funcionario.cpf.isEmpty() || funcionario.cargo.isEmpty() || funcionario.secretaria.isEmpty() || funcionario.lotacao.isEmpty()) {

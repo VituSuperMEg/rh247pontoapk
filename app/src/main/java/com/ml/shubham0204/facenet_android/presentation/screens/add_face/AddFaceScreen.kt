@@ -97,6 +97,7 @@ fun AddFaceScreen(
     funcionarioOrgao: String = "",
     funcionarioLotacao: String = "",
     funcionarioId: Long = 0, // ✅ NOVO: Adicionar funcionarioId
+    funcionarioEntidadeId: String = "", // ✅ NOVO: ID da entidade
     onNavigateBack: (() -> Unit) = {},
 ) {
     FaceNetAndroidTheme {
@@ -114,6 +115,7 @@ fun AddFaceScreen(
                     funcionarioOrgao = funcionarioOrgao,
                     funcionarioLotacao = funcionarioLotacao,
                     funcionarioId = funcionarioId,
+                    funcionarioEntidadeId = funcionarioEntidadeId,
                     onNavigateBack = onNavigateBack
                 )
                 ImageReadProgressDialog(viewModel, onNavigateBack)
@@ -134,6 +136,7 @@ private fun ScreenUI(
     funcionarioOrgao: String,
     funcionarioLotacao: String,
     funcionarioId: Long,
+    funcionarioEntidadeId: String,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -146,6 +149,7 @@ private fun ScreenUI(
         android.util.Log.d("AddFaceScreen", "📋 Cargo: '$funcionarioCargo'")
         android.util.Log.d("AddFaceScreen", "📋 Órgão: '$funcionarioOrgao'")
         android.util.Log.d("AddFaceScreen", "📋 Lotação: '$funcionarioLotacao'")
+        android.util.Log.d("AddFaceScreen", "📋 ID da Entidade: '$funcionarioEntidadeId'")
         
         // ✅ NOVO: Verificar se os campos estão vazios
         android.util.Log.d("AddFaceScreen", "📋 === VERIFICAÇÃO DE CAMPOS VAZIOS ===")
@@ -204,6 +208,7 @@ private fun ScreenUI(
             funcionarioCargo = funcionarioCargo,
             funcionarioOrgao = funcionarioOrgao,
             funcionarioLotacao = funcionarioLotacao,
+            funcionarioEntidadeId = funcionarioEntidadeId,
             capturedPhotos = viewModel.selectedImageURIs.value,
             isDeletion = viewModel.isDeletingUser.value,
             onBackToEmployees = onNavigateBack
@@ -320,6 +325,22 @@ private fun ScreenUI(
                     value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
                     onValueChange = { },
                     label = { Text(text = "Lotação") },
+                    singleLine = true,
+                    enabled = false,
+                    colors = androidx.compose.material3.TextFieldDefaults.colors(
+                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Campo ID da Entidade (somente leitura)
+                TextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = if (funcionarioEntidadeId.isNotEmpty()) funcionarioEntidadeId else "Não configurado",
+                    onValueChange = { },
+                    label = { Text(text = "ID da Entidade") },
                     singleLine = true,
                     enabled = false,
                     colors = androidx.compose.material3.TextFieldDefaults.colors(
@@ -1260,6 +1281,7 @@ private fun SuccessScreen(
     funcionarioCargo: String,
     funcionarioOrgao: String,
     funcionarioLotacao: String,
+    funcionarioEntidadeId: String, // ✅ NOVO: ID da entidade
     capturedPhotos: List<Uri>, // ✅ NOVO: Lista de fotos capturadas
     isDeletion: Boolean = false, // ✅ NOVO: Indica se foi uma exclusão
     onBackToEmployees: () -> Unit
@@ -1366,6 +1388,12 @@ private fun SuccessScreen(
                 InfoField(
                     label = "Lotação",
                     value = funcionarioLotacao
+                )
+                
+                // Campo ID da Entidade
+                InfoField(
+                    label = "Código da Entidade",
+                    value = if (funcionarioEntidadeId.isNotEmpty()) funcionarioEntidadeId else "Não configurado"
                 )
             }
         }
