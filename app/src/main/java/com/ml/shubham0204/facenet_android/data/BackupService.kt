@@ -272,7 +272,7 @@ class BackupService(private val context: Context) {
             
             // Verificar se é arquivo binário ou JSON
             Log.d(TAG, "📖 Lendo conteúdo do arquivo...")
-            val jsonContent = backupFile.readText()
+            val jsonContent = readFileInChunks(backupFile)
             Log.d(TAG, "📄 Conteúdo lido: ${jsonContent.length} caracteres")
             
             Log.d(TAG, "🔍 Parseando dados protegidos...")
@@ -333,7 +333,26 @@ class BackupService(private val context: Context) {
                 Log.d(TAG, "🔄 Processando backup binário (ObjectBox)...")
                 // Para arquivos binários (ZIP), restaurar diretamente do diretório extraído
                 val tempExtractDir = File(context.cacheDir, "temp_extract")
-                restoreFromObjectBoxDirectory(tempExtractDir)
+                
+                // Verificar se o diretório de extração existe e tem conteúdo
+                if (!tempExtractDir.exists()) {
+                    throw Exception("❌ Diretório de extração não existe: ${tempExtractDir.absolutePath}")
+                }
+                
+                val filesInExtractDir = tempExtractDir.listFiles()
+                Log.d(TAG, "📁 Arquivos no diretório de extração: ${filesInExtractDir?.size ?: 0}")
+                filesInExtractDir?.forEach { file ->
+                    Log.d(TAG, "   - ${file.name} (${if (file.isDirectory) "diretório" else "arquivo"})")
+                }
+                
+                // Encontrar o diretório ObjectBox real dentro da extração
+                val objectBoxSourceDir = findObjectBoxSourceDirectory(tempExtractDir)
+                if (objectBoxSourceDir == null) {
+                    throw Exception("❌ Diretório ObjectBox não encontrado na extração")
+                }
+                
+                Log.d(TAG, "📁 Diretório ObjectBox fonte encontrado: ${objectBoxSourceDir.absolutePath}")
+                restoreFromObjectBoxDirectory(objectBoxSourceDir)
                 
                 // Limpar diretório temporário
                 tempExtractDir.deleteRecursively()
@@ -779,6 +798,39 @@ class BackupService(private val context: Context) {
     }
     
     /**
+     * Encontra o diretório ObjectBox real dentro da extração
+     */
+    private fun findObjectBoxSourceDirectory(extractDir: File): File? {
+        Log.d(TAG, "🔍 Procurando diretório ObjectBox na extração...")
+        
+        // Procurar recursivamente por diretórios que contenham data.mdb
+        fun searchForObjectBoxDir(dir: File): File? {
+            if (!dir.exists() || !dir.isDirectory) return null
+            
+            val files = dir.listFiles() ?: return null
+            
+            // Verificar se este diretório contém data.mdb
+            val hasDataMdb = files.any { it.name == "data.mdb" }
+            if (hasDataMdb) {
+                Log.d(TAG, "✅ Diretório ObjectBox encontrado: ${dir.absolutePath}")
+                return dir
+            }
+            
+            // Procurar em subdiretórios
+            for (file in files) {
+                if (file.isDirectory) {
+                    val result = searchForObjectBoxDir(file)
+                    if (result != null) return result
+                }
+            }
+            
+            return null
+        }
+        
+        return searchForObjectBoxDir(extractDir)
+    }
+    
+    /**
      * Encontra o diretório de banco de dados ObjectBox
      */
     private fun findObjectBoxDatabaseDirectory(): File? {
@@ -840,41 +892,126 @@ class BackupService(private val context: Context) {
     private fun restoreFromObjectBoxDirectory(objectBoxDir: File) {
         Log.d(TAG, "🔄 Restaurando dados do diretório ObjectBox: ${objectBoxDir.absolutePath}")
         
+        // Verificar se o diretório fonte existe e tem conteúdo
+        if (!objectBoxDir.exists()) {
+            throw Exception("❌ Diretório fonte não existe: ${objectBoxDir.absolutePath}")
+        }
+        
+        val sourceFiles = objectBoxDir.listFiles()
+        Log.d(TAG, "📁 Arquivos no diretório fonte: ${sourceFiles?.size ?: 0}")
+        sourceFiles?.forEach { file ->
+            Log.d(TAG, "   📄 Fonte: ${file.name} (${file.length()} bytes)")
+        }
+        
         // Encontrar diretório atual do ObjectBox
         val currentObjectBoxDir = findObjectBoxDatabaseDirectory()
         if (currentObjectBoxDir == null) {
-            throw Exception("Diretório ObjectBox atual não encontrado")
+            throw Exception("❌ Diretório ObjectBox atual não encontrado")
+        }
+        
+        Log.d(TAG, "📁 Diretório ObjectBox atual: ${currentObjectBoxDir.absolutePath}")
+        
+        // Verificar arquivos atuais antes da limpeza
+        val currentFiles = currentObjectBoxDir.listFiles()
+        Log.d(TAG, "📁 Arquivos atuais no ObjectBox: ${currentFiles?.size ?: 0}")
+        currentFiles?.forEach { file ->
+            Log.d(TAG, "   📄 Atual: ${file.name} (${file.length()} bytes)")
         }
         
         // Limpar dados atuais
+        Log.d(TAG, "🗑️ Limpando dados atuais...")
         clearAllData()
         
         // Copiar arquivos do diretório extraído para o diretório atual
-        copyDirectory(objectBoxDir, currentObjectBoxDir)
+        Log.d(TAG, "📋 Copiando arquivos do backup...")
+        copyObjectBoxFiles(objectBoxDir, currentObjectBoxDir)
+        
+        // Verificar arquivos após a cópia
+        val finalFiles = currentObjectBoxDir.listFiles()
+        Log.d(TAG, "📁 Arquivos após restauração: ${finalFiles?.size ?: 0}")
+        finalFiles?.forEach { file ->
+            Log.d(TAG, "   📄 Final: ${file.name} (${file.length()} bytes)")
+        }
         
         Log.d(TAG, "✅ Dados restaurados do diretório ObjectBox")
+    }
+    
+    /**
+     * Copia arquivos ObjectBox diretamente para o diretório de destino
+     */
+    private fun copyObjectBoxFiles(source: File, destination: File) {
+        Log.d(TAG, "📋 Copiando arquivos ObjectBox: ${source.absolutePath} -> ${destination.absolutePath}")
+        
+        if (!source.exists() || !source.isDirectory) {
+            Log.e(TAG, "❌ Diretório fonte não existe ou não é um diretório: ${source.absolutePath}")
+            return
+        }
+        
+        if (!destination.exists()) {
+            Log.d(TAG, "📁 Criando diretório de destino: ${destination.absolutePath}")
+            destination.mkdirs()
+        }
+        
+        val files = source.listFiles()
+        if (files == null) {
+            Log.w(TAG, "⚠️ Não foi possível listar arquivos do diretório fonte")
+            return
+        }
+        
+        Log.d(TAG, "📁 Copiando ${files.size} arquivos ObjectBox...")
+        for (file in files) {
+            if (file.isFile) {
+                val destFile = File(destination, file.name)
+                try {
+                    file.copyTo(destFile, overwrite = true)
+                    Log.d(TAG, "   ✅ Copiado: ${file.name} (${file.length()} -> ${destFile.length()} bytes)")
+                } catch (e: Exception) {
+                    Log.e(TAG, "   ❌ Erro ao copiar ${file.name}: ${e.message}")
+                }
+            }
+        }
+        
+        Log.d(TAG, "✅ Cópia de arquivos ObjectBox concluída")
     }
     
     /**
      * Copia um diretório recursivamente
      */
     private fun copyDirectory(source: File, destination: File) {
+        Log.d(TAG, "📋 Iniciando cópia: ${source.absolutePath} -> ${destination.absolutePath}")
+        
         if (source.isDirectory) {
             if (!destination.exists()) {
+                Log.d(TAG, "📁 Criando diretório de destino: ${destination.absolutePath}")
                 destination.mkdirs()
             }
             
-            val files = source.listFiles() ?: return
+            val files = source.listFiles()
+            if (files == null) {
+                Log.w(TAG, "⚠️ Não foi possível listar arquivos do diretório fonte")
+                return
+            }
+            
+            Log.d(TAG, "📁 Copiando ${files.size} arquivos/diretórios...")
             for (file in files) {
                 val destFile = File(destination, file.name)
                 if (file.isDirectory) {
+                    Log.d(TAG, "📁 Copiando subdiretório: ${file.name}")
                     copyDirectory(file, destFile)
                 } else {
-                    file.copyTo(destFile, overwrite = true)
-                    Log.d(TAG, "   📄 Copiado: ${file.name}")
+                    try {
+                        file.copyTo(destFile, overwrite = true)
+                        Log.d(TAG, "   ✅ Copiado: ${file.name} (${file.length()} -> ${destFile.length()} bytes)")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "   ❌ Erro ao copiar ${file.name}: ${e.message}")
+                    }
                 }
             }
+        } else {
+            Log.w(TAG, "⚠️ Fonte não é um diretório: ${source.absolutePath}")
         }
+        
+        Log.d(TAG, "✅ Cópia concluída")
     }
     
     /**
@@ -1002,6 +1139,25 @@ class BackupService(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao atualizar informações da entidade: ${e.message}")
         }
+    }
+    
+    /**
+     * Lê um arquivo em chunks para evitar OutOfMemoryError
+     */
+    private fun readFileInChunks(file: File): String {
+        val buffer = StringBuilder()
+        val chunkSize = 8192 // 8KB por chunk
+        
+        file.inputStream().use { inputStream ->
+            val byteArray = ByteArray(chunkSize)
+            var bytesRead: Int
+            
+            while (inputStream.read(byteArray).also { bytesRead = it } != -1) {
+                buffer.append(String(byteArray, 0, bytesRead))
+            }
+        }
+        
+        return buffer.toString()
     }
 }
 

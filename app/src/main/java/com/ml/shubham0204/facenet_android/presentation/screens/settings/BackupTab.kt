@@ -7,6 +7,8 @@ import android.os.Process
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -19,6 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.ml.shubham0204.facenet_android.data.BackupService
 import com.ml.shubham0204.facenet_android.utils.BackupTestHelper
+import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
+import com.ml.shubham0204.facenet_android.data.api.BackupListResponse
+import com.ml.shubham0204.facenet_android.data.api.BackupListRequest
+import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
+import com.ml.shubham0204.facenet_android.data.config.AppPreferences
+import okhttp3.ResponseBody
 // Imports USB comentados - funcionalidade desabilitada
 // import com.ml.shubham0204.facenet_android.utils.USBUtils
 // import com.ml.shubham0204.facenet_android.utils.USBStorageInfo
@@ -33,6 +41,13 @@ data class BackupFileInfo(
     val fileTime: String
 )
 
+data class OnlineBackupFile(
+    val fileName: String,
+    val displayName: String,
+    val fileDate: String,
+    val fileTime: String
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupTab() {
@@ -41,7 +56,8 @@ fun BackupTab() {
     val backupService = remember { BackupService(context) }
     val backupTestHelper = remember { BackupTestHelper(context) }
     
-    var isLoading by remember { mutableStateOf(false) }
+    var isLoadingBackup by remember { mutableStateOf(false) }
+    var isLoadingRestore by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("") }
     var showMessage by remember { mutableStateOf(false) }
     var showBackupMethodDialog by remember { mutableStateOf(false) }
@@ -50,15 +66,16 @@ fun BackupTab() {
     var showRestartAlert by remember { mutableStateOf(false) }
     var selectedBackupUri by remember { mutableStateOf<Uri?>(null) }
     var backupFileInfo by remember { mutableStateOf<BackupFileInfo?>(null) }
-    // Variáveis USB removidas - funcionalidade comentada
+    var showRestoreMethodDialog by remember { mutableStateOf(false) }
+    var showOnlineBackupList by remember { mutableStateOf(false) }
+    var onlineBackupFiles by remember { mutableStateOf<List<OnlineBackupFile>>(emptyList()) }
+    var selectedOnlineBackup by remember { mutableStateOf<OnlineBackupFile?>(null) }
     
-    // Função para mostrar mensagem
     fun displayMessage(text: String) {
         message = text
         showMessage = true
     }
     
-    // Função para extrair informações do arquivo de backup
     fun extractBackupFileInfo(uri: Uri): BackupFileInfo? {
         return try {
             val cursor = context.contentResolver.query(uri, null, null, null, null)
@@ -116,11 +133,10 @@ fun BackupTab() {
     
         fun restoreBackupFromUri(uri: Uri) {
         scope.launch {
-            isLoading = true
+            isLoadingRestore = true
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
                 if (inputStream != null) {
-                    // Criar arquivo temporário (sem extensão específica para detectar automaticamente)
                     val tempFile = File(context.cacheDir, "temp_backup")
                     tempFile.outputStream().use { output ->
                         inputStream.copyTo(output)
@@ -130,11 +146,11 @@ fun BackupTab() {
                     result.fold(
                         onSuccess = {
                             displayMessage("Backup restaurado com sucesso!")
-                            tempFile.delete() // Limpar arquivo temporário
+                            tempFile.delete() 
                         },
                         onFailure = { error ->
                             displayMessage("Erro ao restaurar backup: ${error.message}")
-                            tempFile.delete() // Limpar arquivo temporário
+                            tempFile.delete()
                         }
                     )
                 } else {
@@ -143,12 +159,11 @@ fun BackupTab() {
             } catch (e: Exception) {
                 displayMessage("Erro ao processar arquivo: ${e.message}")
             } finally {
-                isLoading = false
+                isLoadingRestore = false
             }
         }
     }
     
-    // Launcher para seleção de arquivo de backup
     val restoreLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -156,17 +171,15 @@ fun BackupTab() {
             val uri: Uri? = result.data?.data
             if (uri != null) {
                 selectedBackupUri = uri
-                // Extrair informações do arquivo
                 backupFileInfo = extractBackupFileInfo(uri)
                 showRestoreConfirmation = true
             }
         }
     }
     
-    // Função para criar backup via Downloads
     fun createBackupToDownloads() {
         scope.launch {
-            isLoading = true
+            isLoadingBackup = true
             try {
                 val result = backupService.createBackup()
                 result.fold(
@@ -178,72 +191,14 @@ fun BackupTab() {
                     }
                 )
             } finally {
-                isLoading = false
+                isLoadingBackup = false
             }
         }
     }
     
-    // Função para criar backup diretamente no pen drive USB (COMENTADA)
-    /*
-    fun createBackupToUSB() {
-        scope.launch {
-            isLoading = true
-            try {
-                // Verificar se há pen drive conectado
-                val currentUSBInfo = USBUtils.getUSBStorageInfo(context)
-                if (currentUSBInfo == null) {
-                    showUSBError("Nenhum pen drive USB encontrado. Conecte um pen drive para continuar.")
-                    return@launch
-                }
-                
-                if (!currentUSBInfo.isWritable) {
-                    showUSBError("Pen drive USB não tem permissão de escrita. Verifique as permissões.")
-                    return@launch
-                }
-                
-                // Criar backup
-                val result = backupService.createBackup()
-                result.fold(
-                    onSuccess = { filePath ->
-                        // Ler o arquivo de backup criado
-                        val backupFile = File(filePath)
-                        if (backupFile.exists()) {
-                            val backupContent = backupFile.readText()
-                            
-                            // Salvar no pen drive USB
-                            val usbResult = USBUtils.createBackupOnUSB(
-                                context, 
-                                backupContent, 
-                                "backup_${System.currentTimeMillis()}.json"
-                            )
-                            
-                            usbResult.fold(
-                                onSuccess = { usbPath ->
-                                    displayMessage("Backup criado com sucesso no pen drive USB!")
-                                    // Limpar arquivo temporário
-                                    backupFile.delete()
-                                },
-                                onFailure = { error ->
-                                    displayMessage("Erro ao salvar no pen drive: ${error.message}")
-                                }
-                            )
-                        } else {
-                            displayMessage("Erro: arquivo de backup não encontrado")
-                        }
-                    },
-                    onFailure = { error ->
-                        displayMessage("Erro ao criar backup: ${error.message}")
-                    }
-                )
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-    */
     fun createBackupToCloud() {
         scope.launch {
-            isLoading = true
+            isLoadingBackup = true
             try {
                 val result = backupService.createBackupToCloud()
                 result.fold(
@@ -255,24 +210,21 @@ fun BackupTab() {
                     }
                 )
             } finally {
-                isLoading = false
+                isLoadingBackup = false
             }
         }
     }
     
-    // Função para mostrar modal de seleção
     fun showBackupMethodSelection() {
         showBackupMethodDialog = true
     }
     
-    // Função para executar restauração com progresso
     fun executeRestoreWithProgress(uri: Uri) {
         scope.launch {
             showRestoreProgress = true
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
                 if (inputStream != null) {
-                    // Criar arquivo temporário (sem extensão específica para detectar automaticamente)
                     val tempFile = File(context.cacheDir, "temp_backup")
                     tempFile.outputStream().use { output ->
                         inputStream.copyTo(output)
@@ -281,13 +233,13 @@ fun BackupTab() {
                     val result = backupService.restoreBackup(tempFile.absolutePath)
                     result.fold(
                         onSuccess = {
-                            tempFile.delete() // Limpar arquivo temporário
+                            tempFile.delete() 
                             showRestoreProgress = false
                             displayMessage("Backup restaurado com sucesso!")
                             showRestartAlert = true
                         },
                         onFailure = { error ->
-                            tempFile.delete() // Limpar arquivo temporário
+                            tempFile.delete() 
                             showRestoreProgress = false
                             displayMessage("Erro ao restaurar backup: ${error.message}")
                         }
@@ -303,7 +255,6 @@ fun BackupTab() {
         }
     }
     
-    // Função para reiniciar a aplicação
     fun restartApplication() {
         try {
             val packageManager = context.packageManager
@@ -313,21 +264,186 @@ fun BackupTab() {
             context.startActivity(mainIntent)
             Process.killProcess(Process.myPid())
         } catch (e: Exception) {
-            // Fallback: fechar a aplicação
             Process.killProcess(Process.myPid())
         }
     }
     
-    // Função para iniciar restauração
     fun startRestore() {
+        showRestoreMethodDialog = true
+    }
+    
+    fun startLocalRestore() {
         val restoreIntent = backupService.createRestoreIntent()
         restoreLauncher.launch(restoreIntent)
     }
     
-    // Função para testar o sistema de backup
+    fun parseOnlineBackupFileName(fileName: String): OnlineBackupFile {
+        return try {
+            // Formato esperado: codigo_cliente_localizacao_id_YYYYMMDD_HHMMSS.json
+            val pattern = Regex("(.+)_(\\d{8})_(\\d{6})\\.json")
+            val match = pattern.find(fileName)
+            
+            if (match != null) {
+                val prefix = match.groupValues[1]
+                val dateStr = match.groupValues[2]
+                val timeStr = match.groupValues[3]
+                
+                val year = dateStr.substring(0, 4)
+                val month = dateStr.substring(4, 6)
+                val day = dateStr.substring(6, 8)
+                val formattedDate = "$day/$month/$year"
+                
+                val hour = timeStr.substring(0, 2)
+                val minute = timeStr.substring(2, 4)
+                val second = timeStr.substring(4, 6)
+                val formattedTime = "$hour:$minute:$second"
+                
+                OnlineBackupFile(
+                    fileName = fileName,
+                    displayName = "Backup $formattedDate $formattedTime",
+                    fileDate = formattedDate,
+                    fileTime = formattedTime
+                )
+            } else {
+                OnlineBackupFile(
+                    fileName = fileName,
+                    displayName = fileName,
+                    fileDate = "Data desconhecida",
+                    fileTime = "Hora desconhecida"
+                )
+            }
+        } catch (e: Exception) {
+            OnlineBackupFile(
+                fileName = fileName,
+                displayName = fileName,
+                fileDate = "Data desconhecida",
+                fileTime = "Hora desconhecida"
+            )
+        }
+    }
+    
+    fun startOnlineRestore() {
+        scope.launch {
+            isLoadingRestore = true
+            try {
+                val configuracoesDao = ConfiguracoesDao()
+                val configuracoes = configuracoesDao.getConfiguracoes()
+                val appPreferences = AppPreferences(context)
+                
+                if (configuracoes?.localizacaoId.isNullOrBlank()) {
+                    displayMessage("Localização ID não configurada. Configure nas configurações primeiro.")
+                    return@launch
+                }
+                
+                // Log para debug
+                android.util.Log.d("BackupTab", "🔍 Buscando backups online...")
+                android.util.Log.d("BackupTab", "📋 Entidade: ${configuracoes.entidadeId}")
+                android.util.Log.d("BackupTab", "📋 Localização: ${configuracoes.localizacaoId}")
+                
+                val apiService = RetrofitClient.instance
+                
+                android.util.Log.d("BackupTab", "📤 Enviando requisição para localização: ${configuracoes.localizacaoId}")
+                
+                val response = apiService.listBackupsFromCloud(configuracoes.entidadeId, configuracoes.localizacaoId)
+                
+                android.util.Log.d("BackupTab", "📥 Resposta recebida: ${response.code()} - ${response.message()}")
+                
+                if (response.isSuccessful) {
+                    val backupList = response.body()
+                    android.util.Log.d("BackupTab", "📋 Lista de backups: $backupList")
+                    
+                    if (backupList != null && backupList.arquivo.isNotEmpty()) {
+                        android.util.Log.d("BackupTab", "📁 ${backupList.arquivo.size} backups encontrados")
+                        backupList.arquivo.forEach { fileName ->
+                            android.util.Log.d("BackupTab", "   📄 $fileName")
+                        }
+                        
+                        val onlineFiles = backupList.arquivo.map { fileName ->
+                            parseOnlineBackupFileName(fileName)
+                        }
+                        onlineBackupFiles = onlineFiles
+                        showOnlineBackupList = true
+                        android.util.Log.d("BackupTab", "✅ Modal de lista de backups será exibido")
+                    } else {
+                        android.util.Log.d("BackupTab", "⚠️ Nenhum backup encontrado ou lista vazia")
+                        displayMessage("Nenhum backup encontrado na nuvem para esta localização.")
+                    }
+                } else {
+                    android.util.Log.e("BackupTab", "❌ Erro na resposta: ${response.code()} - ${response.message()}")
+                    displayMessage("Erro ao buscar backups online: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                displayMessage("Erro ao conectar com o servidor: ${e.message}")
+            } finally {
+                isLoadingRestore = false
+            }
+        }
+    }
+    
+    fun downloadAndRestoreOnlineBackup(onlineBackup: OnlineBackupFile) {
+        scope.launch {
+            showRestoreProgress = true
+            try {
+                val configuracoesDao = ConfiguracoesDao()
+                val configuracoes = configuracoesDao.getConfiguracoes()
+                val appPreferences = AppPreferences(context)
+                
+                if (configuracoes == null) {
+                    displayMessage("Configurações não encontradas.")
+                    return@launch
+                }
+                
+                val apiService = RetrofitClient.instance
+                val response = apiService.downloadSpecificBackupFile(
+                    configuracoes.entidadeId, 
+                    configuracoes.localizacaoId, 
+                    onlineBackup.fileName
+                )
+                
+                if (response.isSuccessful) {
+                    val responseBody = response.body()
+                    if (responseBody != null) {
+                        val tempFile = File(context.cacheDir, "temp_online_backup")
+                        tempFile.outputStream().use { output ->
+                            responseBody.byteStream().copyTo(output)
+                        }
+                        
+                        // Log para debug
+                        android.util.Log.d("BackupTab", "📁 Arquivo baixado: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
+                        android.util.Log.d("BackupTab", "📄 Primeiros 200 caracteres: ${tempFile.readText().take(200)}")
+                        
+                        val result = backupService.restoreBackup(tempFile.absolutePath)
+                        result.fold(
+                            onSuccess = {
+                                tempFile.delete()
+                                showRestoreProgress = false
+                                displayMessage("Backup restaurado com sucesso!")
+                                showRestartAlert = true
+                            },
+                            onFailure = { error ->
+                                tempFile.delete()
+                                showRestoreProgress = false
+                                displayMessage("Erro ao restaurar backup: ${error.message}")
+                            }
+                        )
+                    } else {
+                        showRestoreProgress = false
+                        displayMessage("Erro ao baixar arquivo de backup")
+                    }
+                } else {
+                    showRestoreProgress = false
+                    displayMessage("Erro ao baixar backup: ${response.message()}")
+                }
+            } catch (e: Exception) {
+                showRestoreProgress = false
+                displayMessage("Erro ao processar backup online: ${e.message}")
+            }
+        }
+    }
+    
     fun testBackupSystem() {
         scope.launch {
-            isLoading = true
+            isLoadingBackup = true
             try {
                 displayMessage("Iniciando teste do sistema de backup...")
                 backupTestHelper.testBackupSystem()
@@ -335,7 +451,7 @@ fun BackupTab() {
             } catch (e: Exception) {
                 displayMessage("Erro no teste: ${e.message}")
             } finally {
-                isLoading = false
+                isLoadingBackup = false
             }
         }
     }
@@ -373,13 +489,13 @@ fun BackupTab() {
 
                 Button(
                     onClick = { showBackupMethodSelection() },
-                    enabled = !isLoading,
+                    enabled = !isLoadingBackup,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF264064)
                     )
                 ) {
-                    if (isLoading) {
+                    if (isLoadingBackup) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp
@@ -411,18 +527,137 @@ fun BackupTab() {
                 )
                 Button(
                     onClick = { startRestore() },
-                    enabled = !isLoading,
+                    enabled = !isLoadingRestore,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color(0xFF264064)
                     )
                 ) {
-                    Spacer(modifier = Modifier.width(8.dp))
+                    if (isLoadingRestore) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
                     Text("Restaurar Backup")
                 }
             }
         }
                 
+    }
+    
+    // Modal de seleção de método de restauração
+    if (showRestoreMethodDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestoreMethodDialog = false },
+            title = {
+                Text(
+                    text = "Como você quer restaurar?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Card(
+                        onClick = {
+                            showRestoreMethodDialog = false
+                            startLocalRestore()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Local",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Selecionar arquivo dos Meus Arquivos",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                    
+                    Card(
+                        onClick = {
+                            showRestoreMethodDialog = false
+                            startOnlineRestore()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDownload,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = Color(0xFF264064)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Online",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Baixar backup da nuvem",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { showRestoreMethodDialog = false }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
     
     if (showBackupMethodDialog) {
@@ -439,7 +674,6 @@ fun BackupTab() {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Card para Downloads
                     Card(
                         onClick = {
                             showBackupMethodDialog = false
@@ -484,7 +718,6 @@ fun BackupTab() {
                         }
                     }
                     
-                    // Card para Nuvem
                     Card(
                         onClick = {
                             showBackupMethodDialog = false
@@ -539,7 +772,6 @@ fun BackupTab() {
         )
     }
     
-    // Modal de confirmação para restauração
     if (showRestoreConfirmation) {
         AlertDialog(
             onDismissRequest = { 
@@ -560,7 +792,7 @@ fun BackupTab() {
                 ) {
                     if (backupFileInfo != null) {
                         Text(
-                            text = "Você deseja restaurar o backup \${backupFileInfo!!.fileName}\ do dia ${backupFileInfo!!.fileDate} feito às ${backupFileInfo!!.fileTime}?",
+                            text = "Você deseja restaurar o backup \"${backupFileInfo!!.fileName}\" do dia ${backupFileInfo!!.fileDate} feito às ${backupFileInfo!!.fileTime}?",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -608,10 +840,9 @@ fun BackupTab() {
         )
     }
     
-    // Modal de progresso da restauração
     if (showRestoreProgress) {
         AlertDialog(
-            onDismissRequest = { /* Não permite fechar durante o progresso */ },
+            onDismissRequest = { },
             title = {
                 Text(
                     text = "Restaurando Backup",
@@ -778,6 +1009,82 @@ fun BackupTab() {
         )
     }
     */
+    
+    // Modal de lista de backups online
+    if (showOnlineBackupList) {
+        AlertDialog(
+            onDismissRequest = { 
+                showOnlineBackupList = false
+                onlineBackupFiles = emptyList()
+            },
+            title = {
+                Text(
+                    text = "Backups Disponíveis na Nuvem",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                if (onlineBackupFiles.isEmpty()) {
+                    Text(
+                        text = "Nenhum backup encontrado.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(onlineBackupFiles) { backupFile ->
+                            Card(
+                                onClick = {
+                                    selectedOnlineBackup = backupFile
+                                    showOnlineBackupList = false
+                                    downloadAndRestoreOnlineBackup(backupFile)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = backupFile.displayName,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = "Data: ${backupFile.fileDate} às ${backupFile.fileTime}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        text = "Arquivo: ${backupFile.fileName}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { 
+                        showOnlineBackupList = false
+                        onlineBackupFiles = emptyList()
+                    }
+                ) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
     
     // Snackbar para mensagens
 

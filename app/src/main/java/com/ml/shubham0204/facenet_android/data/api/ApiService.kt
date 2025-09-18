@@ -44,6 +44,26 @@ interface ApiService {
         @Part("localizacao_id") localizacaoId: okhttp3.RequestBody,
         @Part file: MultipartBody.Part
     ): Response<BackupUploadResponse>
+
+    @GET("/{entidade}/services/util/backup-tablet")
+    suspend fun listBackupsFromCloud(
+        @Path("entidade") entidade: String,
+        @Query("localizacao_id") localizacaoId: String
+    ): Response<BackupListResponse>
+
+    @GET("/{entidade}/services/util/backup-tablet")
+    suspend fun downloadBackupFromCloud(
+        @Path("entidade") entidade: String,
+        @Query("localizacao_id") localizacaoId: String
+    ): Response<okhttp3.ResponseBody>
+
+    @GET("/{entidade}/services/util/download-arquivo-tablet")
+    suspend fun downloadSpecificBackupFile(
+        @Path("entidade") entidade: String,
+        @Query("localizacao_id") localizacaoId: String,
+        @Query("arquivo") arquivo: String
+    ): Response<okhttp3.ResponseBody>
+
 }
 
 data class OrgaoResponse (
@@ -78,4 +98,12 @@ data class BackupUploadResponse(
     val data: Any? = null,
     val backupId: String? = null,
     val uploadDate: String? = null
+)
+
+data class BackupListRequest(
+    val localizacao_id: String
+)
+
+data class BackupListResponse(
+    val arquivo: List<String>
 ) 

@@ -211,7 +211,7 @@ class FileIntegrityManager {
                 throw Exception("Arquivo não encontrado: ${protectedFile.name}")
             }
             
-            val jsonContent = protectedFile.readText()
+             val jsonContent = readFileInChunks(protectedFile)
             
             val protectedData = ProtectedFileData.fromJson(jsonContent)
             
@@ -254,7 +254,7 @@ class FileIntegrityManager {
                 return Result.failure(validationResult.exceptionOrNull() ?: Exception("Validação falhou"))
             }
             
-            val jsonContent = protectedFile.readText()
+            val jsonContent = readFileInChunks(protectedFile)
             val protectedData = ProtectedFileData.fromJson(jsonContent)
             
             Result.success(protectedData.content)
@@ -274,7 +274,7 @@ class FileIntegrityManager {
                 return Result.failure(validationResult.exceptionOrNull() ?: Exception("Validação falhou"))
             }
             
-            val jsonContent = protectedFile.readText()
+            val jsonContent = readFileInChunks(protectedFile)
             val protectedData = ProtectedFileData.fromJson(jsonContent)
             
             if (!protectedData.isBinary) {
@@ -294,6 +294,25 @@ class FileIntegrityManager {
             Log.e(TAG, "❌ Erro ao extrair arquivo binário original", e)
             Result.failure(e)
         }
+    }
+    
+    /**
+     * Lê um arquivo em chunks para evitar OutOfMemoryError
+     */
+    private fun readFileInChunks(file: File): String {
+        val buffer = StringBuilder()
+        val chunkSize = 8192 // 8KB por chunk
+        
+        file.inputStream().use { inputStream ->
+            val byteArray = ByteArray(chunkSize)
+            var bytesRead: Int
+            
+            while (inputStream.read(byteArray).also { bytesRead = it } != -1) {
+                buffer.append(String(byteArray, 0, bytesRead))
+            }
+        }
+        
+        return buffer.toString()
     }
     
     /**
