@@ -77,7 +77,7 @@
     },
     {
       "id": "3:9098141876724603289",
-      "lastPropertyId": "10:1461990508988855259",
+      "lastPropertyId": "11:1461990508988855260",
       "name": "FuncionariosEntity",
       "properties": [
         {
@@ -129,6 +129,11 @@
         {
           "id": "10:1461990508988855259",
           "name": "apiId",
+          "type": 6
+        },
+        {
+          "id": "11:1461990508988855260",
+          "name": "dataImportacao",
           "type": 6
         }
       ],
@@ -182,9 +187,93 @@
         }
       ],
       "relations": []
+    },
+    {
+      "id": "5:87332699017499048",
+      "lastPropertyId": "15:8979449422654114285",
+      "name": "PontosGenericosEntity",
+      "properties": [
+        {
+          "id": "1:8713757454141057130",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:7012491854144935823",
+          "name": "funcionarioId",
+          "type": 9
+        },
+        {
+          "id": "3:4471891202976542195",
+          "name": "funcionarioNome",
+          "type": 9
+        },
+        {
+          "id": "4:3378834395715292151",
+          "name": "funcionarioMatricula",
+          "type": 9
+        },
+        {
+          "id": "5:470313980395868269",
+          "name": "funcionarioCpf",
+          "type": 9
+        },
+        {
+          "id": "6:1770796041945982087",
+          "name": "funcionarioCargo",
+          "type": 9
+        },
+        {
+          "id": "7:8436325670077253141",
+          "name": "funcionarioSecretaria",
+          "type": 9
+        },
+        {
+          "id": "8:6713131302598734328",
+          "name": "funcionarioLotacao",
+          "type": 9
+        },
+        {
+          "id": "9:3919045672905544797",
+          "name": "dataHora",
+          "type": 6
+        },
+        {
+          "id": "10:7545839979284100627",
+          "name": "tipoPonto",
+          "type": 9
+        },
+        {
+          "id": "11:2299862372577751266",
+          "name": "latitude",
+          "type": 8
+        },
+        {
+          "id": "12:8469117404774638564",
+          "name": "longitude",
+          "type": 8
+        },
+        {
+          "id": "13:3883271038832250195",
+          "name": "observacao",
+          "type": 9
+        },
+        {
+          "id": "14:7367646187150541031",
+          "name": "fotoBase64",
+          "type": 9
+        },
+        {
+          "id": "15:8979449422654114285",
+          "name": "synced",
+          "type": 1
+        }
+      ],
+      "relations": []
     }
   ],
-  "lastEntityId": "4:6070835639547591035",
+  "lastEntityId": "5:87332699017499048",
   "lastIndexId": "2:1210613089703466990",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",

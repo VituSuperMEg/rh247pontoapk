@@ -15,5 +15,6 @@ data class FuncionariosEntity(
     val secretaria: String = "",
     val lotacao: String = "",
     val apiId: Long = 0, // ID original da API
-    val dataImportacao: Long = System.currentTimeMillis() // Timestamp da importação
+    val dataImportacao: Long = System.currentTimeMillis(), // Timestamp da importação
+    val entidadeId: String? = null // ID da entidade para controle de gerenciamento (nullable para compatibilidade)
 ) 

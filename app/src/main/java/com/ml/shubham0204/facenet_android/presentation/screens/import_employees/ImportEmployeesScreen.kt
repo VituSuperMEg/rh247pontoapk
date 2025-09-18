@@ -79,6 +79,7 @@ fun ImportEmployeesScreen(
 
     var showFilterDialog by remember { mutableStateOf(false) }
     var showFilterOrgao by remember { mutableStateOf(false) }
+    var showFilterEntidade by remember { mutableStateOf(false) }
     
     val viewModel: ImportEmployeesViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsState()
@@ -114,7 +115,7 @@ fun ImportEmployeesScreen(
                         Box {
                             BadgedBox(
                                 badge = {
-                                    if (uiState.selectedOrgao != null) {
+                                    if (uiState.selectedOrgao != null || uiState.selectedEntidade != null) {
                                         Badge(
                                             containerColor = Color(0xFF4CAF50)
                                         )
@@ -125,7 +126,7 @@ fun ImportEmployeesScreen(
                                     Icon(
                                         imageVector = Icons.Default.FilterList,
                                         contentDescription = "Filtros",
-                                        tint = if (uiState.selectedOrgao != null) Color(0xFF4CAF50) else Color(0xFF264064)
+                                        tint = if (uiState.selectedOrgao != null || uiState.selectedEntidade != null) Color(0xFF4CAF50) else Color(0xFF264064)
                                     )
                                 }
                             }
@@ -167,11 +168,31 @@ fun ImportEmployeesScreen(
                         showFilterDialog = false
                         showFilterOrgao = true
                     },
+                    onEntidadeFilter = {
+                        showFilterDialog = false
+                        showFilterEntidade = true
+                    },
                     selectedOrgao = uiState.selectedOrgao,
-                    onClearOrgaoFilter = { viewModel.clearOrgaoFilter() }
+                    selectedEntidade = uiState.selectedEntidade,
+                    onClearOrgaoFilter = { viewModel.clearOrgaoFilter() },
+                    onClearEntidadeFilter = { viewModel.clearEntidadeFilter() }
                 )
             }
 
+            if(showFilterEntidade) {
+                FilterEntidade (
+                    onDismiss = {
+                        showFilterEntidade = false
+                        showFilterDialog = true
+                    },
+                    onEntidadeSelected = { entidade ->
+                        viewModel.setSelectedEntidade(entidade)
+                        showFilterEntidade = false
+                        showFilterDialog = false
+                    },
+                    viewModel = viewModel
+                )
+            }
 
             if(showFilterOrgao) {
                 FilterOrgao (
@@ -844,8 +865,11 @@ private fun QueuedFuncionarioCard(
 private fun FilterDialog(
     onDismiss: () -> Unit,
     onOrgaoFilter: () -> Unit,
+    onEntidadeFilter: () -> Unit,
     selectedOrgao: OrgaoModel? = null,
-    onClearOrgaoFilter: () -> Unit = {}
+    selectedEntidade: String? = null,
+    onClearOrgaoFilter: () -> Unit = {},
+    onClearEntidadeFilter: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -870,6 +894,46 @@ private fun FilterDialog(
         },
         text = {
            Column {
+               // Entidade selecionada
+               if (selectedEntidade != null) {
+                   Card(
+                       colors = CardDefaults.cardColors(
+                           containerColor = Color(0xFFE8F5E8)
+                       )
+                   ) {
+                       Row(
+                           modifier = Modifier
+                               .fillMaxWidth()
+                               .padding(16.dp),
+                           verticalAlignment = Alignment.CenterVertically
+                       ) {
+                           Column(modifier = Modifier.weight(1f)) {
+                               Text(
+                                   text = "Entidade selecionada:",
+                                   style = MaterialTheme.typography.bodySmall,
+                                   color = Color.Gray
+                               )
+                               Text(
+                                   text = selectedEntidade,
+                                   style = MaterialTheme.typography.bodyMedium,
+                                   fontWeight = FontWeight.Medium,
+                                   color = Color(0xFF2E7D32)
+                               )
+                           }
+                           IconButton(
+                               onClick = onClearEntidadeFilter
+                           ) {
+                               Icon(
+                                   imageVector = Icons.Default.Clear,
+                                   contentDescription = "Limpar filtro",
+                                   tint = Color.Red
+                               )
+                           }
+                       }
+                   }
+                   Spacer(modifier = Modifier.height(8.dp))
+               }
+               
                // Órgão selecionado
                if (selectedOrgao != null) {
                    Card(
@@ -909,6 +973,37 @@ private fun FilterDialog(
                    }
                    Spacer(modifier = Modifier.height(8.dp))
                }
+               
+               // Botão para selecionar entidade
+               Card(
+                   onClick = onEntidadeFilter,
+                   colors = CardDefaults.cardColors(
+                       containerColor = if (selectedEntidade != null) Color(0xFFF5F5F5) else Color.White
+                   )
+               ) {
+                   Row(
+                       modifier = Modifier
+                           .fillMaxWidth()
+                           .padding(16.dp),
+                       verticalAlignment = Alignment.CenterVertically
+                   ) {
+                       Icon(
+                           imageVector = Icons.Default.Search,
+                           contentDescription = "Filtro de Entidade",
+                           tint = Color(0xFF2E7D32),
+                           modifier = Modifier.size(20.dp)
+                       )
+                       Spacer(modifier = Modifier.width(12.dp))
+                       Text(
+                           text = if (selectedEntidade != null) "Alterar Entidade" else "Buscar por Entidade",
+                           style = MaterialTheme.typography.bodyLarge,
+                           fontWeight = FontWeight.Medium,
+                           color = Color(0xFF2E7D32)
+                       )
+                   }
+               }
+               
+               Spacer(modifier = Modifier.height(8.dp))
                
                // Botão para selecionar órgão
                Card(
@@ -1155,6 +1250,166 @@ private fun FilterOrgao(
                     )
                 ) {
                     Text("Selecionar")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun FilterEntidade(
+    onDismiss: () -> Unit,
+    onEntidadeSelected: (String) -> Unit = {},
+    viewModel: ImportEmployeesViewModel
+) {
+    var entidadeCode by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = "Buscar Entidade",
+                    tint = Color(0xFF2E7D32),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Buscar por Entidade",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color(0xFF2E7D32)
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+            ) {
+                // Campo de busca
+                OutlinedTextField(
+                    value = entidadeCode,
+                    onValueChange = { entidadeCode = it },
+                    label = { Text("Código da Entidade") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar"
+                        )
+                    },
+                    singleLine = true,
+                    placeholder = { Text("Digite o código da entidade...") }
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                // Mensagem de instrução
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFE8F5E8)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text(
+                            text = "💡 Instruções:",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF2E7D32)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "• Digite o código da entidade desejada",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF2E7D32)
+                        )
+                        Text(
+                            text = "• Clique em 'Buscar' para carregar funcionários",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF2E7D32)
+                        )
+                        Text(
+                            text = "• Os funcionários serão filtrados por esta entidade",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                }
+                
+                if (error != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = null,
+                                tint = Color.Red,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = error!!,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Red
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancelar")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        if (entidadeCode.isNotBlank()) {
+                            isLoading = true
+                            error = null
+                            
+                            // Testar se a entidade existe fazendo uma busca
+                            viewModel.testEntidadeAndLoad(entidadeCode.trim()) { success, errorMessage ->
+                                isLoading = false
+                                if (success) {
+                                    onEntidadeSelected(entidadeCode.trim())
+                                    onDismiss()
+                                } else {
+                                    error = errorMessage
+                                }
+                            }
+                        }
+                    },
+                    enabled = entidadeCode.isNotBlank() && !isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2E7D32)
+                    )
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text("Buscar")
                 }
             }
         }

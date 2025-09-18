@@ -30,16 +30,24 @@ class ImportedEmployeesViewModel : ViewModel(), KoinComponent {
     fun loadImportedEmployees() {
         viewModelScope.launch {
             try {
+                android.util.Log.d("ImportedEmployeesViewModel", "🔄 Carregando funcionários importados...")
+                
                 // ✅ NOVO: Por padrão, mostrar apenas funcionários ativos
                 val funcionarios = funcionariosDao.getActiveFuncionarios()
+                android.util.Log.d("ImportedEmployeesViewModel", "📊 Funcionários ativos encontrados: ${funcionarios.size}")
+                
                 // ✅ NOVO: Ordenar funcionários alfabeticamente por nome
                 val funcionariosOrdenados = funcionarios.sortedBy { it.nome }
+                android.util.Log.d("ImportedEmployeesViewModel", "📋 Funcionários ordenados: ${funcionariosOrdenados.size}")
                 
                 // ✅ NOVO: Verificar quais funcionários têm facial cadastrada
                 val funcionariosComFacial = funcionariosOrdenados.map { funcionario ->
                     val temFacial = personUseCase.getPersonByFuncionarioId(funcionario.id) != null
+                    android.util.Log.d("ImportedEmployeesViewModel", "👤 ${funcionario.nome}: facial = $temFacial")
                     FuncionarioComFacial(funcionario, temFacial)
                 }
+                
+                android.util.Log.d("ImportedEmployeesViewModel", "✅ Total de funcionários com facial: ${funcionariosComFacial.size}")
                 
                 _uiState.update { 
                     it.copy(
@@ -48,6 +56,7 @@ class ImportedEmployeesViewModel : ViewModel(), KoinComponent {
                     )
                 }
             } catch (e: Exception) {
+                android.util.Log.e("ImportedEmployeesViewModel", "❌ Erro ao carregar funcionários: ${e.message}")
                 _uiState.update { 
                     it.copy(
                         funcionarios = emptyList(),
@@ -117,6 +126,35 @@ class ImportedEmployeesViewModel : ViewModel(), KoinComponent {
     
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+    
+    
+    // ✅ NOVO: Função de debug para verificar funcionários no banco
+    fun debugFuncionarios() {
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("ImportedEmployeesViewModel", "🔍 === DEBUG FUNCIONÁRIOS ===")
+                
+                val todosFuncionarios = funcionariosDao.getAll()
+                android.util.Log.d("ImportedEmployeesViewModel", "📊 Total no banco: ${todosFuncionarios.size}")
+                
+                val funcionariosAtivos = funcionariosDao.getActiveFuncionarios()
+                android.util.Log.d("ImportedEmployeesViewModel", "✅ Ativos: ${funcionariosAtivos.size}")
+                
+                val funcionariosInativos = funcionariosDao.getInactiveFuncionarios()
+                android.util.Log.d("ImportedEmployeesViewModel", "❌ Inativos: ${funcionariosInativos.size}")
+                
+                // Mostrar detalhes de cada funcionário
+                todosFuncionarios.forEach { funcionario ->
+                    android.util.Log.d("ImportedEmployeesViewModel", "👤 ${funcionario.nome} - Ativo: ${funcionario.ativo} - Entidade: '${funcionario.entidadeId ?: "null"}'")
+                }
+                
+                android.util.Log.d("ImportedEmployeesViewModel", "🔍 === FIM DEBUG ===")
+                
+            } catch (e: Exception) {
+                android.util.Log.e("ImportedEmployeesViewModel", "❌ Erro no debug: ${e.message}")
+            }
+        }
     }
     
     // ✅ NOVO: Função para recarregar funcionários (útil quando retornar da tela de facial)

@@ -77,7 +77,7 @@
     },
     {
       "id": "3:9098141876724603289",
-      "lastPropertyId": "11:1461990508988855260",
+      "lastPropertyId": "12:9022519181594950822",
       "name": "FuncionariosEntity",
       "properties": [
         {
@@ -135,6 +135,11 @@
           "id": "11:1461990508988855260",
           "name": "dataImportacao",
           "type": 6
+        },
+        {
+          "id": "12:9022519181594950822",
+          "name": "entidadeId",
+          "type": 9
         }
       ],
       "relations": []

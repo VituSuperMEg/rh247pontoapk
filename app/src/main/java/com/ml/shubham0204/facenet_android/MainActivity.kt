@@ -23,14 +23,16 @@ import com.ml.shubham0204.facenet_android.presentation.screens.settings.Settings
 import com.ml.shubham0204.facenet_android.presentation.screens.login.LoginScreen
 import com.ml.shubham0204.facenet_android.utils.ClearFacesUtil
 import com.ml.shubham0204.facenet_android.utils.ClearAdeiltonPointsUtil
+import com.ml.shubham0204.facenet_android.data.FuncionariosDao
+import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // Limpar as faces
-        //ClearFacesUtil.clearAllFaces()
+        // Atualizar entidade_id dos funcionários existentes automaticamente
+        updateFuncionariosEntidadeId()
 
         setContent {
             val navHostController = rememberNavController()
@@ -233,6 +235,94 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+    
+    /**
+     * Atualiza o campo entidade_id dos funcionários existentes que ainda não possuem esse campo preenchido.
+     * Esta rotina é executada na inicialização da aplicação para garantir que todos os funcionários
+     * tenham o controle de entidade configurado.
+     */
+    private fun updateFuncionariosEntidadeId() {
+        try {
+            android.util.Log.d("MainActivity", "🔄 Iniciando atualização de entidade_id dos funcionários...")
+            
+            val funcionariosDao = FuncionariosDao()
+            val configuracoesDao = ConfiguracoesDao()
+            
+            // Obter a entidade configurada
+            val configuracoes = configuracoesDao.getConfiguracoes()
+            val entidadeId = configuracoes?.entidadeId ?: ""
+            
+            if (entidadeId.isEmpty()) {
+                android.util.Log.w("MainActivity", "⚠️ Entidade ID não configurada - pulando atualização")
+                return
+            }
+            
+            android.util.Log.d("MainActivity", "🏢 Entidade ID configurada: '$entidadeId'")
+            
+            // Buscar todos os funcionários
+            val todosFuncionarios = funcionariosDao.getAll()
+            android.util.Log.d("MainActivity", "📊 Total de funcionários encontrados: ${todosFuncionarios.size}")
+            
+            // Filtrar funcionários que não têm entidade_id preenchido
+            val funcionariosSemEntidade = todosFuncionarios.filter { funcionario ->
+                funcionario.entidadeId.isNullOrEmpty()
+            }
+            
+            android.util.Log.d("MainActivity", "📋 Funcionários sem entidade_id: ${funcionariosSemEntidade.size}")
+            
+            if (funcionariosSemEntidade.isEmpty()) {
+                android.util.Log.d("MainActivity", "✅ Todos os funcionários já possuem entidade_id configurado")
+                return
+            }
+            
+            // Atualizar cada funcionário usando uma abordagem mais segura
+            var atualizados = 0
+            var erros = 0
+            
+            funcionariosSemEntidade.forEach { funcionario ->
+                try {
+                    android.util.Log.d("MainActivity", "🔄 Atualizando: ${funcionario.nome} (ID: ${funcionario.id})")
+                    
+                    // Usar uma abordagem mais segura - apenas atualizar o campo específico
+                    // Primeiro, vamos verificar se o funcionário ainda existe
+                    val funcionarioExistente = funcionariosDao.getById(funcionario.id)
+                    if (funcionarioExistente != null) {
+                        // Verificar se o funcionário realmente não tem entidade_id
+                        if (funcionarioExistente.entidadeId.isNullOrEmpty()) {
+                            // Criar uma nova instância com o entidade_id preenchido
+                            val funcionarioAtualizado = funcionarioExistente.copy(
+                                entidadeId = entidadeId
+                            )
+                            
+                            // Atualizar no banco de dados
+                            funcionariosDao.update(funcionarioAtualizado)
+                            atualizados++
+                            
+                            android.util.Log.d("MainActivity", "✅ Atualizado com sucesso: ${funcionario.nome} (ID: ${funcionario.id})")
+                        } else {
+                            android.util.Log.d("MainActivity", "ℹ️ Funcionário já tem entidade_id: ${funcionario.nome} (ID: ${funcionario.id})")
+                        }
+                    } else {
+                        android.util.Log.w("MainActivity", "⚠️ Funcionário não encontrado: ${funcionario.nome} (ID: ${funcionario.id})")
+                        erros++
+                    }
+                    
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "❌ Erro ao atualizar funcionário ${funcionario.nome}: ${e.message}")
+                    erros++
+                }
+            }
+            
+            if (erros > 0) {
+                android.util.Log.w("MainActivity", "⚠️ Atualização concluída com erros: $atualizados atualizados, $erros erros")
+            } else {
+                android.util.Log.d("MainActivity", "🎉 Atualização concluída com sucesso: $atualizados funcionários atualizados com entidade_id: '$entidadeId'")
+            }
+            
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Erro na rotina de atualização de entidade_id: ${e.message}")
         }
     }
 }

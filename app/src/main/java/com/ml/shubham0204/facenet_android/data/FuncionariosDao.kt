@@ -30,6 +30,12 @@ class FuncionariosDao {
     fun getAll(): List<FuncionariosEntity> {
         val result = box.all
         Log.d("FuncionariosDao", "📋 Total de funcionários no banco: ${result.size}")
+        
+        // Log detalhado dos funcionários encontrados
+        result.forEach { funcionario ->
+            Log.d("FuncionariosDao", "👤 Funcionário: ${funcionario.nome} (ID: ${funcionario.id}, Ativo: ${funcionario.ativo}, Entidade: '${funcionario.entidadeId ?: "null"}')")
+        }
+        
         return result
     }
 
@@ -89,7 +95,18 @@ class FuncionariosDao {
     
     // ✅ NOVO: Obter apenas funcionários ativos
     fun getActiveFuncionarios(): List<FuncionariosEntity> {
-        return getAll().filter { it.ativo == 1 }
+        val todosFuncionarios = getAll()
+        val funcionariosAtivos = todosFuncionarios.filter { it.ativo == 1 }
+        
+        Log.d("FuncionariosDao", "🔍 Filtrando funcionários ativos:")
+        Log.d("FuncionariosDao", "   - Total de funcionários: ${todosFuncionarios.size}")
+        Log.d("FuncionariosDao", "   - Funcionários ativos: ${funcionariosAtivos.size}")
+        
+        funcionariosAtivos.forEach { funcionario ->
+            Log.d("FuncionariosDao", "✅ Ativo: ${funcionario.nome} (ID: ${funcionario.id})")
+        }
+        
+        return funcionariosAtivos
     }
     
     // ✅ NOVO: Obter apenas funcionários inativos

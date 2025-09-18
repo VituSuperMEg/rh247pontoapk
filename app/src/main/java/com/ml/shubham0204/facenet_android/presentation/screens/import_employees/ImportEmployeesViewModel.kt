@@ -38,15 +38,23 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
     private var hasMorePages = true
     private var searchJob: kotlinx.coroutines.Job? = null
     
-    private fun getEntidadeId(): String {
+    private fun getEntidadeId(): String? {
         return try {
+            // Se há uma entidade selecionada no filtro, usar ela
+            val selectedEntidade = _uiState.value.selectedEntidade
+            if (selectedEntidade != null) {
+                Log.d("ImportEmployeesViewModel", "🏢 Usando entidade selecionada: '$selectedEntidade'")
+                return selectedEntidade
+            }
+            
+            // Caso contrário, usar a entidade configurada
             val configuracoes = configuracoesDao.getConfiguracoes()
             val entidadeId = configuracoes?.entidadeId ?: ""
-            Log.d("ImportEmployeesViewModel", "🏢 Entidade ID obtida: '$entidadeId'")
-            entidadeId
+            Log.d("ImportEmployeesViewModel", "🏢 Entidade ID obtida das configurações: '$entidadeId'")
+            if (entidadeId.isNullOrEmpty()) null else entidadeId
         } catch (e: Exception) {
             Log.e("ImportEmployeesViewModel", "❌ Erro ao obter entidade ID", e)
-            ""
+            null
         }
     }
     
@@ -112,7 +120,8 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     secretaria = funcionario.orgao_descricao ?: "N/A",
                     lotacao = funcionario.setor_descricao ?: "N/A",
                     apiId = funcionario.id.toLong(), // ID original da API
-                    dataImportacao = System.currentTimeMillis() // Timestamp da importação
+                    dataImportacao = System.currentTimeMillis(), // Timestamp da importação
+                    entidadeId = getEntidadeId() // ID da entidade para controle
                 )
                 
                 Log.d("ImportEmployeesViewModel", "💾 Salvando no banco de dados...")
@@ -208,7 +217,8 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                         secretaria = funcionario.orgao_descricao ?: "N/A",
                         lotacao = funcionario.setor_descricao ?: "N/A",
                         apiId = funcionario.id.toLong(),
-                        dataImportacao = System.currentTimeMillis()
+                        dataImportacao = System.currentTimeMillis(),
+                        entidadeId = getEntidadeId() // ID da entidade para controle
                     )
                     
                     funcionariosDao.insert(funcionarioEntity)
@@ -261,6 +271,52 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         loadFuncionarios()
     }
     
+    fun setSelectedEntidade(entidade: String?) {
+        _uiState.update { it.copy(selectedEntidade = entidade) }
+        // Recarregar funcionários com o novo filtro de entidade
+        loadFuncionarios()
+    }
+    
+    fun clearEntidadeFilter() {
+        _uiState.update { it.copy(selectedEntidade = null) }
+        // Recarregar funcionários sem filtro de entidade
+        loadFuncionarios()
+    }
+    
+    fun testEntidadeAndLoad(entidadeCode: String, callback: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                Log.d("ImportEmployeesViewModel", "🔍 Testando entidade: $entidadeCode")
+                
+                // Fazer uma busca de teste para verificar se a entidade existe
+                val response = apiService.getFuncionarios(entidadeCode, 1, null, null)
+                val funcionarios = response.data ?: emptyList()
+                
+                Log.d("ImportEmployeesViewModel", "📊 Entidade testada - funcionários encontrados: ${funcionarios.size}")
+                
+                // Se chegou até aqui, a entidade existe
+                callback(true, null)
+                
+            } catch (e: Exception) {
+                Log.e("ImportEmployeesViewModel", "❌ Erro ao testar entidade", e)
+                
+                val errorMessage = when {
+                    e.message?.contains("Código do cliente errado", ignoreCase = true) == true -> {
+                        "❌ Código da entidade incorreto ou não encontrado"
+                    }
+                    e.message?.contains("access-control-allow-origin", ignoreCase = true) == true -> {
+                        "🌐 Problema de configuração do servidor"
+                    }
+                    else -> {
+                        "❌ Erro ao verificar entidade: ${e.message ?: "Erro desconhecido"}"
+                    }
+                }
+                
+                callback(false, errorMessage)
+            }
+        }
+    }
+    
     fun showError(errorMessage: String) {
         val friendlyMessage = when {
             errorMessage.contains("Código do cliente errado ou não configurado", ignoreCase = true) -> {
@@ -301,7 +357,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         return try {
             val entidadeId = getEntidadeId()
             
-            if (entidadeId.isEmpty()) {
+            if (entidadeId.isNullOrEmpty()) {
                 Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID não configurada para carregar órgãos")
                 return emptyList()
             }
@@ -360,7 +416,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             try {
                 val entidadeId = getEntidadeId()
                 
-                if (entidadeId.isEmpty()) {
+                if (entidadeId.isNullOrEmpty()) {
                     Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID não configurada")
                     _uiState.update { 
                         it.copy(
@@ -428,7 +484,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             try {
                 val entidadeId = getEntidadeId()
                 
-                if (entidadeId.isEmpty()) {
+                if (entidadeId.isNullOrEmpty()) {
                     Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID vazia")
                     _uiState.update { it.copy(isLoadingMore = false) }
                     return@launch
@@ -539,7 +595,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     
                     val entidadeId = getEntidadeId()
                     
-                    if (entidadeId.isEmpty()) {
+                    if (entidadeId.isNullOrEmpty()) {
                         Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID vazia na busca")
                         _uiState.update { 
                             it.copy(funcionarios = emptyList())
@@ -622,6 +678,7 @@ data class ImportEmployeesUiState(
     val selectedFuncionario: FuncionariosModel? = null,
     val selectedTabIndex: Int = 0,
     val selectedOrgao: OrgaoModel? = null,
+    val selectedEntidade: String? = null,
     val errorMessage: String? = null,
     val showErrorDialog: Boolean = false
 ) 
