@@ -200,7 +200,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     
     LaunchedEffect(isProcessingRecognition) {
         if (!isProcessingRecognition && !showSuccessScreen) {
-            delay(3000)
+            delay(5000) // ✅ CORRIGIDO: Aumentado para 5 segundos para reduzir sobrecarga
             viewModel.processFaceRecognition()
         }
     }
@@ -337,7 +337,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         if (faceDetectionOverlay != null) {
             while (isActive) { // ✅ CORRIGIDO: Usar isActive para verificar se o job ainda está ativo
                 try {
-                    delay(1000) // ✅ CORRIGIDO: Aumentado para 1 segundo para reduzir sobrecarga
+                    delay(2000) // ✅ CORRIGIDO: Aumentado para 2 segundos para reduzir sobrecarga
                     val recognizedPerson = faceDetectionOverlay?.getLastRecognizedPerson()
                     
                     // Log para debug

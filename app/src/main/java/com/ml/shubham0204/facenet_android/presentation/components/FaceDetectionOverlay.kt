@@ -51,6 +51,7 @@ class FaceDetectionOverlay(
     private lateinit var previewView: PreviewView
     
     private var lastProcessTime: Long = 0
+    private var frameSkipCount: Int = 0
 
     var predictions: Array<Prediction> = arrayOf()
     private var lastRecognizedPerson: String? = null
@@ -147,11 +148,11 @@ class FaceDetectionOverlay(
                         ImageAnalysis
                             .Builder()
                             .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER) // ✅ CORRIGIDO: Estratégia mais agressiva
                             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                             .build()
-                    // ✅ CORRIGIDO: Usar executor com pool limitado para evitar sobrecarga
-                    frameAnalyzer.setAnalyzer(Executors.newFixedThreadPool(2), analyzer)
+                    // ✅ CORRIGIDO: Usar executor com apenas 1 thread para evitar sobrecarga
+                    frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
                     
                     // ✅ CORRIGIDO: Verificar se a câmera está disponível antes de fazer bind
                     val availableCameras = cameraProvider.availableCameraInfos
@@ -232,13 +233,18 @@ class FaceDetectionOverlay(
                 return@Analyzer
             }
             
-            // ✅ NOVO: Controle de taxa de processamento (máximo 1 frame por segundo)
+            // ✅ CORRIGIDO: Controle de taxa mais agressivo (máximo 1 frame a cada 2 segundos)
             val currentTime = System.currentTimeMillis()
-            if (currentTime - lastProcessTime < 1000) { // 1 segundo entre processamentos
+            if (currentTime - lastProcessTime < 2000) { // 2 segundos entre processamentos
+                frameSkipCount++
+                if (frameSkipCount % 10 == 0) {
+                    android.util.Log.d("FaceDetectionOverlay", "⏭️ Pulando frame $frameSkipCount para evitar sobrecarga")
+                }
                 image.close()
                 return@Analyzer
             }
             lastProcessTime = currentTime
+            frameSkipCount = 0
             
             isProcessing = true
 
@@ -424,8 +430,9 @@ class FaceDetectionOverlay(
         private val textPaint =
             Paint().apply {
                 strokeWidth = 2.0f
-                textSize = 36f
+                textSize = 24f // ✅ CORRIGIDO: Tamanho menor (era 36f)
                 color = Color.WHITE
+                isAntiAlias = true // ✅ NOVO: Melhor qualidade de texto
             }
 
         override fun surfaceCreated(holder: SurfaceHolder) {}
@@ -440,9 +447,34 @@ class FaceDetectionOverlay(
         override fun surfaceDestroyed(holder: SurfaceHolder) {}
 
         override fun onDraw(canvas: Canvas) {
-            predictions.forEach {
-                canvas.drawRoundRect(it.bbox, 16f, 16f, boxPaint)
-                canvas.drawText(it.label, it.bbox.centerX(), it.bbox.centerY(), textPaint)
+            predictions.forEach { prediction ->
+                // ✅ CORRIGIDO: Desenhar o quadrado de detecção
+                canvas.drawRoundRect(prediction.bbox, 16f, 16f, boxPaint)
+                
+                // ✅ CORRIGIDO: Posicionar o texto abaixo do quadrado
+                val textX = prediction.bbox.centerX()
+                val textY = prediction.bbox.bottom + 30f // ✅ NOVO: 30 pixels abaixo do quadrado
+                
+                // ✅ NOVO: Centralizar o texto horizontalmente
+                val textWidth = textPaint.measureText(prediction.label)
+                val centeredX = textX - (textWidth / 2f)
+                
+                // ✅ NOVO: Desenhar fundo para o texto (opcional, para melhor legibilidade)
+                val textBackgroundPaint = Paint().apply {
+                    color = Color.argb(178, 0, 0, 0) // ✅ CORRIGIDO: Usar Color.argb em vez de copy
+                    style = Paint.Style.FILL
+                }
+                val textPadding = 8f
+                val textBackgroundRect = android.graphics.RectF(
+                    centeredX - textPadding,
+                    textY - textPaint.textSize - textPadding,
+                    centeredX + textWidth + textPadding,
+                    textY + textPadding
+                )
+                canvas.drawRoundRect(textBackgroundRect, 8f, 8f, textBackgroundPaint)
+                
+                // ✅ CORRIGIDO: Desenhar o texto abaixo do quadrado
+                canvas.drawText(prediction.label, centeredX, textY, textPaint)
             }
         }
     }
