@@ -154,7 +154,6 @@ class FaceDetectionOverlay(
                     // ✅ CORRIGIDO: Usar executor com apenas 1 thread para evitar sobrecarga
                     frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
                     
-                    // ✅ CORRIGIDO: Verificar se a câmera está disponível antes de fazer bind
                     val availableCameras = cameraProvider.availableCameraInfos
                     if (availableCameras.isEmpty()) {
                         android.util.Log.e("FaceDetectionOverlay", "❌ Nenhuma câmera disponível!")
@@ -203,7 +202,6 @@ class FaceDetectionOverlay(
             },
             executor,
         )
-        // ✅ CORRIGIDO: Verificar se o componente está visível antes de adicionar views
         if (visibility == VISIBLE) {
             if (childCount == 2) {
                 removeView(this.previewView)
@@ -227,15 +225,13 @@ class FaceDetectionOverlay(
 
     private val analyzer =
         ImageAnalysis.Analyzer { image ->
-            // ✅ CORRIGIDO: Verificação mais rigorosa para evitar sobrecarga
             if (isProcessing) {
                 image.close()
                 return@Analyzer
             }
             
-            // ✅ CORRIGIDO: Controle de taxa mais agressivo (máximo 1 frame a cada 2 segundos)
             val currentTime = System.currentTimeMillis()
-            if (currentTime - lastProcessTime < 2000) { // 2 segundos entre processamentos
+            if (currentTime - lastProcessTime < 1000) { 
                 frameSkipCount++
                 if (frameSkipCount % 10 == 0) {
                     android.util.Log.d("FaceDetectionOverlay", "⏭️ Pulando frame $frameSkipCount para evitar sobrecarga")
@@ -448,20 +444,16 @@ class FaceDetectionOverlay(
 
         override fun onDraw(canvas: Canvas) {
             predictions.forEach { prediction ->
-                // ✅ CORRIGIDO: Desenhar o quadrado de detecção
                 canvas.drawRoundRect(prediction.bbox, 16f, 16f, boxPaint)
                 
-                // ✅ CORRIGIDO: Posicionar o texto abaixo do quadrado
                 val textX = prediction.bbox.centerX()
-                val textY = prediction.bbox.bottom + 30f // ✅ NOVO: 30 pixels abaixo do quadrado
+                val textY = prediction.bbox.bottom + 30f 
                 
-                // ✅ NOVO: Centralizar o texto horizontalmente
                 val textWidth = textPaint.measureText(prediction.label)
                 val centeredX = textX - (textWidth / 2f)
                 
-                // ✅ NOVO: Desenhar fundo para o texto (opcional, para melhor legibilidade)
                 val textBackgroundPaint = Paint().apply {
-                    color = Color.argb(178, 0, 0, 0) // ✅ CORRIGIDO: Usar Color.argb em vez de copy
+                    color = Color.argb(178, 0, 0, 0) 
                     style = Paint.Style.FILL
                 }
                 val textPadding = 8f
@@ -473,7 +465,6 @@ class FaceDetectionOverlay(
                 )
                 canvas.drawRoundRect(textBackgroundRect, 8f, 8f, textBackgroundPaint)
                 
-                // ✅ CORRIGIDO: Desenhar o texto abaixo do quadrado
                 canvas.drawText(prediction.label, centeredX, textY, textPaint)
             }
         }

@@ -191,7 +191,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     }
     
     LaunchedEffect(Unit) {
-        delay(2000) 
+        delay(1000) 
         
         viewModel.checkAndClearDatabase()
         
@@ -200,7 +200,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     
     LaunchedEffect(isProcessingRecognition) {
         if (!isProcessingRecognition && !showSuccessScreen) {
-            delay(5000) // ✅ CORRIGIDO: Aumentado para 5 segundos para reduzir sobrecarga
+            delay(3000) // ✅ CORRIGIDO: Aumentado para 5 segundos para reduzir sobrecarga
             viewModel.processFaceRecognition()
         }
     }
