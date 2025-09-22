@@ -190,20 +190,17 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         }
     }
     
-    // LaunchedEffect para iniciar reconhecimento automaticamente
     LaunchedEffect(Unit) {
-        delay(2000) // Aumentado para 2 segundos para a câmera inicializar
+        delay(2000) 
         
-        // ✅ NOVO: Verificar banco de dados
         viewModel.checkAndClearDatabase()
         
         viewModel.processFaceRecognition()
     }
     
-    // ✅ CORRIGIDO: LaunchedEffect para reiniciar reconhecimento quando não está processando
     LaunchedEffect(isProcessingRecognition) {
         if (!isProcessingRecognition && !showSuccessScreen) {
-            delay(2000) // Aumentado para 2 segundos
+            delay(3000)
             viewModel.processFaceRecognition()
         }
     }
@@ -340,7 +337,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         if (faceDetectionOverlay != null) {
             while (isActive) { // ✅ CORRIGIDO: Usar isActive para verificar se o job ainda está ativo
                 try {
-                    delay(500) // Verificar a cada 500ms
+                    delay(1000) // ✅ CORRIGIDO: Aumentado para 1 segundo para reduzir sobrecarga
                     val recognizedPerson = faceDetectionOverlay?.getLastRecognizedPerson()
                     
                     // Log para debug

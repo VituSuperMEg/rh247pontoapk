@@ -49,13 +49,13 @@ class FaceDetectionOverlay(
     private var cameraFacing: Int = CameraSelector.LENS_FACING_BACK
     private lateinit var boundingBoxOverlay: BoundingBoxOverlay
     private lateinit var previewView: PreviewView
+    
+    private var lastProcessTime: Long = 0
 
     var predictions: Array<Prediction> = arrayOf()
     private var lastRecognizedPerson: String? = null
 
     init {
-        // ✅ CORRIGIDO: Não inicializar câmera automaticamente no init
-        // A câmera será inicializada quando necessário
         doOnLayout {
             overlayHeight = it.measuredHeight
             overlayWidth = it.measuredWidth
@@ -150,7 +150,8 @@ class FaceDetectionOverlay(
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                             .build()
-                    frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
+                    // ✅ CORRIGIDO: Usar executor com pool limitado para evitar sobrecarga
+                    frameAnalyzer.setAnalyzer(Executors.newFixedThreadPool(2), analyzer)
                     
                     // ✅ CORRIGIDO: Verificar se a câmera está disponível antes de fazer bind
                     val availableCameras = cameraProvider.availableCameraInfos
@@ -225,162 +226,185 @@ class FaceDetectionOverlay(
 
     private val analyzer =
         ImageAnalysis.Analyzer { image ->
+            // ✅ CORRIGIDO: Verificação mais rigorosa para evitar sobrecarga
             if (isProcessing) {
                 image.close()
                 return@Analyzer
             }
+            
+            // ✅ NOVO: Controle de taxa de processamento (máximo 1 frame por segundo)
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastProcessTime < 1000) { // 1 segundo entre processamentos
+                image.close()
+                return@Analyzer
+            }
+            lastProcessTime = currentTime
+            
             isProcessing = true
 
-            // Transform android.net.Image to Bitmap
-            frameBitmap =
-                Bitmap.createBitmap(
-                    image.image!!.width,
-                    image.image!!.height,
-                    Bitmap.Config.ARGB_8888,
-                )
-            frameBitmap.copyPixelsFromBuffer(image.planes[0].buffer)
-
-            // Configure frameHeight and frameWidth for output2overlay transformation matrix
-            // and apply it to `frameBitmap`
-            if (!isImageTransformedInitialized) {
-                imageTransform = Matrix()
-                imageTransform.apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
-                isImageTransformedInitialized = true
-            }
-            frameBitmap =
-                Bitmap.createBitmap(
-                    frameBitmap,
-                    0,
-                    0,
-                    frameBitmap.width,
-                    frameBitmap.height,
-                    imageTransform,
-                    false,
-                )
-
-            if (!isBoundingBoxTransformedInitialized) {
-                boundingBoxTransform = Matrix()
-                boundingBoxTransform.apply {
-                    setScale(
-                        overlayWidth / frameBitmap.width.toFloat(),
-                        overlayHeight / frameBitmap.height.toFloat(),
+            try {
+                // Transform android.net.Image to Bitmap
+                frameBitmap =
+                    Bitmap.createBitmap(
+                        image.image!!.width,
+                        image.image!!.height,
+                        Bitmap.Config.ARGB_8888,
                     )
-                    if (cameraFacing == CameraSelector.LENS_FACING_FRONT) {
-                        // Mirror the bounding box coordinates
-                        // for front-facing camera
-                        postScale(
-                            -1f,
-                            1f,
-                            overlayWidth.toFloat() / 2.0f,
-                            overlayHeight.toFloat() / 2.0f,
-                        )
-                    }
+                frameBitmap.copyPixelsFromBuffer(image.planes[0].buffer)
+
+                // Configure frameHeight and frameWidth for output2overlay transformation matrix
+                // and apply it to `frameBitmap`
+                if (!isImageTransformedInitialized) {
+                    imageTransform = Matrix()
+                    imageTransform.apply { postRotate(image.imageInfo.rotationDegrees.toFloat()) }
+                    isImageTransformedInitialized = true
                 }
-                isBoundingBoxTransformedInitialized = true
-            }
-            CoroutineScope(Dispatchers.Default).launch {
-                val predictions = ArrayList<Prediction>()
+                frameBitmap =
+                    Bitmap.createBitmap(
+                        frameBitmap,
+                        0,
+                        0,
+                        frameBitmap.width,
+                        frameBitmap.height,
+                        imageTransform,
+                        false,
+                    )
+
+                if (!isBoundingBoxTransformedInitialized) {
+                    boundingBoxTransform = Matrix()
+                    boundingBoxTransform.apply {
+                        setScale(
+                            overlayWidth / frameBitmap.width.toFloat(),
+                            overlayHeight / frameBitmap.height.toFloat(),
+                        )
+                        if (cameraFacing == CameraSelector.LENS_FACING_FRONT) {
+                            // Mirror the bounding box coordinates
+                            // for front-facing camera
+                            postScale(
+                                -1f,
+                                1f,
+                                overlayWidth.toFloat() / 2.0f,
+                                overlayHeight.toFloat() / 2.0f,
+                            )
+                        }
+                    }
+                    isBoundingBoxTransformedInitialized = true
+                }
                 
-                // ✅ NOVO: Log para verificar se há pessoas cadastradas
-                val totalPessoas = viewModel.getNumPeople()
-                android.util.Log.d("FaceDetectionOverlay", "📊 Total de pessoas no banco: $totalPessoas")
-                
-                // ✅ NOVO: Verificar se há pessoas antes de tentar reconhecer
-                if (totalPessoas == 0L) {
-                    android.util.Log.w("FaceDetectionOverlay", "⚠️ NENHUMA PESSOA CADASTRADA - pulando reconhecimento")
+                CoroutineScope(Dispatchers.Default).launch {
+                    val predictions = ArrayList<Prediction>()
+                    
+                    // ✅ NOVO: Log para verificar se há pessoas cadastradas
+                    val totalPessoas = viewModel.getNumPeople()
+                    android.util.Log.d("FaceDetectionOverlay", "📊 Total de pessoas no banco: $totalPessoas")
+                    
+                    // ✅ NOVO: Verificar se há pessoas antes de tentar reconhecer
+                    if (totalPessoas == 0L) {
+                        android.util.Log.w("FaceDetectionOverlay", "⚠️ NENHUMA PESSOA CADASTRADA - pulando reconhecimento")
+                        withContext(Dispatchers.Main) {
+                            this@FaceDetectionOverlay.predictions = emptyArray()
+                            boundingBoxOverlay.invalidate()
+                            isProcessing = false
+                        }
+                        return@launch
+                    }
+                    
+                    val (metrics, results) =
+                        viewModel.imageVectorUseCase.getNearestPersonName(
+                            frameBitmap,
+                        )
+                    
+                    // ✅ NOVO: Log dos resultados
+                    android.util.Log.d("FaceDetectionOverlay", "🔍 Resultados do reconhecimento: ${results.size}")
+                    results.forEachIndexed { index, result ->
+                        android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: ${result.personName}")
+                    }
+                    
+                    // ✅ CORRIGIDO: Capturar a pessoa reconhecida com verificação mais rigorosa
+                    val recognizedPerson = results.find { result ->
+                        val name = result.personName
+                        android.util.Log.d("FaceDetectionOverlay", "🔍 Verificando resultado: '$name' (tipo: ${name::class.java.simpleName})")
+                        
+                        val isValidName = name != "Not recognized" && 
+                                        name != "Não Encontrado" && 
+                                        name != "Error" &&
+                                        name.isNotEmpty() &&
+                                        name != "null" &&
+                                        name != "Nenhuma pessoa cadastrada" &&
+                                        name != "Pessoa não reconhecida"
+                        
+                        android.util.Log.d("FaceDetectionOverlay", "🔍 Resultado válido: $isValidName")
+                        isValidName
+                    }
+                    
+                    if (recognizedPerson != null) {
+                        val personName = recognizedPerson.personName
+                        lastRecognizedPerson = personName
+                        
+                        // ✅ CORRIGIDO: Chamar diretamente o ViewModel para atualizar o estado
+                        try {
+                            // viewModel.setLastRecognizedPersonName(personName)
+                            // android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: '$personName' - ViewModel atualizado")
+                        } catch (e: Exception) {
+                            android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao atualizar ViewModel: ${e.message}")
+                        }
+                    } else {
+                        lastRecognizedPerson = null
+                        
+                        // ✅ CORRIGIDO: Limpar o ViewModel
+                        try {
+                            viewModel.setLastRecognizedPersonName(null)
+                            android.util.Log.d("FaceDetectionOverlay", "🔄 ViewModel limpo (nenhuma pessoa reconhecida)")
+                        } catch (e: Exception) {
+                            android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao limpar ViewModel: ${e.message}")
+                        }
+                        
+                        // ✅ NOVO: Log detalhado para debug
+                        android.util.Log.d("FaceDetectionOverlay", "🔍 Debug - Resultados disponíveis:")
+                        results.forEachIndexed { index, result ->
+                            android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: '${result.personName}' (tipo: ${result.personName::class.java.simpleName})")
+                        }
+                    }
+                    
+                    results.forEach { (name, boundingBox, spoofResult) ->
+                        val box = boundingBox.toRectF()
+                        var personName = name
+                        
+                        // ✅ CORRIGIDO: Verificação mais rigorosa para exibição
+                        if (viewModel.getNumPeople().toInt() == 0) {
+                            personName = "Nenhuma pessoa cadastrada"
+                        } else if (name == "Not recognized" || name == "Não Encontrado") {
+                            personName = "Pessoa não reconhecida"
+                        } else if (name == "SPOOF_DETECTED") {
+                            // ✅ NOVO: Mensagem específica para spoofing detectado
+                            personName = "🚫 FOTO DETECTADA"
+                        }
+                        
+                        // ✅ REMOVIDO: Não mostrar mais o score de spoof na interface
+                        // (já está sendo tratado acima)
+                        
+                        boundingBoxTransform.mapRect(box)
+                        predictions.add(Prediction(box, personName))
+                    }
+                    
                     withContext(Dispatchers.Main) {
-                        this@FaceDetectionOverlay.predictions = emptyArray()
+                        viewModel.faceDetectionMetricsState.value = metrics
+                        this@FaceDetectionOverlay.predictions = predictions.toTypedArray()
                         boundingBoxOverlay.invalidate()
                         isProcessing = false
                     }
-                    return@launch
                 }
-                
-                val (metrics, results) =
-                    viewModel.imageVectorUseCase.getNearestPersonName(
-                        frameBitmap,
-                    )
-                
-                // ✅ NOVO: Log dos resultados
-                android.util.Log.d("FaceDetectionOverlay", "🔍 Resultados do reconhecimento: ${results.size}")
-                results.forEachIndexed { index, result ->
-                    android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: ${result.personName}")
-                }
-                
-                // ✅ CORRIGIDO: Capturar a pessoa reconhecida com verificação mais rigorosa
-                val recognizedPerson = results.find { result ->
-                    val name = result.personName
-                    android.util.Log.d("FaceDetectionOverlay", "🔍 Verificando resultado: '$name' (tipo: ${name::class.java.simpleName})")
-                    
-                    val isValidName = name != "Not recognized" && 
-                                    name != "Não Encontrado" && 
-                                    name != "Error" &&
-                                    name.isNotEmpty() &&
-                                    name != "null" &&
-                                    name != "Nenhuma pessoa cadastrada" &&
-                                    name != "Pessoa não reconhecida"
-                    
-                    android.util.Log.d("FaceDetectionOverlay", "🔍 Resultado válido: $isValidName")
-                    isValidName
-                }
-                
-                if (recognizedPerson != null) {
-                    val personName = recognizedPerson.personName
-                    lastRecognizedPerson = personName
-                    
-                    // ✅ CORRIGIDO: Chamar diretamente o ViewModel para atualizar o estado
-                    try {
-                        // viewModel.setLastRecognizedPersonName(personName)
-                        // android.util.Log.d("FaceDetectionOverlay", "✅ Pessoa reconhecida: '$personName' - ViewModel atualizado")
-                    } catch (e: Exception) {
-                        android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao atualizar ViewModel: ${e.message}")
-                    }
-                } else {
-                    lastRecognizedPerson = null
-                    
-                    // ✅ CORRIGIDO: Limpar o ViewModel
-                    try {
-                        viewModel.setLastRecognizedPersonName(null)
-                        android.util.Log.d("FaceDetectionOverlay", "🔄 ViewModel limpo (nenhuma pessoa reconhecida)")
-                    } catch (e: Exception) {
-                        android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao limpar ViewModel: ${e.message}")
-                    }
-                    
-                    // ✅ NOVO: Log detalhado para debug
-                    android.util.Log.d("FaceDetectionOverlay", "🔍 Debug - Resultados disponíveis:")
-                    results.forEachIndexed { index, result ->
-                        android.util.Log.d("FaceDetectionOverlay", "   Resultado $index: '${result.personName}' (tipo: ${result.personName::class.java.simpleName})")
+            } catch (e: Exception) {
+                android.util.Log.e("FaceDetectionOverlay", "❌ Erro no processamento: ${e.message}")
+                // ✅ CORRIGIDO: Usar runBlocking para chamar withContext fora da coroutine
+                kotlinx.coroutines.runBlocking {
+                    withContext(Dispatchers.Main) {
+                        isProcessing = false
                     }
                 }
-                
-                results.forEach { (name, boundingBox, spoofResult) ->
-                    val box = boundingBox.toRectF()
-                    var personName = name
-                    
-                    // ✅ CORRIGIDO: Verificação mais rigorosa para exibição
-                    if (viewModel.getNumPeople().toInt() == 0) {
-                        personName = "Nenhuma pessoa cadastrada"
-                    } else if (name == "Not recognized" || name == "Não Encontrado") {
-                        personName = "Pessoa não reconhecida"
-                    } else if (name == "SPOOF_DETECTED") {
-                        // ✅ NOVO: Mensagem específica para spoofing detectado
-                        personName = "🚫 FOTO DETECTADA"
-                    }
-                    
-                    // ✅ REMOVIDO: Não mostrar mais o score de spoof na interface
-                    // (já está sendo tratado acima)
-                    
-                    boundingBoxTransform.mapRect(box)
-                    predictions.add(Prediction(box, personName))
-                }
-                withContext(Dispatchers.Main) {
-                    viewModel.faceDetectionMetricsState.value = metrics
-                    this@FaceDetectionOverlay.predictions = predictions.toTypedArray()
-                    boundingBoxOverlay.invalidate()
-                    isProcessing = false
-                }
+            } finally {
+                image.close()
             }
-            image.close()
         }
 
     data class Prediction(
