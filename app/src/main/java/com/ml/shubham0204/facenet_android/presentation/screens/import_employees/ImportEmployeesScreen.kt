@@ -990,7 +990,7 @@ private fun FilterDialog(
                        Icon(
                            imageVector = Icons.Default.Search,
                            contentDescription = "Filtro de Entidade",
-                           tint = Color(0xFF2E7D32),
+                           tint = Color(0xFF264064),
                            modifier = Modifier.size(20.dp)
                        )
                        Spacer(modifier = Modifier.width(12.dp))
@@ -998,7 +998,7 @@ private fun FilterDialog(
                            text = if (selectedEntidade != null) "Alterar Entidade" else "Buscar por Entidade",
                            style = MaterialTheme.typography.bodyLarge,
                            fontWeight = FontWeight.Medium,
-                           color = Color(0xFF2E7D32)
+                           color = Color(0xFF264064)
                        )
                    }
                }
@@ -1275,7 +1275,7 @@ private fun FilterEntidade(
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = "Buscar Entidade",
-                    tint = Color(0xFF2E7D32),
+                    tint = Color(0xFF264064),
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -1283,7 +1283,7 @@ private fun FilterEntidade(
                     text = "Buscar por Entidade",
                     fontWeight = FontWeight.Bold,
                     style = MaterialTheme.typography.headlineSmall,
-                    color = Color(0xFF2E7D32)
+                    color = Color(0xFF264064)
                 )
             }
         },
@@ -1310,40 +1310,6 @@ private fun FilterEntidade(
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                // Mensagem de instrução
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFE8F5E8)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        Text(
-                            text = "💡 Instruções:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2E7D32)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "• Digite o código da entidade desejada",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF2E7D32)
-                        )
-                        Text(
-                            text = "• Clique em 'Buscar' para carregar funcionários",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF2E7D32)
-                        )
-                        Text(
-                            text = "• Os funcionários serão filtrados por esta entidade",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF2E7D32)
-                        )
-                    }
-                }
                 
                 if (error != null) {
                     Spacer(modifier = Modifier.height(8.dp))

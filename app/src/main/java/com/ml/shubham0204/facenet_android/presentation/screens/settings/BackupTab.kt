@@ -326,12 +326,23 @@ fun BackupTab() {
         scope.launch {
             isLoadingRestore = true
             try {
+                android.util.Log.d("BackupTab", "🚀 Iniciando restauração online...")
+                
                 val configuracoesDao = ConfiguracoesDao()
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 val appPreferences = AppPreferences(context)
                 
+                android.util.Log.d("BackupTab", "📋 Configurações obtidas: $configuracoes")
+                
                 if (configuracoes?.localizacaoId.isNullOrBlank()) {
+                    android.util.Log.e("BackupTab", "❌ Localização ID não configurada")
                     displayMessage("Localização ID não configurada. Configure nas configurações primeiro.")
+                    return@launch
+                }
+                
+                if (configuracoes?.entidadeId.isNullOrBlank()) {
+                    android.util.Log.e("BackupTab", "❌ Entidade ID não configurada")
+                    displayMessage("Entidade ID não configurada. Configure nas configurações primeiro.")
                     return@launch
                 }
                 
@@ -366,14 +377,29 @@ fun BackupTab() {
                         android.util.Log.d("BackupTab", "✅ Modal de lista de backups será exibido")
                     } else {
                         android.util.Log.d("BackupTab", "⚠️ Nenhum backup encontrado ou lista vazia")
-                        displayMessage("Nenhum backup encontrado na nuvem para esta localização.")
+                        displayMessage("Nenhum backup encontrado online para esta localização.")
                     }
                 } else {
                     android.util.Log.e("BackupTab", "❌ Erro na resposta: ${response.code()} - ${response.message()}")
                     displayMessage("Erro ao buscar backups online: ${response.message()}")
                 }
             } catch (e: Exception) {
-                displayMessage("Erro ao conectar com o servidor: ${e.message}")
+                android.util.Log.e("BackupTab", "❌ Exceção durante busca de backups: ${e.message}", e)
+                
+                when {
+                    e.message?.contains("timeout", ignoreCase = true) == true -> {
+                        displayMessage("Timeout na conexão. Verifique sua internet e tente novamente.")
+                    }
+                    e.message?.contains("network", ignoreCase = true) == true -> {
+                        displayMessage("Erro de rede. Verifique sua conexão com a internet.")
+                    }
+                    e.message?.contains("ssl", ignoreCase = true) == true -> {
+                        displayMessage("Erro de certificado SSL. Tente novamente.")
+                    }
+                    else -> {
+                        displayMessage("Erro ao conectar com o servidor: ${e.message}")
+                    }
+                }
             } finally {
                 isLoadingRestore = false
             }
@@ -384,24 +410,47 @@ fun BackupTab() {
         scope.launch {
             showRestoreProgress = true
             try {
+                android.util.Log.d("BackupTab", "🚀 Iniciando download e restauração do backup: ${onlineBackup.fileName}")
+                
                 val configuracoesDao = ConfiguracoesDao()
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 val appPreferences = AppPreferences(context)
                 
+                android.util.Log.d("BackupTab", "📋 Configurações obtidas para download: $configuracoes")
+                
                 if (configuracoes == null) {
+                    android.util.Log.e("BackupTab", "❌ Configurações não encontradas")
                     displayMessage("Configurações não encontradas.")
                     return@launch
                 }
                 
+                if (configuracoes.localizacaoId.isBlank()) {
+                    android.util.Log.e("BackupTab", "❌ Localização ID não configurada")
+                    displayMessage("Localização ID não configurada. Configure nas configurações primeiro.")
+                    return@launch
+                }
+                
+                if (configuracoes.entidadeId.isBlank()) {
+                    android.util.Log.e("BackupTab", "❌ Entidade ID não configurada")
+                    displayMessage("Entidade ID não configurada. Configure nas configurações primeiro.")
+                    return@launch
+                }
+                
                 val apiService = RetrofitClient.instance
+                android.util.Log.d("BackupTab", "📤 Fazendo download do arquivo: ${onlineBackup.fileName}")
+                android.util.Log.d("BackupTab", "📤 Entidade: ${configuracoes.entidadeId}, Localização: ${configuracoes.localizacaoId}")
+                
                 val response = apiService.downloadSpecificBackupFile(
                     configuracoes.entidadeId, 
                     configuracoes.localizacaoId, 
                     onlineBackup.fileName
                 )
                 
+                android.util.Log.d("BackupTab", "📥 Resposta do download: ${response.code()} - ${response.message()}")
+                
                 if (response.isSuccessful) {
                     val responseBody = response.body()
+                    android.util.Log.d("BackupTab", "📦 ResponseBody obtido: ${responseBody != null}")
                     if (responseBody != null) {
                         val tempFile = File(context.cacheDir, "temp_online_backup")
                         tempFile.outputStream().use { output ->
@@ -427,31 +476,53 @@ fun BackupTab() {
                         }
                         android.util.Log.d("BackupTab", "📄 Primeiros 200 caracteres: $firstChars")
                         
+                        android.util.Log.d("BackupTab", "🔄 Iniciando restauração do backup...")
                         val result = backupService.restoreBackup(tempFile.absolutePath)
+                        android.util.Log.d("BackupTab", "📋 Resultado da restauração: $result")
+                        
                         result.fold(
                             onSuccess = {
+                                android.util.Log.d("BackupTab", "✅ Backup restaurado com sucesso!")
                                 tempFile.delete()
                                 showRestoreProgress = false
                                 displayMessage("Backup restaurado com sucesso!")
                                 showRestartAlert = true
                             },
                             onFailure = { error ->
+                                android.util.Log.e("BackupTab", "❌ Erro ao restaurar backup: ${error.message}")
                                 tempFile.delete()
                                 showRestoreProgress = false
                                 displayMessage("Erro ao restaurar backup: ${error.message}")
                             }
                         )
                     } else {
+                        android.util.Log.e("BackupTab", "❌ ResponseBody é null")
                         showRestoreProgress = false
                         displayMessage("Erro ao baixar arquivo de backup")
                     }
                 } else {
+                    android.util.Log.e("BackupTab", "❌ Resposta não foi bem-sucedida: ${response.code()} - ${response.message()}")
                     showRestoreProgress = false
                     displayMessage("Erro ao baixar backup: ${response.message()}")
                 }
             } catch (e: Exception) {
+                android.util.Log.e("BackupTab", "❌ Exceção durante processamento: ${e.message}", e)
                 showRestoreProgress = false
-                displayMessage("Erro ao processar backup online: ${e.message}")
+                
+                when {
+                    e.message?.contains("timeout", ignoreCase = true) == true -> {
+                        displayMessage("Timeout na conexão. Verifique sua internet e tente novamente.")
+                    }
+                    e.message?.contains("network", ignoreCase = true) == true -> {
+                        displayMessage("Erro de rede. Verifique sua conexão com a internet.")
+                    }
+                    e.message?.contains("ssl", ignoreCase = true) == true -> {
+                        displayMessage("Erro de certificado SSL. Tente novamente.")
+                    }
+                    else -> {
+                        displayMessage("Erro ao processar backup online: ${e.message}")
+                    }
+                }
             }
         }
     }
@@ -656,7 +727,7 @@ fun BackupTab() {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Baixar backup da nuvem",
+                                text = "Baixar Online",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -768,7 +839,7 @@ fun BackupTab() {
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Faz upload do backup diretamente para a nuvem",
+                                text = "Faz upload online do backup",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -1034,7 +1105,7 @@ fun BackupTab() {
             },
             title = {
                 Text(
-                    text = "Backups Disponíveis na Nuvem",
+                    text = "Backups Disponíveis",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
                 )
