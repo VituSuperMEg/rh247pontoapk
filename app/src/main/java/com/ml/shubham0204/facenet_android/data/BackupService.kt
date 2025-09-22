@@ -254,8 +254,6 @@ class BackupService(private val context: Context) {
                         throw Exception("❌ Diretório ObjectBox não encontrado na extração")
                     }
                     
-                    clearAllData()
-
                     restoreFromObjectBoxDirectory(objectBoxSourceDir)
                     
 
@@ -283,8 +281,8 @@ class BackupService(private val context: Context) {
                         throw Exception("❌ Dados ObjectBox corrompidos durante o salvamento")
                     }
 
-                    clearAllData()
-
+                    // Não precisamos limpar dados antes de restaurar ObjectBox - 
+                    // a cópia dos arquivos substitui completamente o banco
                     // Para dados ObjectBox diretos, precisamos criar um diretório temporário
                     val tempObjectBoxDir = File(context.cacheDir, "temp_objectbox_dir")
                     if (tempObjectBoxDir.exists()) {
@@ -612,12 +610,8 @@ class BackupService(private val context: Context) {
                     }
                 }
 
-                // PRIMEIRO: Limpar todos os dados atuais
-                Log.d(TAG, "🗑️ Limpando TODOS os dados atuais antes da restauração...")
-                clearAllData()
-                Log.d(TAG, "✅ Dados atuais limpos")
-
-                // SEGUNDO: Restaurar arquivos ObjectBox
+                // PRIMEIRO: Restaurar arquivos ObjectBox (não precisamos limpar antes - 
+                // a cópia dos arquivos substitui completamente o banco)
                 Log.d(TAG, "📁 Diretório ObjectBox fonte encontrado: ${objectBoxSourceDir.absolutePath}")
                 Log.d(TAG, "🔄 Iniciando restauração do diretório ObjectBox...")
                 restoreFromObjectBoxDirectory(objectBoxSourceDir)
