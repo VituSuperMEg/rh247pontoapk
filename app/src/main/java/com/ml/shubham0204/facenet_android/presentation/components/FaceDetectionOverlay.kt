@@ -52,6 +52,7 @@ class FaceDetectionOverlay(
     
     private var lastProcessTime: Long = 0
     private var frameSkipCount: Int = 0
+    private var consecutiveErrors: Int = 0 // ✅ NOVO: Contador de erros consecutivos
 
     var predictions: Array<Prediction> = arrayOf()
     private var lastRecognizedPerson: String? = null
@@ -230,10 +231,19 @@ class FaceDetectionOverlay(
                 return@Analyzer
             }
             
+            // ✅ OTIMIZADO: Verificar se há muitos erros consecutivos
+            if (consecutiveErrors > 5) {
+                android.util.Log.w("FaceDetectionOverlay", "⚠️ Muitos erros consecutivos ($consecutiveErrors), pausando processamento...")
+                image.close()
+                return@Analyzer
+            }
+            
             val currentTime = System.currentTimeMillis()
-            if (currentTime - lastProcessTime < 1000) { 
+            // ✅ AJUSTADO: Intervalo otimizado para reconhecimento mais rápido
+            val processingInterval = if (consecutiveErrors > 2) 2000L else 1000L // 1-2 segundos
+            if (currentTime - lastProcessTime < processingInterval) { 
                 frameSkipCount++
-                if (frameSkipCount % 10 == 0) {
+                if (frameSkipCount % 15 == 0) { // ✅ OTIMIZADO: Log menos frequente
                     android.util.Log.d("FaceDetectionOverlay", "⏭️ Pulando frame $frameSkipCount para evitar sobrecarga")
                 }
                 image.close()
@@ -296,17 +306,18 @@ class FaceDetectionOverlay(
                 CoroutineScope(Dispatchers.Default).launch {
                     val predictions = ArrayList<Prediction>()
                     
-                    // ✅ NOVO: Log para verificar se há pessoas cadastradas
+                    // ✅ OTIMIZADO: Log para verificar se há pessoas cadastradas
                     val totalPessoas = viewModel.getNumPeople()
                     android.util.Log.d("FaceDetectionOverlay", "📊 Total de pessoas no banco: $totalPessoas")
                     
-                    // ✅ NOVO: Verificar se há pessoas antes de tentar reconhecer
+                    // ✅ OTIMIZADO: Verificar se há pessoas antes de tentar reconhecer
                     if (totalPessoas == 0L) {
                         android.util.Log.w("FaceDetectionOverlay", "⚠️ NENHUMA PESSOA CADASTRADA - pulando reconhecimento")
                         withContext(Dispatchers.Main) {
                             this@FaceDetectionOverlay.predictions = emptyArray()
                             boundingBoxOverlay.invalidate()
                             isProcessing = false
+                            consecutiveErrors = 0 // ✅ OTIMIZADO: Reset contador de erros
                         }
                         return@launch
                     }
@@ -394,10 +405,21 @@ class FaceDetectionOverlay(
                         this@FaceDetectionOverlay.predictions = predictions.toTypedArray()
                         boundingBoxOverlay.invalidate()
                         isProcessing = false
+                        consecutiveErrors = 0 // ✅ OTIMIZADO: Reset contador de erros em caso de sucesso
                     }
                 }
             } catch (e: Exception) {
-                android.util.Log.e("FaceDetectionOverlay", "❌ Erro no processamento: ${e.message}")
+                consecutiveErrors++ // ✅ OTIMIZADO: Incrementar contador de erros
+                android.util.Log.e("FaceDetectionOverlay", "❌ Erro no processamento (erro #$consecutiveErrors): ${e.message}")
+                
+                // ✅ AJUSTADO: Se muitos erros, pausar por menos tempo
+                if (consecutiveErrors > 3) {
+                    android.util.Log.w("FaceDetectionOverlay", "⚠️ Muitos erros ($consecutiveErrors), pausando processamento por 5 segundos...")
+                    kotlinx.coroutines.runBlocking {
+                        kotlinx.coroutines.delay(5000) // ✅ AJUSTADO: Pausar por 5 segundos (era 10)
+                    }
+                }
+                
                 // ✅ CORRIGIDO: Usar runBlocking para chamar withContext fora da coroutine
                 kotlinx.coroutines.runBlocking {
                     withContext(Dispatchers.Main) {

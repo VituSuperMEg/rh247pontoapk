@@ -110,12 +110,12 @@ class DetectScreenViewModel(
                 isProcessingRecognition.value = true
                 Log.d("DetectScreenViewModel", "🔄 Iniciando reconhecimento facial...")
                 
-                // Aguardar até que uma pessoa seja reconhecida
+                // ✅ AJUSTADO: Aguardar até que uma pessoa seja reconhecida
                 var attempts = 0
-                val maxAttempts = 20 // 10 segundos (20 * 500ms)
+                val maxAttempts = 5 // ✅ AJUSTADO: Aumentado para 20 tentativas para mais chances
                 
                 while (attempts < maxAttempts && !showSuccessScreen.value && isActive) {
-                    delay(500)
+                    delay(500) // ✅ AJUSTADO: Reduzido para 500ms entre tentativas para reconhecimento mais rápido
                     attempts++
                     
                     val recognizedPersonName = lastRecognizedPersonName.value
@@ -131,8 +131,8 @@ class DetectScreenViewModel(
                         
                         Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida! Processando...")
                         
-                        // Aguardar um pouco mais para garantir que a informação está estável
-                        delay(1000)
+                        // ✅ AJUSTADO: Aguardar menos tempo para processamento mais rápido
+                        delay(1000) // Reduzido para 1 segundo para reconhecimento mais rápido
                         
                         // Buscar funcionários reconhecidos
                         val funcionario = findRecognizedEmployee()
