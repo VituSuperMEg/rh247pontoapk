@@ -127,6 +127,33 @@ class AddFaceScreenViewModel(
         duplicateFaceInfo.value = null
         isProcessingImages.value = false
     }
+    
+    // ✅ NOVO: Função para sincronizar com o servidor
+    private fun syncWithServer(funcionarioId: Long) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                
+                val context = org.koin.core.context.GlobalContext.get().get<android.content.Context>()
+                val tabletDataSyncUtil = com.ml.shubham0204.facenet_android.utils.TabletDataSyncUtil(context)
+                
+                val syncResult = tabletDataSyncUtil.syncSingleFuncionario(funcionarioId)
+                
+                if (syncResult.success) {
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Sincronização concluída com sucesso!")
+                    android.util.Log.d("AddFaceScreenViewModel", "📊 Sucessos: ${syncResult.successCount}, Erros: ${syncResult.errorCount}")
+                } else {
+                    android.util.Log.e("AddFaceScreenViewModel", "❌ Erro na sincronização:")
+                    syncResult.errors.forEach { error ->
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ $error")
+                    }
+                }
+                
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao sincronizar: ${e.message}")
+                e.printStackTrace()
+            }
+        }
+    }
 
     fun saveFaces() {
         if (selectedImageURIs.value.isEmpty()) {
@@ -280,26 +307,27 @@ class AddFaceScreenViewModel(
                     val totalPessoas = personUseCase.getCount()
                     android.util.Log.d("AddFaceScreenViewModel", "📊 Total de pessoas no banco após salvar: $totalPessoas")
                     
-                    // ✅ NOVO: Salvar cada imagem
-                    selectedImageURIs.value.forEachIndexed { index, uri ->
-                        android.util.Log.d("AddFaceScreenViewModel", "📸 Processando foto ${index + 1}: $uri")
+                    // ✅ NOVO: Salvar todas as imagens de uma vez
+                    android.util.Log.d("AddFaceScreenViewModel", "📸 Salvando ${selectedImageURIs.value.size} imagens...")
+                    
+                    val result = imageVectorUseCase.addMultipleImages(
+                        personId, 
+                        personNameState.value, 
+                        selectedImageURIs.value
+                    )
+                    
+                    if (result.isSuccess) {
+                        numImagesProcessed.value = selectedImageURIs.value.size
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ Todas as imagens salvas com sucesso")
+                        setProgressDialogText("Todas as imagens processadas com sucesso")
                         
-                        try {
-                            imageVectorUseCase
-                                .addImage(personId, personNameState.value, uri)
-                                .onFailure { error ->
-                                    val errorMessage = (error as AppException).errorCode.message
-                                    android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: $errorMessage")
-                                    setProgressDialogText(errorMessage)
-                                }.onSuccess {
-                                    numImagesProcessed.value += 1
-                                    android.util.Log.d("AddFaceScreenViewModel", "✅ Foto ${index + 1} processada com sucesso")
-                                    setProgressDialogText("Processed ${numImagesProcessed.value} image(s)")
-                                }
-                        } catch (e: Exception) {
-                            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao processar foto ${index + 1}: ${e.message}")
-                            e.printStackTrace()
-                        }
+                        // ✅ NOVO: Sincronizar automaticamente com o servidor
+                        android.util.Log.d("AddFaceScreenViewModel", "🔄 Iniciando sincronização automática...")
+                        syncWithServer(funcionarioId)
+                        
+                    } else {
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao salvar imagens: ${result.exceptionOrNull()?.message}")
+                        setProgressDialogText("Erro ao processar imagens: ${result.exceptionOrNull()?.message}")
                     }
                     
                     android.util.Log.d("AddFaceScreenViewModel", "�� === PRIMEIRO CADASTRO CONCLUÍDO ===")

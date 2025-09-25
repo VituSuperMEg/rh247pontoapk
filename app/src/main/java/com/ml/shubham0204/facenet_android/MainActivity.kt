@@ -23,8 +23,12 @@ import com.ml.shubham0204.facenet_android.presentation.screens.settings.Settings
 import com.ml.shubham0204.facenet_android.presentation.screens.login.LoginScreen
 import com.ml.shubham0204.facenet_android.utils.ClearFacesUtil
 import com.ml.shubham0204.facenet_android.utils.ClearAdeiltonPointsUtil
+import com.ml.shubham0204.facenet_android.utils.TabletDataSyncUtil
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,6 +37,8 @@ class MainActivity : ComponentActivity() {
         
         // Atualizar entidade_id dos funcionários existentes automaticamente
         updateFuncionariosEntidadeId()
+        
+        // syncDataWithBackend()
 
         setContent {
             val navHostController = rememberNavController()
@@ -334,6 +340,37 @@ class MainActivity : ComponentActivity() {
             
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "❌ Erro na rotina de atualização de entidade_id: ${e.message}")
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Função para sincronizar dados dos funcionários e faces com o backend
+     * Esta função pode ser chamada quando necessário para enviar todos os dados
+     * dos funcionários e suas faces para o endpoint /services/util/adicionar-dados-do-tablet
+     */
+    fun syncDataWithBackend() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                android.util.Log.d("MainActivity", "🚀 Iniciando sincronização de dados com backend...")
+                
+                val syncUtil = TabletDataSyncUtil(this@MainActivity)
+                val result = syncUtil.syncAllDataWithBackend()
+                
+                if (result.success) {
+                    android.util.Log.d("MainActivity", "🎉 Sincronização concluída com sucesso!")
+                    android.util.Log.d("MainActivity", "   - Funcionários sincronizados: ${result.successCount}")
+                } else {
+                    android.util.Log.w("MainActivity", "⚠️ Sincronização concluída com erros:")
+                    android.util.Log.w("MainActivity", "   - Sucessos: ${result.successCount}")
+                    android.util.Log.w("MainActivity", "   - Erros: ${result.errorCount}")
+                    result.errors.forEach { error ->
+                        android.util.Log.e("MainActivity", "   - Erro: $error")
+                    }
+                }
+                
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "❌ Erro na sincronização: ${e.message}")
+            }
         }
     }
 }

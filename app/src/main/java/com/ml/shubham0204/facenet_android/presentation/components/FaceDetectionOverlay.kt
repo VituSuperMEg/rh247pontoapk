@@ -52,7 +52,7 @@ class FaceDetectionOverlay(
     
     private var lastProcessTime: Long = 0
     private var frameSkipCount: Int = 0
-    private var consecutiveErrors: Int = 0 // ✅ NOVO: Contador de erros consecutivos
+    private var consecutiveErrors: Int = 0 
 
     var predictions: Array<Prediction> = arrayOf()
     private var lastRecognizedPerson: String? = null
@@ -467,15 +467,15 @@ class FaceDetectionOverlay(
         override fun onDraw(canvas: Canvas) {
             predictions.forEach { prediction ->
                 canvas.drawRoundRect(prediction.bbox, 16f, 16f, boxPaint)
-                
+
                 val textX = prediction.bbox.centerX()
-                val textY = prediction.bbox.bottom + 30f 
-                
+                val textY = prediction.bbox.bottom + 30f
+
                 val textWidth = textPaint.measureText(prediction.label)
                 val centeredX = textX - (textWidth / 2f)
-                
+
                 val textBackgroundPaint = Paint().apply {
-                    color = Color.argb(178, 0, 0, 0) 
+                    color = Color.argb(178, 0, 0, 0)
                     style = Paint.Style.FILL
                 }
                 val textPadding = 8f
@@ -485,9 +485,10 @@ class FaceDetectionOverlay(
                     centeredX + textWidth + textPadding,
                     textY + textPadding
                 )
-                canvas.drawRoundRect(textBackgroundRect, 8f, 8f, textBackgroundPaint)
-                
-                canvas.drawText(prediction.label, centeredX, textY, textPaint)
+               canvas.drawRoundRect(textBackgroundRect, 8f, 8f, textBackgroundPaint)
+
+            //    canvas.drawText(prediction.label, centeredX, textY, textPaint)
+            canvas.drawText("Procurando...", centeredX, textY, textPaint)
             }
         }
     }

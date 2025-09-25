@@ -19,6 +19,8 @@ data class FaceImageRecord(
         dimensions = 512,
         distanceType = VectorDistanceType.COSINE,
     ) var faceEmbedding: FloatArray = floatArrayOf(),
+    // ✅ NOVO: Caminho da imagem original salva
+    var originalImagePath: String? = null,
 )
 
 @Entity

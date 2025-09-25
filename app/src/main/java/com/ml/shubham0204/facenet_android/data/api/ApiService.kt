@@ -64,6 +64,12 @@ interface ApiService {
         @Query("arquivo") arquivo: String
     ): Response<okhttp3.ResponseBody>
 
+    @POST("/{entidade}/services/util/adicionar-dados-do-tablet")
+    suspend fun adicionarDadosDoTablet(
+        @Path("entidade") entidade: String,
+        @Body request: TabletDataRequest
+    ): Response<TabletDataResponse>
+
 }
 
 data class OrgaoResponse (
@@ -106,4 +112,19 @@ data class BackupListRequest(
 
 data class BackupListResponse(
     val arquivo: List<String>
+)
+
+// ✅ NOVO: Modelos para sincronização de dados do tablet
+data class TabletDataRequest(
+    val numero_cpf: String,
+    val face: String, // Embedding da face como string
+    val image_1: String, // Base64 da primeira imagem
+    val image_2: String, // Base64 da segunda imagem
+    val image_3: String  // Base64 da terceira imagem
+)
+
+data class TabletDataResponse(
+    val success: Boolean? = null,
+    val message: String? = null,
+    val data: Any? = null
 ) 

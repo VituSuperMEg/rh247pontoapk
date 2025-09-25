@@ -51,4 +51,9 @@ class PersonDB {
         
         return result
     }
+    
+    // ✅ NOVO: Função para obter todas as pessoas ordenadas por tempo de cadastro
+    fun getAllPersonsSortedByTime(): List<PersonRecord> {
+        return personBox.all.sortedBy { it.addTime }
+    }
 }

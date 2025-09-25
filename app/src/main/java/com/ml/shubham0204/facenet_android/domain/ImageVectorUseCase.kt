@@ -40,26 +40,66 @@ class ImageVectorUseCase(
             // Get the embedding for the cropped face, and store it
             // in the database, along with `personId` and `personName`
             val embedding = faceNet.getFaceEmbedding(faceDetectionResult.getOrNull()!!)
+            
+            // ✅ NOVO: Salvar o caminho da imagem original
+            val originalImagePath = imageUri.path
+            
             imagesVectorDB.addFaceImageRecord(
                 FaceImageRecord(
                     personID = personID,
                     personName = personName,
                     faceEmbedding = embedding,
+                    originalImagePath = originalImagePath, // ✅ NOVO: Salvar caminho da imagem
                 ),
             )
+            
+            android.util.Log.d("ImageVectorUseCase", "✅ Imagem salva: $originalImagePath")
             return Result.success(true)
         } else {
             return Result.failure(faceDetectionResult.exceptionOrNull()!!)
         }
     }
+    
+    // ✅ NOVO: Função para adicionar múltiplas imagens de uma vez
+    suspend fun addMultipleImages(
+        personID: Long,
+        personName: String,
+        imageUris: List<Uri>,
+    ): Result<Boolean> {
+        try {
+            android.util.Log.d("ImageVectorUseCase", "📸 Adicionando ${imageUris.size} imagens para $personName")
+            
+            var successCount = 0
+            for ((index, imageUri) in imageUris.withIndex()) {
+                android.util.Log.d("ImageVectorUseCase", "📸 Processando imagem ${index + 1}/${imageUris.size}: $imageUri")
+                
+                val result = addImage(personID, personName, imageUri)
+                if (result.isSuccess) {
+                    successCount++
+                    android.util.Log.d("ImageVectorUseCase", "✅ Imagem ${index + 1} adicionada com sucesso")
+                } else {
+                    android.util.Log.e("ImageVectorUseCase", "❌ Erro ao adicionar imagem ${index + 1}: ${result.exceptionOrNull()?.message}")
+                }
+            }
+            
+            android.util.Log.d("ImageVectorUseCase", "📊 Resultado: $successCount/${imageUris.size} imagens adicionadas")
+            
+            return if (successCount == imageUris.size) {
+                Result.success(true)
+            } else {
+                Result.failure(Exception("Apenas $successCount de ${imageUris.size} imagens foram adicionadas"))
+            }
+            
+        } catch (e: Exception) {
+            android.util.Log.e("ImageVectorUseCase", "❌ Erro ao adicionar múltiplas imagens: ${e.message}")
+            return Result.failure(e)
+        }
+    }
 
-    // ✅ CORRIGIDO: From the given frame, return the name of the person by performing
-    // face recognition com melhor tratamento de erro
     suspend fun getNearestPersonName(frameBitmap: Bitmap): Pair<RecognitionMetrics?, List<FaceRecognitionResult>> {
         return try {
             android.util.Log.d("ImageVectorUseCase", "🔍 Iniciando reconhecimento facial...")
             
-            // Perform face-detection and get the cropped face as a Bitmap
             val (faceDetectionResult, t1) = try {
                 measureTimedValue { mediapipeFaceDetector.getAllCroppedFaces(frameBitmap) }
             } catch (e: Exception) {
@@ -77,8 +117,6 @@ class ImageVectorUseCase(
             for ((index, result) in faceDetectionResult.withIndex()) {
                 try {
 
-                    
-                    // Get the embedding for the cropped face (query embedding)
                     val (croppedBitmap, boundingBox) = result
                     
                     val (embedding, t2) = try {
@@ -92,7 +130,6 @@ class ImageVectorUseCase(
                     avgT2 += t2.toLong(DurationUnit.MILLISECONDS)
                     android.util.Log.d("ImageVectorUseCase", "✅ Embedding gerado para face $index")
                     
-                    // Perform nearest-neighbor search
                     val (recognitionResult, t3) = try {
                         measureTimedValue { imagesVectorDB.getNearestEmbeddingPersonName(embedding) }
                     } catch (e: Exception) {
@@ -125,15 +162,13 @@ class ImageVectorUseCase(
                         avgT4 += spoofResult.timeMillis
                     }
 
-                    // Calculate cosine similarity between the nearest-neighbor
-                    // and the query embedding
                     val distance = try {
                         cosineDistance(embedding, recognitionResult.faceEmbedding)
                     } catch (e: Exception) {
                         0.0f
                     }
 
-                    if (distance > 0.73) {
+                    if (distance > 0.74) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
@@ -210,7 +245,7 @@ class ImageVectorUseCase(
     suspend fun checkIfFaceAlreadyExists(
         imageUri: Uri,
         currentPersonID: Long? = null, // ID da pessoa atual (para permitir atualização da própria face)
-        similarityThreshold: Float = 0.73f // Limiar de similaridade (mais restritivo que reconhecimento)
+        similarityThreshold: Float = 0.74f // Limiar de similaridade (mais restritivo que reconhecimento)
     ): Result<FaceAlreadyExistsResult> {
         return try {
 

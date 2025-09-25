@@ -23,7 +23,6 @@ data class PontoSyncResponse(
     val pontosSincronizados: Int
 )
 
-// Classe mais flexível para lidar com JSON malformado
 data class PontoSyncFlexibleResponse(
     val success: Boolean = false,
     val message: String = "",
