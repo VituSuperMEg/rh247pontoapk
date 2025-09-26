@@ -83,7 +83,6 @@ import java.io.File
 import kotlinx.coroutines.isActive
 
 
-// Variáveis globais para câmera
 private val cameraPermissionStatus = mutableStateOf(false)
 private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT) // Câmera frontal por padrão
 private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
@@ -96,8 +95,8 @@ fun AddFaceScreen(
     funcionarioCargo: String = "",
     funcionarioOrgao: String = "",
     funcionarioLotacao: String = "",
-    funcionarioId: Long = 0, // ✅ NOVO: Adicionar funcionarioId
-    funcionarioEntidadeId: String = "", // ✅ NOVO: ID da entidade
+    funcionarioId: Long = 0,
+    funcionarioEntidadeId: String = "",
     onNavigateBack: (() -> Unit) = {},
 ) {
     FaceNetAndroidTheme {
@@ -141,7 +140,6 @@ private fun ScreenUI(
 ) {
     val context = LocalContext.current
     
-    // ✅ NOVO: Logs para verificar os dados recebidos
     LaunchedEffect(Unit) {
         android.util.Log.d("AddFaceScreen", "📋 === DADOS RECEBIDOS NA TELA ===")
         android.util.Log.d("AddFaceScreen", "📋 Nome: '$personName'")
@@ -151,7 +149,6 @@ private fun ScreenUI(
         android.util.Log.d("AddFaceScreen", "📋 Lotação: '$funcionarioLotacao'")
         android.util.Log.d("AddFaceScreen", "📋 ID da Entidade: '$funcionarioEntidadeId'")
         
-        // ✅ NOVO: Verificar se os campos estão vazios
         android.util.Log.d("AddFaceScreen", "📋 === VERIFICAÇÃO DE CAMPOS VAZIOS ===")
         android.util.Log.d("AddFaceScreen", "📋 CPF vazio: ${funcionarioCpf.isEmpty()}")
         android.util.Log.d("AddFaceScreen", "📋 Cargo vazio: ${funcionarioCargo.isEmpty()}")
@@ -167,11 +164,9 @@ private fun ScreenUI(
         }
     }
     
-    // Estado para controlar se está na tela de captura
     var isInCaptureMode by remember { mutableStateOf(false) }
     var showSuccessScreen by remember { mutableStateOf(false) }
     
-    // ✅ NOVO: Estado para status do funcionário
     var isActive by remember { mutableStateOf(true) }
     
     LaunchedEffect(funcionarioId) {
@@ -180,7 +175,6 @@ private fun ScreenUI(
             viewModel.funcionarioId = funcionarioId
             android.util.Log.d("AddFaceScreen", "✅ funcionarioId definido no ViewModel: ${viewModel.funcionarioId}")
             
-            // ✅ NOVO: Buscar o status atual do funcionário
             try {
                 val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
                 isActive = funcionariosDao.isFuncionarioActive(funcionarioId)
@@ -194,14 +188,12 @@ private fun ScreenUI(
     }
     
     if (showSuccessScreen) {
-        // ✅ DEBUG: Log das fotos capturadas
         android.util.Log.d("AddFaceScreen", "📸 === TELA DE SUCESSO ===")
         android.util.Log.d("AddFaceScreen", "📸 Total de fotos: ${viewModel.selectedImageURIs.value.size}")
         viewModel.selectedImageURIs.value.forEachIndexed { index, uri ->
             android.util.Log.d("AddFaceScreen", "📸 Foto $index: $uri")
         }
         
-        // Tela de sucesso
         SuccessScreen(
             personName = personNameState,
             funcionarioCpf = funcionarioCpf,
@@ -214,7 +206,6 @@ private fun ScreenUI(
             onBackToEmployees = onNavigateBack
         )
     } else if (isInCaptureMode) {
-        // Tela de captura de fotos
         CapturePhotosScreen(
             personName = personNameState,
             funcionarioCpf = funcionarioCpf,
@@ -226,14 +217,12 @@ private fun ScreenUI(
             onSuccess = { showSuccessScreen = true }
         )
     } else {
-        // Tela de formulário
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp, vertical = 50.dp),
         ) {
             item {
-                // ✅ NOVO: Título da seção
                 Text(
                     text = "Dados do Funcionário",
                     style = MaterialTheme.typography.headlineMedium,
@@ -243,7 +232,6 @@ private fun ScreenUI(
                 
                 Spacer(modifier = Modifier.height(24.dp))
                 
-                // ✅ NOVO: Card com dados do funcionário
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -256,9 +244,7 @@ private fun ScreenUI(
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        // ✅ REMOVIDO: Texto "Dados do Funcionário" duplicado
-                        
-                        // Campo Nome (editável)
+
                         TextField(
                             modifier = Modifier.fillMaxWidth(),
                             value = personNameState,
@@ -271,7 +257,6 @@ private fun ScreenUI(
 
 
 
-                // Campo CPF (somente leitura)
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = if (funcionarioCpf.isNotEmpty()) formatCPF(funcionarioCpf) else "Não informado",
@@ -287,7 +272,6 @@ private fun ScreenUI(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Campo Cargo (somente leitura)
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = if (funcionarioCargo.isNotEmpty()) funcionarioCargo else "Não informado",
@@ -303,7 +287,6 @@ private fun ScreenUI(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Campo Órgão (somente leitura)
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = if (funcionarioOrgao.isNotEmpty()) funcionarioOrgao else "Não informado",
@@ -319,7 +302,6 @@ private fun ScreenUI(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Campo Lotação (somente leitura)
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
@@ -335,12 +317,11 @@ private fun ScreenUI(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Campo ID da Entidade (somente leitura)
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
                     value = if (funcionarioEntidadeId.isNotEmpty()) funcionarioEntidadeId else "Não configurado",
                     onValueChange = { },
-                    label = { Text(text = "ID da Entidade") },
+                    label = { Text(text = "Código da Entidade") },
                     singleLine = true,
                     enabled = false,
                     colors = androidx.compose.material3.TextFieldDefaults.colors(
@@ -552,22 +533,44 @@ private fun ScreenUI(
                 
                 Spacer(modifier = Modifier.height(16.dp))
             }
+
             
-            // ✅ NOVO: Botão para excluir usuário (apenas se há um funcionário válido)
+            
             if (funcionarioId > 0) {
                 item {
-                    android.util.Log.d("AddFaceScreen", "🔘 Renderizando botão de exclusão - funcionarioId: $funcionarioId")
                     Button(
                         onClick = { 
-                            android.util.Log.d("AddFaceScreen", "🔘 Botão de exclusão clicado!")
-                            viewModel.showDeleteConfirmationDialog() 
+                            viewModel.sincronizarFaceComServidor() 
                         },
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.Transparent // garante que não tenha fundo
+                            containerColor = Color.Transparent 
                         ),
                         border = BorderStroke(1.dp, Color(0xFF264064)),
                         modifier = Modifier.fillMaxWidth().height(50.dp),
                         enabled = !viewModel.isDeletingUser.value,
+                    ) {
+                        
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Sincronizar Facial",
+                                color = Color(0xFF264064)
+                            )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+                item {
+
+                    Button(
+                        enabled = !viewModel.isDeletingUser.value,
+                        onClick = { 
+                            viewModel.showDeleteConfirmationDialog() 
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF264064)
+                        ),
+                        modifier = Modifier.fillMaxWidth().height(50.dp)
                     ) {
                         if (viewModel.isDeletingUser.value) {
                             CircularProgressIndicator(
@@ -584,25 +587,46 @@ private fun ScreenUI(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Excluir Facial",
-                                color = Color(0xFF264064)
+                                color = Color.White
                             )
                         }
                     }
+                    
+
+                    // Button(
+                    //     onClick = { 
+                    //         viewModel.showDeleteConfirmationDialog() 
+                    //     },
+                    //     colors = ButtonDefaults.outlinedButtonColors(
+                    //         containerColor = Color.Transparent 
+                    //     ),
+                    //     border = BorderStroke(1.dp, Color(0xFF264064)),
+                    //     modifier = Modifier.fillMaxWidth().height(50.dp),
+                    //     enabled = !viewModel.isDeletingUser.value,
+                    // ) {
+                        
+                    // }
                 }
                 
-                // ✅ NOVO: Botão Voltar
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Button(
                         onClick = onNavigateBack,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent 
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF264064)),
                         modifier = Modifier.fillMaxWidth().height(50.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF264064)
-                        )
+                        enabled = !viewModel.isDeletingUser.value,
                     ) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Voltar")
+                        
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Voltar",
+                                color = Color(0xFF264064)
+                            )
+                        
                     }
                 }
             }

@@ -27,7 +27,7 @@ import kotlin.math.sqrt
 @Single
 class FaceNet(
     context: Context,
-    useGpu: Boolean = false, // ✅ CORRIGIDO: Desabilitar GPU por padrão para evitar problemas
+    useGpu: Boolean = false,
     useXNNPack: Boolean = true,
 ) {
     // Input image size for FaceNet model.
@@ -45,43 +45,31 @@ class FaceNet(
             .build()
 
     init {
-        // ✅ CORRIGIDO: Inicialização mais robusta do TensorFlow Lite
         val interpreterOptions = try {
             Interpreter.Options().apply {
-                // ✅ CORRIGIDO: Configuração mais segura
                 if (useGpu) {
                     try {
                         val compatibilityList = CompatibilityList()
                         if (compatibilityList.isDelegateSupportedOnThisDevice) {
-                            android.util.Log.d("FaceNet", "📱 GPU delegate suportado, configurando...")
                             val gpuDelegate = GpuDelegate(compatibilityList.bestOptionsForThisDevice)
                             addDelegate(gpuDelegate)
-                            android.util.Log.d("FaceNet", "✅ GPU delegate configurado com sucesso")
                         } else {
-                            android.util.Log.w("FaceNet", "⚠️ GPU delegate não suportado neste dispositivo")
-                            // Fallback para CPU
                             numThreads = 4
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("FaceNet", "❌ Erro ao configurar GPU delegate: ${e.message}")
-                        // Fallback para CPU em caso de erro
                         numThreads = 4
                     }
                 } else {
-                    // ✅ CORRIGIDO: Configuração otimizada para CPU
                     numThreads = 4
-                    android.util.Log.d("FaceNet", "📱 Usando CPU com $numThreads threads")
                 }
                 
-                // ✅ CORRIGIDO: Configurações mais seguras
-                useXNNPACK = useXNNPack && !useGpu // XNNPACK pode conflitar com GPU
-                useNNAPI = false // ✅ CORRIGIDO: Desabilitar NNAPI para evitar conflitos
+                useXNNPACK = useXNNPack && !useGpu
+                useNNAPI = false
                 
                 android.util.Log.d("FaceNet", "📱 Configurações: GPU=$useGpu, XNNPACK=$useXNNPack, NNAPI=$useNNAPI")
             }
         } catch (e: Exception) {
             android.util.Log.e("FaceNet", "❌ Erro ao criar opções do interpreter: ${e.message}")
-            // Configuração de emergência
             Interpreter.Options().apply {
                 numThreads = 1
                 useXNNPACK = false
@@ -101,7 +89,6 @@ class FaceNet(
         }
     }
 
-    // ✅ CORRIGIDO: Gets an face embedding using FaceNet com melhor tratamento de erro
     suspend fun getFaceEmbedding(image: Bitmap): FloatArray {
         return try {
             withContext(Dispatchers.Default) {
@@ -116,7 +103,6 @@ class FaceNet(
         }
     }
 
-    // ✅ CORRIGIDO: Run the FaceNet model com melhor tratamento de erro
     private fun runFaceNet(inputs: Any): Array<FloatArray> {
         return try {
             val faceNetModelOutputs = Array(1) { FloatArray(embeddingDim) }
@@ -133,7 +119,6 @@ class FaceNet(
         }
     }
 
-    // ✅ CORRIGIDO: Resize the given bitmap and convert it to a ByteBuffer
     private fun convertBitmapToBuffer(image: Bitmap): ByteBuffer {
         return try {
             android.util.Log.d("FaceNet", "🔄 Convertendo bitmap para buffer...")
@@ -148,7 +133,6 @@ class FaceNet(
         }
     }
 
-    // ✅ CORRIGIDO: Op to perform standardization com melhor tratamento de erro
     class StandardizeOp : TensorOperator {
         override fun apply(p0: TensorBuffer?): TensorBuffer {
             return try {

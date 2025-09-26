@@ -6,6 +6,11 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
+import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
+import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
+import com.ml.shubham0204.facenet_android.data.api.ApiService
+import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
+import com.ml.shubham0204.facenet_android.data.config.ServerConfig
 import com.ml.shubham0204.facenet_android.domain.AppException
 import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import com.ml.shubham0204.facenet_android.domain.PersonUseCase
@@ -14,14 +19,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import org.koin.android.annotation.KoinViewModel
+import org.koin.core.component.KoinComponent
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 @KoinViewModel
 class AddFaceScreenViewModel(
     private val personUseCase: PersonUseCase,
     private val imageVectorUseCase: ImageVectorUseCase,
-) : ViewModel() {
+) : ViewModel(), KoinComponent {
     val personNameState: MutableState<String> = mutableStateOf("")
     val selectedImageURIs: MutableState<List<Uri>> = mutableStateOf(emptyList())
 
@@ -29,23 +39,33 @@ class AddFaceScreenViewModel(
     val numImagesProcessed: MutableState<Int> = mutableIntStateOf(0)
     val showSuccessScreen: MutableState<Boolean> = mutableStateOf(false)
     
-    // ✅ NOVO: Estados para controle da exclusão
     val isDeletingUser: MutableState<Boolean> = mutableStateOf(false)
     val showDeleteConfirmation: MutableState<Boolean> = mutableStateOf(false)
     
-    // ✅ NOVO: Estados para validação de face duplicada
     val showDuplicateFaceDialog: MutableState<Boolean> = mutableStateOf(false)
     val duplicateFaceInfo: MutableState<DuplicateFaceInfo?> = mutableStateOf(null)
-    
-    // ✅ NOVO: Adicionar funcionarioId para conectar com o banco de funcionários
+
+    private val funcionariosList: MutableState<List<FuncionariosEntity>> = mutableStateOf(emptyList())
+    private val configuracoesDao = ConfiguracoesDao()
+    private val apiService = RetrofitClient.instance
+
     var funcionarioId: Long = 0
     
-    // ✅ NOVO: Função para atualizar status da detecção
+    private fun getEntidadeId(): String? {
+        return try {
+            val configuracoes = configuracoesDao.getConfiguracoes()
+            val entidadeId = configuracoes?.entidadeId ?: ""
+            if (entidadeId.isNullOrEmpty()) null else entidadeId
+        } catch (e: Exception) {
+            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao obter entidade ID", e)
+            null
+        }
+    }
+    
     fun setFaceDetectionStatus(status: String) {
         android.util.Log.d("AddFaceScreenViewModel", "📱 Status: $status")
     }
     
-    // ✅ NOVO: Função para adicionar URI de imagem
     fun addSelectedImageURI(uri: Uri) {
         val currentList = selectedImageURIs.value.toMutableList()
         currentList.add(uri)
@@ -54,19 +74,15 @@ class AddFaceScreenViewModel(
         android.util.Log.d("AddFaceScreenViewModel", "📊 Total de URIs: ${selectedImageURIs.value.size}")
     }
     
-    // ✅ NOVO: Função para limpar URIs selecionadas
     fun clearSelectedImageURIs() {
         selectedImageURIs.value = emptyList()
         android.util.Log.d("AddFaceScreenViewModel", "🗑️ URIs limpas")
     }
     
-    // ✅ NOVO: Função para atualizar nome da pessoa
     fun updatePersonName(name: String) {
         personNameState.value = name
-        android.util.Log.d("AddFaceScreenViewModel", "📝 Nome atualizado: $name")
     }
     
-    // ✅ NOVO: Função para verificar se pode gerenciar facial
     suspend fun canManageFacial(): Boolean {
         if (funcionarioId <= 0) {
             android.util.Log.w("AddFaceScreenViewModel", "⚠️ FuncionarioId inválido: $funcionarioId")
@@ -75,22 +91,14 @@ class AddFaceScreenViewModel(
         return personUseCase.canManageFacial(funcionarioId)
     }
     
-    // ✅ NOVO: Função para verificar se uma face já existe no sistema
     suspend fun validateFaceNotDuplicate(imageUri: Uri, currentPersonID: Long? = null): Boolean {
         return try {
-            android.util.Log.d("AddFaceScreenViewModel", "🔍 Validando se face já existe no sistema...")
-            
             val result = imageVectorUseCase.checkIfFaceAlreadyExists(imageUri, currentPersonID)
             
             if (result.isSuccess) {
                 val faceCheckResult = result.getOrNull()!!
                 
                 if (faceCheckResult.exists) {
-                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Face já existe no sistema!")
-                    android.util.Log.w("AddFaceScreenViewModel", "   - Pessoa existente: ${faceCheckResult.existingFace?.personName}")
-                    android.util.Log.w("AddFaceScreenViewModel", "   - Similaridade: ${faceCheckResult.similarity}")
-                    
-                    // Mostrar diálogo de face duplicada
                     duplicateFaceInfo.value = DuplicateFaceInfo(
                         existingPersonName = faceCheckResult.existingFace?.personName ?: "Desconhecido",
                         similarity = faceCheckResult.similarity
@@ -99,40 +107,33 @@ class AddFaceScreenViewModel(
                     
                     return false
                 } else {
-                    android.util.Log.d("AddFaceScreenViewModel", "✅ Face é única - pode cadastrar")
                     return true
                 }
             } else {
-                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao verificar face duplicada: ${result.exceptionOrNull()?.message}")
-                return true // Em caso de erro, permitir cadastro
+                return true
             }
         } catch (e: Exception) {
-            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro na validação de face duplicada: ${e.message}")
             e.printStackTrace()
-            return true // Em caso de erro, permitir cadastro
+            return true
         }
     }
     
-    // ✅ NOVO: Função para confirmar cadastro mesmo com face duplicada
     fun confirmDuplicateFaceRegistration() {
         showDuplicateFaceDialog.value = false
         duplicateFaceInfo.value = null
-        // Continuar com o cadastro
         saveFacesInternal()
     }
     
-    // ✅ NOVO: Função para cancelar cadastro por face duplicada
     fun cancelDuplicateFaceRegistration() {
         showDuplicateFaceDialog.value = false
         duplicateFaceInfo.value = null
         isProcessingImages.value = false
     }
     
-    // ✅ NOVO: Função para sincronizar com o servidor
     private fun syncWithServer(funcionarioId: Long) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                
+                // Vai pegar as fotos, o embedding da face e sincronizar com o servidor
                 val context = org.koin.core.context.GlobalContext.get().get<android.content.Context>()
                 val tabletDataSyncUtil = com.ml.shubham0204.facenet_android.utils.TabletDataSyncUtil(context)
                 
@@ -171,7 +172,6 @@ class AddFaceScreenViewModel(
 
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                // ✅ NOVO: Verificar se funcionário está ativo antes de permitir operações de facial
                 if (!canManageFacial()) {
                     android.util.Log.w("AddFaceScreenViewModel", "⚠️ Funcionário inativo - operação de facial não permitida")
                     setProgressDialogText("Funcionário inativo - operação não permitida")
@@ -180,7 +180,6 @@ class AddFaceScreenViewModel(
                     return@launch
                 }
                 
-                // ✅ NOVO: Validar se as faces não são duplicadas
                 android.util.Log.d("AddFaceScreenViewModel", "🔍 Validando faces para duplicação...")
                 
                 val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
@@ -365,7 +364,6 @@ class AddFaceScreenViewModel(
         android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteConfirmation.value = ${showDeleteConfirmation.value}")
     }
     
-    // ✅ NOVO: Função para confirmar exclusão
     fun confirmDeleteUser() {
         showDeleteConfirmation.value = false
         isDeletingUser.value = true
@@ -385,7 +383,6 @@ class AddFaceScreenViewModel(
                     
                     android.util.Log.d("AddFaceScreenViewModel", "✅ Usuário excluído com sucesso!")
                     
-                    // Limpar URIs
                     clearSelectedImageURIs()
                     
                     showSuccessScreen.value = true
@@ -401,14 +398,88 @@ class AddFaceScreenViewModel(
             }
         }
     }
-    
-    // ✅ NOVO: Função para cancelar exclusão
+
+    fun sincronizarFaceComServidor() {
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                val funcionario = funcionariosDao.getById(funcionarioId)
+                
+                if (funcionario != null) {
+                    val cpf = funcionario.cpf
+                    val entidadeId = getEntidadeId()
+
+                    if (entidadeId != null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "🔄 Iniciando sincronização com servidor...")
+                        android.util.Log.d("AddFaceScreenViewModel", "🌐 URL: https://api.rh247.com.br/$entidadeId/ponto/funcionarios/foto-tablet")
+                        android.util.Log.d("AddFaceScreenViewModel", "👤 CPF: $cpf")
+                        
+                        val response = apiService.obterFaceOnline(
+                            entidade = entidadeId,
+                            numero_cpf = cpf
+                        )
+                        
+                        if (response.isSuccessful) {
+                            val faceDataList = response.body()
+                            if (faceDataList != null && faceDataList.isNotEmpty()) {
+                                val faceData = faceDataList.first() // Pega o primeiro item da lista
+                                android.util.Log.d("AddFaceScreenViewModel", "✅ Sincronização bem-sucedida!")
+                                android.util.Log.d("AddFaceScreenViewModel", "📊 Face ID: ${faceData.id}")
+                                android.util.Log.d("AddFaceScreenViewModel", "👤 Funcionário ID: ${faceData.funcionario_id}")
+                                android.util.Log.d("AddFaceScreenViewModel", "🖼️ Imagem 1: ${faceData.imagem_1}")
+                                android.util.Log.d("AddFaceScreenViewModel", "🖼️ Imagem 2: ${faceData.imagem_2}")
+                                android.util.Log.d("AddFaceScreenViewModel", "🖼️ Imagem 3: ${faceData.imagem_3}")
+                                android.util.Log.d("AddFaceScreenViewModel", "🧠 Embedding: ${faceData.embedding.take(50)}...")
+                                
+
+                            } else {
+                                android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma face encontrada no servidor para este CPF")
+                            }
+                        } else {
+                            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Erro HTTP: ${response.code()} - ${response.message()}")
+                        }
+                    } else {
+                        android.util.Log.w("AddFaceScreenViewModel", "⚠️ Entidade ID não configurada para sincronização")
+                    }
+                    android.util.Log.d("AddFaceScreenViewModel", "🔄 Sincronizando face do funcionário")
+                    android.util.Log.d("AddFaceScreenViewModel", "👤 Nome: ${funcionario.nome}")
+                    android.util.Log.d("AddFaceScreenViewModel", "🆔 CPF: $cpf")
+                    android.util.Log.d("AddFaceScreenViewModel", "🆔 Funcionário ID: $funcionarioId")
+                    
+
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Funcionário não encontrado para ID: $funcionarioId")
+                }
+                
+            } catch (e: java.net.UnknownHostException) {
+                android.util.Log.e("AddFaceScreenViewModel", "🌐 ERRO DE CONECTIVIDADE:")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Verifique sua conexão com a internet")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Verifique se o servidor api.rh247.com.br está online")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Verifique configurações de DNS/proxy")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Erro: ${e.message}")
+            } catch (e: java.net.SocketTimeoutException) {
+                android.util.Log.e("AddFaceScreenViewModel", "⏰ TIMEOUT DE CONEXÃO:")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Servidor demorou muito para responder")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Verifique a qualidade da conexão")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Erro: ${e.message}")
+            } catch (e: java.net.ConnectException) {
+                android.util.Log.e("AddFaceScreenViewModel", "🔌 ERRO DE CONEXÃO:")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Não foi possível conectar ao servidor")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Verifique se o servidor está online")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Erro: ${e.message}")
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro inesperado ao sincronizar face: ${e.message}")
+                android.util.Log.e("AddFaceScreenViewModel", "   - Tipo: ${e.javaClass.simpleName}")
+                e.printStackTrace()
+            }
+        }
+    }
+
     fun cancelDeleteUser() {
         showDeleteConfirmation.value = false
     }
 }
 
-// ✅ NOVO: Classe para informações de face duplicada
 data class DuplicateFaceInfo(
     val existingPersonName: String,
     val similarity: Float

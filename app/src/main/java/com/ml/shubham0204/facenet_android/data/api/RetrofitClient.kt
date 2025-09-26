@@ -20,7 +20,6 @@ object RetrofitClient {
         .setLenient() 
         .create()
 
-    // TrustManager que aceita todos os certificados (APENAS PARA DESENVOLVIMENTO)
     private val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
         override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
@@ -36,7 +35,7 @@ object RetrofitClient {
             level = HttpLoggingInterceptor.Level.BODY
         })
         .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-        .hostnameVerifier { _, _ -> true } // Aceita qualquer hostname
+        .hostnameVerifier { _, _ -> true }
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)

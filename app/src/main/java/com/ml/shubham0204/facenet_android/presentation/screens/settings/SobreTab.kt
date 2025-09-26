@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.util.Calendar
 
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.material3.LinearProgressIndicator
@@ -75,7 +76,7 @@ fun SobreTab() {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
-                containerColor = Color.White // cor de fundo
+                containerColor = Color.White 
             ),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
@@ -95,7 +96,7 @@ fun SobreTab() {
                 )
                 
                 Text(
-                    text = "© 2024 Todos os direitos reservados",
+                    text = "© ${Calendar.getInstance().get(Calendar.YEAR)} Todos os direitos reservados",
                     style = MaterialTheme.typography.bodySmall,
                     color = androidx.compose.ui.graphics.Color.Gray
                 )

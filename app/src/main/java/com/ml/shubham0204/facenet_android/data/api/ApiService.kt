@@ -76,8 +76,22 @@ interface ApiService {
         @Body request: TabletDataRequest
     ): Response<TabletDataResponse>
 
+    @GET("/{entidade}/ponto/funcionarios/foto-tablet")
+    suspend fun obterFaceOnline(
+        @Path("entidade") entidade: String,
+        @Query("numero_cpf") numero_cpf: String
+    ): Response<List<FaceOnlineResponse>>
 }
 
+
+data class FaceOnlineResponse (
+    val id: Int,
+    val funcionario_id: Int,
+    val embedding: String,
+    val imagem_1: String,
+    val imagem_2: String,
+    val imagem_3: String
+)
 data class OrgaoResponse (
     val data: List<OrgaoModel>?
 )

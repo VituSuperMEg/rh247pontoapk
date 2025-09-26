@@ -151,16 +151,6 @@ class FaceSpoofDetector(
             val iSpoof = label != 1
             val score = output[label] / 2f
 
-            // ✅ NOVO: Logs detalhados para debugging
-            android.util.Log.d("FaceSpoofDetector", "🔍 Resultado do spoof detection:")
-            android.util.Log.d("FaceSpoofDetector", "   - Output1: ${output1[0].joinToString(", ")}")
-            android.util.Log.d("FaceSpoofDetector", "   - Output2: ${output2[0].joinToString(", ")}")
-            android.util.Log.d("FaceSpoofDetector", "   - SoftMax combinado: ${output.joinToString(", ")}")
-            android.util.Log.d("FaceSpoofDetector", "   - Label: $label (0=spoof, 1=real, 2=spoof)")
-            android.util.Log.d("FaceSpoofDetector", "   - isSpoof: $iSpoof")
-            android.util.Log.d("FaceSpoofDetector", "   - Score: $score")
-            android.util.Log.d("FaceSpoofDetector", "   - Tempo: ${time}ms")
-
             return@withContext FaceSpoofResult(isSpoof = iSpoof, score = score, timeMillis = time)
         }
 

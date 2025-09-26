@@ -12,14 +12,12 @@ class FuncionariosDao {
         Log.d("FuncionariosDao", "   - CPF: ${funcionario.cpf}")
         Log.d("FuncionariosDao", "   - Matrícula: ${funcionario.matricula}")
         
-        // Verificar se já existe um funcionário com o mesmo ID da API
         val funcionarioExistente = getByApiId(funcionario.apiId)
         if (funcionarioExistente != null) {
             Log.w("FuncionariosDao", "⚠️ Funcionário já existe no banco: ${funcionario.nome}")
             return funcionarioExistente.id
         }
         
-        // Criar nova entidade com ID 0 para ObjectBox gerar automaticamente
         val novaEntidade = funcionario.copy(id = 0)
         val result = box.put(novaEntidade)
         
@@ -31,7 +29,6 @@ class FuncionariosDao {
         val result = box.all
         Log.d("FuncionariosDao", "📋 Total de funcionários no banco: ${result.size}")
         
-        // Log detalhado dos funcionários encontrados
         result.forEach { funcionario ->
             Log.d("FuncionariosDao", "👤 Funcionário: ${funcionario.nome} (ID: ${funcionario.id}, Ativo: ${funcionario.ativo}, Entidade: '${funcionario.entidadeId ?: "null"}')")
         }
