@@ -448,9 +448,9 @@ class FaceDetectionOverlay(
         private val textPaint =
             Paint().apply {
                 strokeWidth = 2.0f
-                textSize = 24f // ✅ CORRIGIDO: Tamanho menor (era 36f)
+                textSize = 24f
                 color = Color.WHITE
-                isAntiAlias = true // ✅ NOVO: Melhor qualidade de texto
+                isAntiAlias = true 
             }
 
         override fun surfaceCreated(holder: SurfaceHolder) {}
@@ -471,12 +471,14 @@ class FaceDetectionOverlay(
                 val textX = prediction.bbox.centerX()
                 val textY = prediction.bbox.bottom + 30f
 
-                val textWidth = textPaint.measureText(prediction.label)
+                val textToShow = "Procurando..."
+                val textWidth = textPaint.measureText(textToShow)
                 val centeredX = textX - (textWidth / 2f)
 
-                val textBackgroundPaint = Paint().apply {
-                    color = Color.argb(178, 0, 0, 0)
-                    style = Paint.Style.FILL
+                val textBorderPaint = Paint().apply {
+                    color = Color.WHITE
+                    style = Paint.Style.STROKE
+                    strokeWidth = 2f
                 }
                 val textPadding = 8f
                 val textBackgroundRect = android.graphics.RectF(
@@ -485,10 +487,9 @@ class FaceDetectionOverlay(
                     centeredX + textWidth + textPadding,
                     textY + textPadding
                 )
-               canvas.drawRoundRect(textBackgroundRect, 8f, 8f, textBackgroundPaint)
+                canvas.drawRoundRect(textBackgroundRect, 8f, 8f, textBorderPaint)
 
-            //    canvas.drawText(prediction.label, centeredX, textY, textPaint)
-            canvas.drawText("Procurando...", centeredX, textY, textPaint)
+                canvas.drawText(textToShow, centeredX, textY, textPaint)
             }
         }
     }

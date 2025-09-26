@@ -9,6 +9,7 @@ import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
+import com.ml.shubham0204.facenet_android.data.api.LocalizacaoModel
 import com.ml.shubham0204.facenet_android.data.api.OrgaoModel
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
@@ -40,17 +41,13 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
     
     private fun getEntidadeId(): String? {
         return try {
-            // Se há uma entidade selecionada no filtro, usar ela
             val selectedEntidade = _uiState.value.selectedEntidade
             if (selectedEntidade != null) {
-                Log.d("ImportEmployeesViewModel", "🏢 Usando entidade selecionada: '$selectedEntidade'")
                 return selectedEntidade
             }
             
-            // Caso contrário, usar a entidade configurada
             val configuracoes = configuracoesDao.getConfiguracoes()
             val entidadeId = configuracoes?.entidadeId ?: ""
-            Log.d("ImportEmployeesViewModel", "🏢 Entidade ID obtida das configurações: '$entidadeId'")
             if (entidadeId.isNullOrEmpty()) null else entidadeId
         } catch (e: Exception) {
             Log.e("ImportEmployeesViewModel", "❌ Erro ao obter entidade ID", e)
@@ -88,18 +85,13 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
     
     fun confirmImport() {
         val funcionario = _uiState.value.selectedFuncionario ?: return
-        
-        Log.d("ImportEmployeesViewModel", "🚀 Iniciando importação do funcionário: ${funcionario.nome}")
-        
+
         viewModelScope.launch {
             try {
                 val cpfLimpo = funcionario.numero_cpf.replace(Regex("[^0-9]"), "")
-                
 
-                // Verificar se já existe por ID da API
                 val funcionarioExistente = funcionariosDao.getByApiId(funcionario.id.toLong())
                 if (funcionarioExistente != null) {
-                    Log.w("ImportEmployeesViewModel", "⚠️ Funcionário já existe: ${funcionario.nome}")
                     Toast.makeText(
                         context,
                         "⚠️ ${funcionario.nome} já foi importado!",
@@ -119,21 +111,17 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     cargo = funcionario.cargo_descricao,
                     secretaria = funcionario.orgao_descricao ?: "N/A",
                     lotacao = funcionario.setor_descricao ?: "N/A",
-                    apiId = funcionario.id.toLong(), // ID original da API
-                    dataImportacao = System.currentTimeMillis(), // Timestamp da importação
-                    entidadeId = getEntidadeId() // ID da entidade para controle
+                    apiId = funcionario.id.toLong(),
+                    dataImportacao = System.currentTimeMillis(),
+                    entidadeId = getEntidadeId()
                 )
                 
-                Log.d("ImportEmployeesViewModel", "💾 Salvando no banco de dados...")
                 funcionariosDao.insert(funcionarioEntity)
-                Log.d("ImportEmployeesViewModel", "✅ Funcionário salvo com sucesso!")
-                
-                // Atualizar lista de IDs importados
+
                 loadImportedIds()
                 
                 hideImportDialog()
                 
-                // Mostrar Toast de sucesso
                 Toast.makeText(
                     context,
                     "✅ ${funcionario.nome} importado com sucesso!",
@@ -141,9 +129,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 ).show()
                 
             } catch (e: Exception) {
-                Log.e("ImportEmployeesViewModel", "❌ Erro ao importar funcionário", e)
-                
-                // Mostrar Toast de erro
                 Toast.makeText(
                     context,
                     "❌ Erro ao importar: ${e.message}",
@@ -153,7 +138,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         }
     }
     
-    // Novas funções para gerenciar a segunda aba
     fun addToImportQueue(funcionario: FuncionariosModel) {
         val currentQueue = _uiState.value.funcionariosParaImportar.toMutableList()
         if (!currentQueue.any { it.id == funcionario.id }) {
@@ -198,7 +182,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             
             funcionariosParaImportar.forEach { funcionario ->
                 try {
-                    // Verificar se já existe
                     val funcionarioExistente = funcionariosDao.getByApiId(funcionario.id.toLong())
                     if (funcionarioExistente != null) {
                         erros++
@@ -218,7 +201,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                         lotacao = funcionario.setor_descricao ?: "N/A",
                         apiId = funcionario.id.toLong(),
                         dataImportacao = System.currentTimeMillis(),
-                        entidadeId = getEntidadeId() // ID da entidade para controle
+                        entidadeId = getEntidadeId()
                     )
                     
                     funcionariosDao.insert(funcionarioEntity)
@@ -229,18 +212,15 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 }
             }
             
-            // Limpar a lista após importação
-            _uiState.update { 
+            _uiState.update {
                 it.copy(
                     funcionariosParaImportar = emptyList(),
                     isImportingBatch = false
                 )
             }
             
-            // Atualizar lista de importados
             loadImportedIds()
             
-            // Mostrar resultado
             val mensagem = if (erros == 0) {
                 "✅ $sucessos funcionários importados com sucesso!"
             } else {
@@ -261,13 +241,21 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
     
     fun setSelectedOrgao(orgao: OrgaoModel?) {
         _uiState.update { it.copy(selectedOrgao = orgao) }
-        // Recarregar funcionários com o novo filtro de órgão
+        loadFuncionarios()
+    }
+
+    fun setSelectedLocalizacao(localizacao: LocalizacaoModel?) {
+        _uiState.update { it.copy(selectedLocalizacao = localizacao) }
         loadFuncionarios()
     }
     
     fun clearOrgaoFilter() {
         _uiState.update { it.copy(selectedOrgao = null) }
-        // Recarregar funcionários sem filtro de órgão
+        loadFuncionarios()
+    }
+    
+    fun clearLocalizacaoFilter() {
+        _uiState.update { it.copy(selectedLocalizacao = null) }
         loadFuncionarios()
     }
     
@@ -289,7 +277,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 Log.d("ImportEmployeesViewModel", "🔍 Testando entidade: $entidadeCode")
                 
                 // Fazer uma busca de teste para verificar se a entidade existe
-                val response = apiService.getFuncionarios(entidadeCode, 1, null, null)
+                val response = apiService.getFuncionarios(entidadeCode, 1, null, null, null)
                 val funcionarios = response.data ?: emptyList()
                 
                 Log.d("ImportEmployeesViewModel", "📊 Entidade testada - funcionários encontrados: ${funcionarios.size}")
@@ -386,6 +374,39 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         }
     }
     
+    suspend fun loadLocalizacoes(): List<LocalizacaoModel> {
+        return try {
+            val entidadeId = getEntidadeId()
+            
+            if (entidadeId.isNullOrEmpty()) {
+                Log.w("ImportEmployeesViewModel", "⚠️ Entidade ID não configurada para carregar localizações")
+                return emptyList()
+            }
+            
+            Log.d("ImportEmployeesViewModel", "📡 Carregando localizações para entidade: $entidadeId")
+            
+            // Fazer a chamada assíncrona para a API
+            val response = apiService.getLocalizacao(entidadeId)
+            
+            val localizacoes = response.data ?: emptyList()
+            Log.d("ImportEmployeesViewModel", "📊 Localizações carregadas: ${localizacoes.size}")
+            
+            // Ordenar localizações alfabeticamente por descrição
+            val localizacoesOrdenadas = localizacoes.sortedBy { it.descricao }
+            Log.d("ImportEmployeesViewModel", "📊 Localizações ordenadas alfabeticamente")
+            
+            localizacoesOrdenadas
+        } catch (e: Exception) {
+            Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar localizações", e)
+            
+            // Mostrar erro amigável
+            val errorMessage = e.message ?: "Erro desconhecido ao carregar localizações"
+            showError(errorMessage)
+            
+            emptyList()
+        }
+    }
+    
     fun loadMoreFuncionarios() {
         Log.d("ImportEmployeesViewModel", "🔄 loadMoreFuncionarios chamado")
         Log.d("ImportEmployeesViewModel", "   - isLoadingMore: $isLoadingMore")
@@ -431,9 +452,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 
                 // Usar o código do órgão selecionado como filtro
                 val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
+                val localizacaoId = _uiState.value.selectedLocalizacao?.id
                 Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão: $orgaoCodigo")
+                Log.d("ImportEmployeesViewModel", "📍 Filtro de localização: $localizacaoId")
                 
-                val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo)
+                val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo, localizacaoId?.toString())
                 val funcionarios = response.data ?: emptyList()
                 
                 if (funcionarios.isNotEmpty()) {
@@ -494,9 +517,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 
                 // Usar o código do órgão selecionado como filtro
                 val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
+                val localizacaoId = _uiState.value.selectedLocalizacao?.id
                 Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão (loadMore): $orgaoCodigo")
+                Log.d("ImportEmployeesViewModel", "📍 Filtro de localização (loadMore): $localizacaoId")
                 
-                val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo)
+                val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo, localizacaoId?.toString())
                 val funcionarios = response.data ?: emptyList()
                 
                 Log.d("ImportEmployeesViewModel", "📊 Funcionários recebidos: ${funcionarios.size}")
@@ -605,9 +630,11 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     
                     // Usar o código do órgão selecionado como filtro
                     val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
+                    val localizacaoId = _uiState.value.selectedLocalizacao?.id
                     Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão (busca): $orgaoCodigo")
+                    Log.d("ImportEmployeesViewModel", "📍 Filtro de localização (busca): $localizacaoId")
                     
-                    val response = apiService.getFuncionarios(entidadeId, 1, descricao, orgaoCodigo)
+                    val response = apiService.getFuncionarios(entidadeId, 1, descricao, orgaoCodigo, localizacaoId?.toString())
                     val funcionarios = response.data ?: emptyList()
                     
                     Log.d("ImportEmployeesViewModel", "📊 Resultados da busca: ${funcionarios.size}")
@@ -678,6 +705,7 @@ data class ImportEmployeesUiState(
     val selectedFuncionario: FuncionariosModel? = null,
     val selectedTabIndex: Int = 0,
     val selectedOrgao: OrgaoModel? = null,
+    val selectedLocalizacao: LocalizacaoModel? = null,
     val selectedEntidade: String? = null,
     val errorMessage: String? = null,
     val showErrorDialog: Boolean = false

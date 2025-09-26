@@ -17,14 +17,20 @@ interface ApiService {
         @Path("entidade") entidade: String,
         @Query("page") page: Int,
         @Query("descricao") descricao: String? = null,
-        @Query("orgao") orgao: String? = null
+        @Query("orgao") orgao: String? = null,
+        @Query("localizacao") localizacao: String? = null
     ): FuncionariosResponse
 
 
-    @GET("/{entidade}/ponto/orgaos/list")
+    @GET("/{entidade}/ponto/orgaos/list-tablet")
     suspend fun getOrgaos(
         @Path("entidade") entidade: String
     ): OrgaoResponse
+
+    @GET("/{entidade}/ponto/localizacoes/list-tablet")
+    suspend fun getLocalizacao(
+        @Path("entidade") entidade: String
+    ): LocalizacaoResponse
 
     @POST("/{entidade}/services/util/sincronizar-ponto-table")
     suspend fun sincronizarPontosCompleto(
@@ -80,6 +86,19 @@ data class OrgaoModel (
    val id: Int,
    val codigo: String,
    val descricao: String
+)
+
+data class LocalizacaoResponse (
+    val data: List<LocalizacaoModel>?
+)
+
+data class LocalizacaoModel (
+    val id: Int,
+    val descricao: String,
+    val orgao: String,
+    val entidade_id: Int,
+    val ativo: String,
+    val status_registro: String
 )
 
 data class FuncionariosResponse(

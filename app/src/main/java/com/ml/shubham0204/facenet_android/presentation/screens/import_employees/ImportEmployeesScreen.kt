@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
+import com.ml.shubham0204.facenet_android.data.api.LocalizacaoModel
 import com.ml.shubham0204.facenet_android.data.api.OrgaoModel
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
@@ -80,7 +81,8 @@ fun ImportEmployeesScreen(
     var showFilterDialog by remember { mutableStateOf(false) }
     var showFilterOrgao by remember { mutableStateOf(false) }
     var showFilterEntidade by remember { mutableStateOf(false) }
-    
+    var showFilterLocalizcao by remember { mutableStateOf(false) }
+
     val viewModel: ImportEmployeesViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
@@ -115,7 +117,7 @@ fun ImportEmployeesScreen(
                         Box {
                             BadgedBox(
                                 badge = {
-                                    if (uiState.selectedOrgao != null || uiState.selectedEntidade != null) {
+                                    if (uiState.selectedOrgao != null || uiState.selectedLocalizacao != null || uiState.selectedEntidade != null) {
                                         Badge(
                                             containerColor = Color(0xFF4CAF50)
                                         )
@@ -126,7 +128,7 @@ fun ImportEmployeesScreen(
                                     Icon(
                                         imageVector = Icons.Default.FilterList,
                                         contentDescription = "Filtros",
-                                        tint = if (uiState.selectedOrgao != null || uiState.selectedEntidade != null) Color(0xFF4CAF50) else Color(0xFF264064)
+                                        tint = if (uiState.selectedOrgao != null || uiState.selectedLocalizacao != null || uiState.selectedEntidade != null) Color(0xFF4CAF50) else Color(0xFF264064)
                                     )
                                 }
                             }
@@ -172,9 +174,15 @@ fun ImportEmployeesScreen(
                         showFilterDialog = false
                         showFilterEntidade = true
                     },
+                    onLocalizacaoFilter = {
+                      showFilterDialog = false
+                      showFilterLocalizcao = true
+                    },
                     selectedOrgao = uiState.selectedOrgao,
+                    selectedLocalizacao = uiState.selectedLocalizacao,
                     selectedEntidade = uiState.selectedEntidade,
                     onClearOrgaoFilter = { viewModel.clearOrgaoFilter() },
+                    onClearLocalizacaoFilter = { viewModel.clearLocalizacaoFilter() },
                     onClearEntidadeFilter = { viewModel.clearEntidadeFilter() }
                 )
             }
@@ -203,6 +211,21 @@ fun ImportEmployeesScreen(
                     onOrgaoSelected = { orgao ->
                         viewModel.setSelectedOrgao(orgao)
                         showFilterOrgao = false
+                        showFilterDialog = false
+                    },
+                    viewModel = viewModel
+                )
+            }
+
+            if(showFilterLocalizcao) {
+                FilterLocalizacao(
+                    onDismiss = {
+                        showFilterLocalizcao = false
+                        showFilterDialog = true
+                    },
+                    onLocalizacaoSelected = { localizacao ->
+                        viewModel.setSelectedLocalizacao(localizacao)
+                        showFilterLocalizcao = false
                         showFilterDialog = false
                     },
                     viewModel = viewModel
@@ -865,10 +888,13 @@ private fun QueuedFuncionarioCard(
 private fun FilterDialog(
     onDismiss: () -> Unit,
     onOrgaoFilter: () -> Unit,
+    onLocalizacaoFilter: () -> Unit,
     onEntidadeFilter: () -> Unit,
     selectedOrgao: OrgaoModel? = null,
+    selectedLocalizacao: LocalizacaoModel? = null,
     selectedEntidade: String? = null,
     onClearOrgaoFilter: () -> Unit = {},
+    onClearLocalizacaoFilter: () -> Unit = {},
     onClearEntidadeFilter: () -> Unit = {}
 ) {
     AlertDialog(
@@ -974,6 +1000,46 @@ private fun FilterDialog(
                    Spacer(modifier = Modifier.height(8.dp))
                }
                
+               // Localização selecionada
+               if (selectedLocalizacao != null) {
+                   Card(
+                       colors = CardDefaults.cardColors(
+                           containerColor = Color(0xFFE8F5E8)
+                       )
+                   ) {
+                       Row(
+                           modifier = Modifier
+                               .fillMaxWidth()
+                               .padding(16.dp),
+                           verticalAlignment = Alignment.CenterVertically
+                       ) {
+                           Column(modifier = Modifier.weight(1f)) {
+                               Text(
+                                   text = "Localização selecionada:",
+                                   style = MaterialTheme.typography.bodySmall,
+                                   color = Color.Gray
+                               )
+                               Text(
+                                   text = "${selectedLocalizacao.id} - ${selectedLocalizacao.descricao}",
+                                   style = MaterialTheme.typography.bodyMedium,
+                                   fontWeight = FontWeight.Medium,
+                                   color = Color(0xFF2E7D32)
+                               )
+                           }
+                           IconButton(
+                               onClick = onClearLocalizacaoFilter
+                           ) {
+                               Icon(
+                                   imageVector = Icons.Default.Clear,
+                                   contentDescription = "Limpar filtro",
+                                   tint = Color.Red
+                               )
+                           }
+                       }
+                   }
+                   Spacer(modifier = Modifier.height(8.dp))
+               }
+               
                // Botão para selecionar entidade
                Card(
                    onClick = onEntidadeFilter,
@@ -990,7 +1056,7 @@ private fun FilterDialog(
                        Icon(
                            imageVector = Icons.Default.Search,
                            contentDescription = "Filtro de Entidade",
-                           tint = Color(0xFF2E7D32),
+                           tint =  Color(0xFF264064),
                            modifier = Modifier.size(20.dp)
                        )
                        Spacer(modifier = Modifier.width(12.dp))
@@ -998,7 +1064,7 @@ private fun FilterDialog(
                            text = if (selectedEntidade != null) "Alterar Entidade" else "Buscar por Entidade",
                            style = MaterialTheme.typography.bodyLarge,
                            fontWeight = FontWeight.Medium,
-                           color = Color(0xFF2E7D32)
+                           color =  Color(0xFF264064)
                        )
                    }
                }
@@ -1033,6 +1099,38 @@ private fun FilterDialog(
                        )
                    }
                }
+
+               Spacer(modifier = Modifier.height(8.dp))
+
+
+               // Botão para selecionar localizacao
+               Card(
+                   onClick = onLocalizacaoFilter,
+                   colors = CardDefaults.cardColors(
+                       containerColor = if (selectedLocalizacao != null) Color(0xFFF5F5F5) else Color.White
+                   )
+               ) {
+                   Row(
+                       modifier = Modifier
+                           .fillMaxWidth()
+                           .padding(16.dp),
+                       verticalAlignment = Alignment.CenterVertically
+                   ) {
+                       Icon(
+                           imageVector = Icons.Default.FilterList,
+                           contentDescription = "Filtro de Localização",
+                           tint = Color(0xFF264064),
+                           modifier = Modifier.size(20.dp)
+                       )
+                       Spacer(modifier = Modifier.width(12.dp))
+                       Text(
+                           text = if (selectedLocalizacao != null) "Alterar Localização" else "Selecionar Localização",
+                           style = MaterialTheme.typography.bodyLarge,
+                           fontWeight = FontWeight.Medium,
+                           color =  Color(0xFF264064)
+                       )
+                   }
+               }
            }
         },
         confirmButton = {
@@ -1060,35 +1158,21 @@ private fun FilterOrgao(
         isLoading = true
         error = null
         
-        // Carregar órgãos da API
-        val orgaosCarregados = viewModel.loadOrgaos()
-        
-        if (orgaosCarregados.isEmpty()) {
-            // Fallback para dados mockados se a API não retornar dados
-            val mockOrgaos = listOf(
-                OrgaoModel(16, "18", "SECRETARIA DE ESPORTES"),
-                OrgaoModel(15, "15", "FUNDO MUNICIPAL DE ASSISTENCIA SOCIAL"),
-                OrgaoModel(14, "10", "SECRETARIA DE FINANCAS"),
-                OrgaoModel(13, "09", "SECRETARIA DE CULTURA"),
-                OrgaoModel(12, "08", "SECRETARIA DA INDUSTRIA E COMERCIO"),
-                OrgaoModel(11, "07", "SECRETARIA DE OBRAS MEIO AMBIENTE"),
-                OrgaoModel(10, "06", "SECRETARIA DE AGRICULTURA E ABASTECIMENTO"),
-                OrgaoModel(9, "05", "SECRETARIA DE ACAO SOCIAL"),
-                OrgaoModel(8, "04", "SAUDE FUNDO MUNICIPAL DE SAUDE"),
-                OrgaoModel(7, "03", "SECRETARIA DE EDUCACAO E DESPORTO"),
-                OrgaoModel(6, "02", "SECRETARIA DE ADMINISTRACAO"),
-                OrgaoModel(5, "01", "GABINETE DO PREFEITO")
-            )
-            // Ordenar dados mockados alfabeticamente por descrição
-            orgaos = mockOrgaos.sortedBy { it.descricao }
-        } else {
-            orgaos = orgaosCarregados
+        try {
+            val orgaosCarregados = viewModel.loadOrgaos()
+            
+            if (orgaosCarregados.isEmpty()) {
+                error = "Nenhum órgão encontrado. Verifique se a entidade está configurada corretamente."
+            } else {
+                orgaos = orgaosCarregados
+            }
+        } catch (e: Exception) {
+            error = "Erro ao carregar órgãos: ${e.message ?: "Erro desconhecido"}"
+        } finally {
+            isLoading = false
         }
-        
-        isLoading = false
     }
 
-    // Filtrar órgãos baseado na busca
     val filteredOrgaos = remember(orgaos, searchQuery) {
         if (searchQuery.isBlank()) {
             orgaos
@@ -1127,7 +1211,6 @@ private fun FilterOrgao(
                     .fillMaxWidth()
                     .height(400.dp)
             ) {
-                // Campo de busca
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -1144,7 +1227,6 @@ private fun FilterOrgao(
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                // Lista de órgãos
                 when {
                     isLoading -> {
                         Box(
@@ -1257,6 +1339,204 @@ private fun FilterOrgao(
 }
 
 @Composable
+private fun FilterLocalizacao(
+    onDismiss: () -> Unit,
+    onLocalizacaoSelected: (LocalizacaoModel) -> Unit = {},
+    viewModel: ImportEmployeesViewModel
+) {
+    var localizacoes by remember { mutableStateOf<List<LocalizacaoModel>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedLocalizacao by remember { mutableStateOf<LocalizacaoModel?>(null) }
+
+    // Carregar localizações quando o composable é criado
+    LaunchedEffect(Unit) {
+        isLoading = true
+        error = null
+
+        try {
+            val localizacoesCarregadas = viewModel.loadLocalizacoes()
+
+            if (localizacoesCarregadas.isEmpty()) {
+                error = "Nenhuma localização encontrada. Verifique se a entidade está configurada corretamente."
+            } else {
+                localizacoes = localizacoesCarregadas
+            }
+        } catch (e: Exception) {
+            error = "Erro ao carregar localizações: ${e.message ?: "Erro desconhecido"}"
+        } finally {
+            isLoading = false
+        }
+    }
+
+    val filteredLocalizacoes = remember(localizacoes, searchQuery) {
+        if (searchQuery.isBlank()) {
+            localizacoes
+        } else {
+            localizacoes.filter { localizacao ->
+                localizacao.descricao.contains(searchQuery, ignoreCase = true) ||
+                        localizacao.id.toString().contains(searchQuery, ignoreCase = true) ||
+                        localizacao.orgao.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FilterList,
+                    contentDescription = "Filtro de Localizações",
+                    tint = Color(0xFF264064),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Selecionar Localização",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color(0xFF264064)
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(400.dp)
+            ) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    label = { Text("Buscar localização...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Buscar"
+                        )
+                    },
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                when {
+                    isLoading -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Carregando localizações...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+                    }
+
+                    error != null -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.Red
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = error!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Red,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    filteredLocalizacoes.isEmpty() -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.Gray
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = if (searchQuery.isBlank()) "Nenhuma localização encontrada" else "Nenhuma localização corresponde à busca",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    else -> {
+                        LazyColumn(
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            items(filteredLocalizacoes) { localizacao ->
+                                LocalizacaoItem(
+                                    localizacao = localizacao,
+                                    isSelected = selectedLocalizacao?.id == localizacao.id,
+                                    onClick = { selectedLocalizacao = localizacao }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancelar")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        selectedLocalizacao?.let { localizacao ->
+                            onLocalizacaoSelected(localizacao)
+                        }
+                        onDismiss()
+                    },
+                    enabled = selectedLocalizacao != null,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    )
+                ) {
+                    Text("Selecionar")
+                }
+            }
+        }
+    )
+}
+
+@Composable
 private fun FilterEntidade(
     onDismiss: () -> Unit,
     onEntidadeSelected: (String) -> Unit = {},
@@ -1310,40 +1590,7 @@ private fun FilterEntidade(
                 )
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                // Mensagem de instrução
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFE8F5E8)
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp)
-                    ) {
-                        Text(
-                            text = "💡 Instruções:",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2E7D32)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "• Digite o código da entidade desejada",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF2E7D32)
-                        )
-                        Text(
-                            text = "• Clique em 'Buscar' para carregar funcionários",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF2E7D32)
-                        )
-                        Text(
-                            text = "• Os funcionários serão filtrados por esta entidade",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color(0xFF2E7D32)
-                        )
-                    }
-                }
+
                 
                 if (error != null) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1477,6 +1724,73 @@ private fun OrgaoItem(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Selecionado",
                     tint = Color(0xFF264064),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LocalizacaoItem(
+    localizacao: LocalizacaoModel,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) Color(0xFFE8F5E8) else Color.White
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isSelected) 4.dp else 1.dp
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Código da localização
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = if (isSelected) Color(0xFF2E7D32) else Color(0xFFE0E0E0),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = localizacao.id.toString(),
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color.White else Color.Black
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = localizacao.descricao,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) Color(0xFF2E7D32) else Color.Black
+                )
+            }
+            
+            // Indicador de seleção
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = "Selecionado",
+                    tint = Color(0xFF2E7D32),
                     modifier = Modifier.size(20.dp)
                 )
             }
