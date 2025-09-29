@@ -196,7 +196,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     
     LaunchedEffect(Unit) {
         if (!isInitialized) {
-            delay(2000) 
+            delay(1000) // ✅ OTIMIZADO: Reduzido de 2000ms para 1000ms
             
             viewModel.checkAndClearDatabase()
             
@@ -211,7 +211,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     
     LaunchedEffect(isProcessingRecognition, isInitialized) {
         if (isInitialized && !isProcessingRecognition && !showSuccessScreen && isActive) {
-            delay(PerformanceConfig.UI_UPDATE_DELAY_MS) 
+            delay(1000) // ✅ OTIMIZADO: Reduzido de 2000ms para 1000ms para resposta mais rápida
             if (isActive && !isProcessingRecognition && !showSuccessScreen) {
                 val totalPessoas = viewModel.getNumPeople()
                 if (totalPessoas > 0L) {
@@ -238,14 +238,14 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             val timeSinceLastProcess = currentTime - lastProcessTime
             
             // ✅ CORRIGIDO: Evitar processamento duplicado
-            if (lastRecognizedPersonName != lastProcessedPerson || timeSinceLastProcess > 5000) {
+            if (lastRecognizedPersonName != lastProcessedPerson || timeSinceLastProcess > 3000) { // ✅ OTIMIZADO: Reduzido de 5000ms para 3000ms
                 android.util.Log.d("DetectScreen", "🎯 Pessoa reconhecida detectada: $lastRecognizedPersonName")
                 android.util.Log.d("DetectScreen", "🚀 Iniciando processamento do reconhecimento...")
                 
                 lastProcessedPerson = lastRecognizedPersonName
                 lastProcessTime = currentTime
                 
-                delay(500) // Aguardar um pouco para garantir que tudo está sincronizado
+                delay(200) // ✅ OTIMIZADO: Reduzido de 500ms para 200ms para resposta mais rápida
                 viewModel.processFaceRecognition()
             } else {
                 android.util.Log.d("DetectScreen", "⚠️ Pulando processamento duplicado para: $lastRecognizedPersonName (último processamento há ${timeSinceLastProcess}ms)")
@@ -379,12 +379,12 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         }
     }
 
-    // ✅ OTIMIZADO: Monitoramento mais eficiente
+    // ✅ OTIMIZADO: Monitoramento mais eficiente e rápido
     LaunchedEffect(faceDetectionOverlay, isInitialized) {
         if (faceDetectionOverlay != null && isInitialized) {
             while (isActive) {
                 try {
-                    delay(1500) // ✅ OTIMIZADO: Aumentado para 1.5s para evitar ANR
+                    delay(800) // ✅ OTIMIZADO: Reduzido para 800ms para leitura mais rápida
                     
                     // ✅ OTIMIZADO: Verificar se ainda está processando antes de continuar
                     if (isProcessingRecognition || showSuccessScreen) {
@@ -396,10 +396,8 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                     // Log para debug
                     if (recognizedPerson != null && recognizedPerson != "Not recognized") {
                         android.util.Log.d("DetectScreen", "🔄 Monitorando pessoa: $recognizedPerson")
-                        // ✅ REMOVIDO: Não chamar setLastRecognizedPersonName aqui para evitar conflito
-                        // O FaceDetectionOverlay já está fazendo isso
                         
-                        // ✅ OTIMIZADO: Capturar foto apenas quando necessário
+                        // ✅ OTIMIZADO: Capturar foto apenas quando necessário e mais rápido
                         if (!isProcessingRecognition) {
                             val currentBitmap = faceDetectionOverlay?.getCurrentFrameBitmap()
                             if (currentBitmap != null) {
@@ -410,7 +408,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("DetectScreen", "❌ Erro no monitoramento: ${e.message}")
-                    delay(2000) // ✅ OTIMIZADO: Aumentado para 2 segundos para evitar ANR
+                    delay(1000) // ✅ OTIMIZADO: Reduzido para 1 segundo para recuperação mais rápida
                 }
             }
         }
@@ -504,7 +502,7 @@ private fun Camera(
                     try {
                         // ✅ OTIMIZADO: Aguardar menos tempo para inicialização mais rápida
                         kotlinx.coroutines.runBlocking {
-                            kotlinx.coroutines.delay(1000) // Aumentado para 1s para evitar ANR
+                            kotlinx.coroutines.delay(500) // ✅ OTIMIZADO: Reduzido de 1000ms para 500ms
                         }
                         overlay.initializeCamera(cameraFacing)
                         cameraInitialized = true
@@ -513,7 +511,7 @@ private fun Camera(
                         android.util.Log.e("DetectScreen", "❌ Erro ao inicializar câmera: ${e.message}")
                         // ✅ OTIMIZADO: Tentar novamente após um delay menor
                         kotlinx.coroutines.runBlocking {
-                            kotlinx.coroutines.delay(2000) // Aumentado para 2 segundos para evitar ANR
+                            kotlinx.coroutines.delay(1000) // ✅ OTIMIZADO: Reduzido de 2000ms para 1000ms
                         }
                         try {
                             overlay.initializeCamera(cameraFacing)
