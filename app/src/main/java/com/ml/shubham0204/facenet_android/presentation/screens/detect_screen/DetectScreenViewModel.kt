@@ -21,6 +21,7 @@ import com.ml.shubham0204.facenet_android.utils.LocationUtils
 import com.ml.shubham0204.facenet_android.utils.LocationResult
 import com.ml.shubham0204.facenet_android.utils.ConnectivityUtils
 import com.ml.shubham0204.facenet_android.utils.SoundUtils
+import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import kotlinx.coroutines.delay
@@ -30,6 +31,8 @@ import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @KoinViewModel
 class DetectScreenViewModel(
@@ -52,6 +55,9 @@ class DetectScreenViewModel(
     
     // ✅ NOVO: Job para controlar o reconhecimento
     private var recognitionJob: kotlinx.coroutines.Job? = null
+    
+    // ✅ NOVO: Controle de throttling para evitar ANR
+    private var lastRecognitionTime: Long = 0
 
     fun getNumPeople(): Long = personUseCase.getCount()
     
@@ -87,8 +93,20 @@ class DetectScreenViewModel(
     }
     
     fun processFaceRecognition() {
-        // ✅ CORRIGIDO: Cancelar job anterior se existir
-        recognitionJob?.cancel()
+        // ✅ NOVO: Throttling para evitar ANR
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastRecognitionTime < PerformanceConfig.MIN_RECOGNITION_INTERVAL_MS) {
+            Log.d("DetectScreenViewModel", "⚠️ Throttling ativo - aguardando ${PerformanceConfig.MIN_RECOGNITION_INTERVAL_MS - (currentTime - lastRecognitionTime)}ms")
+            return
+        }
+        lastRecognitionTime = currentTime
+        
+        // ✅ OTIMIZADO: Cancelar job anterior se existir
+        try {
+            recognitionJob?.cancel()
+        } catch (e: Exception) {
+            Log.w("DetectScreenViewModel", "⚠️ Erro ao cancelar job anterior: ${e.message}")
+        }
         
         if (isProcessingRecognition.value) {
             Log.d("DetectScreenViewModel", "⚠️ Reconhecimento já em andamento, ignorando...")
@@ -110,12 +128,12 @@ class DetectScreenViewModel(
                 isProcessingRecognition.value = true
                 Log.d("DetectScreenViewModel", "🔄 Iniciando reconhecimento facial...")
                 
-                // ✅ AJUSTADO: Aguardar até que uma pessoa seja reconhecida
+                // ✅ OTIMIZADO: Aguardar até que uma pessoa seja reconhecida
                 var attempts = 0
-                val maxAttempts = 5 // ✅ AJUSTADO: Aumentado para 20 tentativas para mais chances
+                val maxAttempts = PerformanceConfig.MAX_RECOGNITION_ATTEMPTS
                 
                 while (attempts < maxAttempts && !showSuccessScreen.value && isActive) {
-                    delay(500) // ✅ AJUSTADO: Reduzido para 500ms entre tentativas para reconhecimento mais rápido
+                    delay(PerformanceConfig.RECOGNITION_DELAY_MS)
                     attempts++
                     
                     val recognizedPersonName = lastRecognizedPersonName.value
@@ -131,8 +149,8 @@ class DetectScreenViewModel(
                         
                         Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida! Processando...")
                         
-                        // ✅ AJUSTADO: Aguardar menos tempo para processamento mais rápido
-                        delay(1000) // Reduzido para 1 segundo para reconhecimento mais rápido
+                        // ✅ OTIMIZADO: Aguardar menos tempo para processamento mais rápido
+                        delay(PerformanceConfig.RECOGNITION_DELAY_MS)
                         
                         // Buscar funcionários reconhecidos
                         val funcionario = findRecognizedEmployee()
@@ -255,14 +273,20 @@ class DetectScreenViewModel(
     
 
     
-    private fun registerPonto(funcionario: FuncionariosEntity): PontosGenericosEntity? {
+    private suspend fun registerPonto(funcionario: FuncionariosEntity): PontosGenericosEntity? {
         return try {
             Log.d("DetectScreenViewModel", "💾 Registrando ponto para: ${funcionario.nome}")
             
             val horarioAtual = System.currentTimeMillis()
             
-            val locationResult = runBlocking {
-                locationUtils.getCurrentLocation(8000) // 8 segundos de timeout
+            // ✅ CORRIGIDO: Usar coroutine assíncrona em vez de runBlocking
+            val locationResult = try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    locationUtils.getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)
+                }
+            } catch (e: Exception) {
+                Log.w("DetectScreenViewModel", "⚠️ Erro ao obter localização: ${e.message}")
+                null
             }
             
             val latitude: Double?
@@ -343,15 +367,21 @@ class DetectScreenViewModel(
     }
     
     fun resetRecognition() {
-        recognitionJob?.cancel()
-        recognitionJob = null
-        
-        isProcessingRecognition.value = false
-        currentFaceBitmap.value = null
-        recognizedPerson.value = null
-        showSuccessScreen.value = false
-        savedPonto.value = null
-        lastRecognizedPersonName.value = null
+        try {
+            recognitionJob?.cancel()
+            recognitionJob = null
+            
+            isProcessingRecognition.value = false
+            currentFaceBitmap.value = null
+            recognizedPerson.value = null
+            showSuccessScreen.value = false
+            savedPonto.value = null
+            lastRecognizedPersonName.value = null
+            
+            Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso")
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao resetar reconhecimento: ${e.message}")
+        }
     }
 
     // ✅ NOVO: Função para verificar POOF

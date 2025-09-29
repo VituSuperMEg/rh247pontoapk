@@ -23,6 +23,7 @@ import androidx.core.graphics.toRectF
 import androidx.core.view.doOnLayout
 import androidx.lifecycle.LifecycleOwner
 import com.ml.shubham0204.facenet_android.presentation.screens.detect_screen.DetectScreenViewModel
+import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -52,7 +53,12 @@ class FaceDetectionOverlay(
     
     private var lastProcessTime: Long = 0
     private var frameSkipCount: Int = 0
-    private var consecutiveErrors: Int = 0 
+    private var consecutiveErrors: Int = 0
+    private var isInitialized: Boolean = false
+    private var lastSuccessfulProcess: Long = 0
+    
+    // ✅ NOVO: Controle de memória para evitar vazamentos
+    private var frameCount: Int = 0 
 
     var predictions: Array<Prediction> = arrayOf()
     private var lastRecognizedPerson: String? = null
@@ -80,6 +86,15 @@ class FaceDetectionOverlay(
     fun cleanupCamera() {
         try {
             android.util.Log.d("FaceDetectionOverlay", "🧹 Limpando recursos da câmera...")
+            
+            // Limpar variáveis de estado
+            isProcessing = false
+            consecutiveErrors = 0
+            lastProcessTime = 0
+            lastSuccessfulProcess = 0
+            frameSkipCount = 0
+            predictions = emptyArray()
+            lastRecognizedPerson = null
             
             // Remover views se existirem
             if (::previewView.isInitialized) {
@@ -152,8 +167,8 @@ class FaceDetectionOverlay(
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER) // ✅ CORRIGIDO: Estratégia mais agressiva
                             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                             .build()
-                    // ✅ CORRIGIDO: Usar executor com apenas 1 thread para evitar sobrecarga
-                    frameAnalyzer.setAnalyzer(Executors.newSingleThreadExecutor(), analyzer)
+                    // ✅ CORRIGIDO: Usar executor com thread pool limitado para evitar sobrecarga
+                    frameAnalyzer.setAnalyzer(Executors.newFixedThreadPool(PerformanceConfig.CAMERA_THREAD_POOL_SIZE), analyzer)
                     
                     val availableCameras = cameraProvider.availableCameraInfos
                     if (availableCameras.isEmpty()) {
@@ -232,18 +247,26 @@ class FaceDetectionOverlay(
             }
             
             // ✅ OTIMIZADO: Verificar se há muitos erros consecutivos
-            if (consecutiveErrors > 5) {
+            if (PerformanceConfig.shouldPauseProcessing(consecutiveErrors)) {
                 android.util.Log.w("FaceDetectionOverlay", "⚠️ Muitos erros consecutivos ($consecutiveErrors), pausando processamento...")
-                image.close()
-                return@Analyzer
+                // ✅ NOVO: Reset automático após muito tempo sem sucesso
+                val timeSinceLastSuccess = System.currentTimeMillis() - lastSuccessfulProcess
+                if (timeSinceLastSuccess > PerformanceConfig.MEMORY_RESET_INTERVAL_MS) {
+                    android.util.Log.d("FaceDetectionOverlay", "🔄 Reset automático após 30s sem sucesso")
+                    consecutiveErrors = 0
+                    lastSuccessfulProcess = System.currentTimeMillis()
+                } else {
+                    image.close()
+                    return@Analyzer
+                }
             }
             
             val currentTime = System.currentTimeMillis()
-            // ✅ AJUSTADO: Intervalo otimizado para reconhecimento mais rápido
-            val processingInterval = if (consecutiveErrors > 2) 2000L else 1000L // 1-2 segundos
+            // ✅ OTIMIZADO: Usar configurações centralizadas
+            val processingInterval = PerformanceConfig.getProcessingInterval(consecutiveErrors)
             if (currentTime - lastProcessTime < processingInterval) { 
                 frameSkipCount++
-                if (frameSkipCount % 15 == 0) { // ✅ OTIMIZADO: Log menos frequente
+                if (frameSkipCount % 20 == 0) { // ✅ OTIMIZADO: Log menos frequente
                     android.util.Log.d("FaceDetectionOverlay", "⏭️ Pulando frame $frameSkipCount para evitar sobrecarga")
                 }
                 image.close()
@@ -251,6 +274,15 @@ class FaceDetectionOverlay(
             }
             lastProcessTime = currentTime
             frameSkipCount = 0
+            frameCount++
+            
+            // ✅ NOVO: Reset periódico para liberar memória
+            if (frameCount >= PerformanceConfig.MAX_FRAME_COUNT) {
+                frameCount = 0
+                consecutiveErrors = 0
+                lastSuccessfulProcess = System.currentTimeMillis()
+                android.util.Log.d("FaceDetectionOverlay", "🔄 Reset periódico de memória")
+            }
             
             isProcessing = true
 
@@ -406,25 +438,25 @@ class FaceDetectionOverlay(
                         boundingBoxOverlay.invalidate()
                         isProcessing = false
                         consecutiveErrors = 0 // ✅ OTIMIZADO: Reset contador de erros em caso de sucesso
+                        lastSuccessfulProcess = System.currentTimeMillis() // ✅ NOVO: Marcar sucesso
                     }
                 }
             } catch (e: Exception) {
                 consecutiveErrors++ // ✅ OTIMIZADO: Incrementar contador de erros
                 android.util.Log.e("FaceDetectionOverlay", "❌ Erro no processamento (erro #$consecutiveErrors): ${e.message}")
                 
-                // ✅ AJUSTADO: Se muitos erros, pausar por menos tempo
+                // ✅ CORRIGIDO: Não pausar na thread principal para evitar ANR
                 if (consecutiveErrors > 3) {
-                    android.util.Log.w("FaceDetectionOverlay", "⚠️ Muitos erros ($consecutiveErrors), pausando processamento por 5 segundos...")
-                    kotlinx.coroutines.runBlocking {
-                        kotlinx.coroutines.delay(5000) // ✅ AJUSTADO: Pausar por 5 segundos (era 10)
-                    }
+                    android.util.Log.w("FaceDetectionOverlay", "⚠️ Muitos erros ($consecutiveErrors), pulando processamento...")
+                    // Não pausar aqui para evitar ANR
                 }
                 
-                // ✅ CORRIGIDO: Usar runBlocking para chamar withContext fora da coroutine
-                kotlinx.coroutines.runBlocking {
-                    withContext(Dispatchers.Main) {
-                        isProcessing = false
-                    }
+                // ✅ CORRIGIDO: Não usar runBlocking na thread principal
+                try {
+                    isProcessing = false
+                } catch (e: Exception) {
+                    android.util.Log.e("FaceDetectionOverlay", "❌ Erro ao resetar processamento: ${e.message}")
+                    isProcessing = false // Fallback direto
                 }
             } finally {
                 image.close()

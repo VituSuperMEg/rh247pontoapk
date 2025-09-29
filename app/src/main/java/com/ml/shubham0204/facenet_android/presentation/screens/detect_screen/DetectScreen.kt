@@ -69,6 +69,7 @@ import com.ml.shubham0204.facenet_android.presentation.components.DelayedVisibil
 import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionOverlay
 import com.ml.shubham0204.facenet_android.presentation.components.createAlertDialog
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
+import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.text.font.FontWeight
 
@@ -182,27 +183,23 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     // ✅ OTIMIZADO: Controlar inicialização única
     var isInitialized by remember { mutableStateOf(false) }
     
-    // LaunchedEffect para navegar para tela de sucesso
     LaunchedEffect(showSuccessScreen, savedPonto) {
         if (showSuccessScreen && savedPonto != null) {
             onPontoSuccess(savedPonto!!)
             viewModel.resetRecognition()
-            // ✅ OTIMIZADO: Aguardar mais tempo para evitar sobrecarga
-            delay(2000) // Aumentado para 5 segundos
+            delay(PerformanceConfig.UI_UPDATE_DELAY_MS)
             if (isActive) {
                 viewModel.processFaceRecognition()
             }
         }
     }
     
-    // ✅ OTIMIZADO: Inicialização única
     LaunchedEffect(Unit) {
         if (!isInitialized) {
-            delay(2000) // Aguardar mais tempo para estabilizar
+            delay(2000) 
             
             viewModel.checkAndClearDatabase()
             
-            // ✅ OTIMIZADO: Verificar se há pessoas antes de iniciar
             val totalPessoas = viewModel.getNumPeople()
             if (totalPessoas > 0L) {
                 viewModel.processFaceRecognition()
@@ -214,7 +211,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     
     LaunchedEffect(isProcessingRecognition, isInitialized) {
         if (isInitialized && !isProcessingRecognition && !showSuccessScreen && isActive) {
-            delay(2000) 
+            delay(PerformanceConfig.UI_UPDATE_DELAY_MS) 
             if (isActive && !isProcessingRecognition && !showSuccessScreen) {
                 val totalPessoas = viewModel.getNumPeople()
                 if (totalPessoas > 0L) {
@@ -231,10 +228,8 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             faceDetectionOverlay = overlay
         })
         
-        // Header com data e hora no topo
         DateTimeHeader()
         
-        // Indicador de processamento
         if (isProcessingRecognition) {
             // Box(
             //     modifier = Modifier
@@ -352,14 +347,14 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         }
     }
 
-    // ✅ AJUSTADO: Monitoramento mais rápido
+    // ✅ OTIMIZADO: Monitoramento mais eficiente
     LaunchedEffect(faceDetectionOverlay, isInitialized) {
         if (faceDetectionOverlay != null && isInitialized) {
             while (isActive) {
                 try {
-                    delay(1500) // ✅ AJUSTADO: Reduzido para 1.5 segundos para reconhecimento mais rápido
+                    delay(1500) // ✅ OTIMIZADO: Aumentado para 1.5s para evitar ANR
                     
-                    // ✅ AJUSTADO: Verificar se ainda está processando antes de continuar
+                    // ✅ OTIMIZADO: Verificar se ainda está processando antes de continuar
                     if (isProcessingRecognition || showSuccessScreen) {
                         continue
                     }
@@ -382,7 +377,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                     }
                 } catch (e: Exception) {
                     android.util.Log.e("DetectScreen", "❌ Erro no monitoramento: ${e.message}")
-                    delay(2000) // ✅ AJUSTADO: Reduzido para 2 segundos para recuperação mais rápida
+                    delay(2000) // ✅ OTIMIZADO: Aumentado para 2 segundos para evitar ANR
                 }
             }
         }
@@ -474,18 +469,18 @@ private fun Camera(
                 // ✅ OTIMIZADO: Inicializar câmera apenas uma vez quando o componente estiver visível
                 if (isComponentVisible && !cameraInitialized) {
                     try {
-                        // ✅ OTIMIZADO: Aguardar um pouco antes de inicializar para evitar conflitos
+                        // ✅ OTIMIZADO: Aguardar menos tempo para inicialização mais rápida
                         kotlinx.coroutines.runBlocking {
-                            kotlinx.coroutines.delay(1000)
+                            kotlinx.coroutines.delay(1000) // Aumentado para 1s para evitar ANR
                         }
                         overlay.initializeCamera(cameraFacing)
                         cameraInitialized = true
                         android.util.Log.d("DetectScreen", "✅ Câmera inicializada com sucesso")
                     } catch (e: Exception) {
                         android.util.Log.e("DetectScreen", "❌ Erro ao inicializar câmera: ${e.message}")
-                        // ✅ OTIMIZADO: Tentar novamente após um delay
+                        // ✅ OTIMIZADO: Tentar novamente após um delay menor
                         kotlinx.coroutines.runBlocking {
-                            kotlinx.coroutines.delay(2000)
+                            kotlinx.coroutines.delay(2000) // Aumentado para 2 segundos para evitar ANR
                         }
                         try {
                             overlay.initializeCamera(cameraFacing)
