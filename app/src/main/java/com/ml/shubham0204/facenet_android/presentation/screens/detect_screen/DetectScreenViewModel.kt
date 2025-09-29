@@ -148,12 +148,15 @@ class DetectScreenViewModel(
                         }
                         
                         Log.d("DetectScreenViewModel", "✅ Pessoa reconhecida! Processando...")
+                        Log.d("DetectScreenViewModel", "🔍 Nome reconhecido: '$recognizedPersonName'")
                         
                         // ✅ OTIMIZADO: Aguardar menos tempo para processamento mais rápido
                         delay(PerformanceConfig.RECOGNITION_DELAY_MS)
                         
                         // Buscar funcionários reconhecidos
+                        Log.d("DetectScreenViewModel", "🔍 Chamando findRecognizedEmployee()...")
                         val funcionario = findRecognizedEmployee()
+                        Log.d("DetectScreenViewModel", "🔍 Resultado findRecognizedEmployee: ${funcionario?.nome ?: "null"}")
 
                         if (funcionario != null) {
                             Log.d("DetectScreenViewModel", "✅ Funcionário reconhecido: ${funcionario.nome}")
@@ -279,7 +282,6 @@ class DetectScreenViewModel(
             
             val horarioAtual = System.currentTimeMillis()
             
-            // ✅ CORRIGIDO: Usar coroutine assíncrona em vez de runBlocking
             val locationResult = try {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     locationUtils.getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)

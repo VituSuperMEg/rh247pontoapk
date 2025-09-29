@@ -215,9 +215,27 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             if (isActive && !isProcessingRecognition && !showSuccessScreen) {
                 val totalPessoas = viewModel.getNumPeople()
                 if (totalPessoas > 0L) {
+                    android.util.Log.d("DetectScreen", "🚀 Chamando processFaceRecognition()...")
                     viewModel.processFaceRecognition()
                 }
             }
+        }
+    }
+    
+    // ✅ NOVO: LaunchedEffect para processar quando uma pessoa é reconhecida
+    val lastRecognizedPersonName by remember { viewModel.lastRecognizedPersonName }
+    LaunchedEffect(lastRecognizedPersonName) {
+        if (lastRecognizedPersonName != null && 
+            lastRecognizedPersonName != "Not recognized" && 
+            lastRecognizedPersonName != "Não Encontrado" &&
+            !isProcessingRecognition && 
+            !showSuccessScreen) {
+            
+            android.util.Log.d("DetectScreen", "🎯 Pessoa reconhecida detectada: $lastRecognizedPersonName")
+            android.util.Log.d("DetectScreen", "🚀 Iniciando processamento do reconhecimento...")
+            
+            delay(500) // Aguardar um pouco para garantir que tudo está sincronizado
+            viewModel.processFaceRecognition()
         }
     }
     
@@ -364,7 +382,8 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                     // Log para debug
                     if (recognizedPerson != null && recognizedPerson != "Not recognized") {
                         android.util.Log.d("DetectScreen", "🔄 Monitorando pessoa: $recognizedPerson")
-                        viewModel.setLastRecognizedPersonName(recognizedPerson)
+                        // ✅ REMOVIDO: Não chamar setLastRecognizedPersonName aqui para evitar conflito
+                        // O FaceDetectionOverlay já está fazendo isso
                         
                         // ✅ OTIMIZADO: Capturar foto apenas quando necessário
                         if (!isProcessingRecognition) {
