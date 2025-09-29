@@ -224,6 +224,9 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     
     // ✅ NOVO: LaunchedEffect para processar quando uma pessoa é reconhecida
     val lastRecognizedPersonName by remember { viewModel.lastRecognizedPersonName }
+    var lastProcessedPerson by remember { mutableStateOf<String?>(null) }
+    var lastProcessTime by remember { mutableStateOf(0L) }
+    
     LaunchedEffect(lastRecognizedPersonName) {
         if (lastRecognizedPersonName != null && 
             lastRecognizedPersonName != "Not recognized" && 
@@ -231,11 +234,22 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             !isProcessingRecognition && 
             !showSuccessScreen) {
             
-            android.util.Log.d("DetectScreen", "🎯 Pessoa reconhecida detectada: $lastRecognizedPersonName")
-            android.util.Log.d("DetectScreen", "🚀 Iniciando processamento do reconhecimento...")
+            val currentTime = System.currentTimeMillis()
+            val timeSinceLastProcess = currentTime - lastProcessTime
             
-            delay(500) // Aguardar um pouco para garantir que tudo está sincronizado
-            viewModel.processFaceRecognition()
+            // ✅ CORRIGIDO: Evitar processamento duplicado
+            if (lastRecognizedPersonName != lastProcessedPerson || timeSinceLastProcess > 5000) {
+                android.util.Log.d("DetectScreen", "🎯 Pessoa reconhecida detectada: $lastRecognizedPersonName")
+                android.util.Log.d("DetectScreen", "🚀 Iniciando processamento do reconhecimento...")
+                
+                lastProcessedPerson = lastRecognizedPersonName
+                lastProcessTime = currentTime
+                
+                delay(500) // Aguardar um pouco para garantir que tudo está sincronizado
+                viewModel.processFaceRecognition()
+            } else {
+                android.util.Log.d("DetectScreen", "⚠️ Pulando processamento duplicado para: $lastRecognizedPersonName (último processamento há ${timeSinceLastProcess}ms)")
+            }
         }
     }
     

@@ -58,6 +58,10 @@ class DetectScreenViewModel(
     
     // ✅ NOVO: Controle de throttling para evitar ANR
     private var lastRecognitionTime: Long = 0
+    
+    // ✅ NOVO: Controle de duplicação de registros
+    private var lastRegisteredPerson: String? = null
+    private var lastRegistrationTime: Long = 0
 
     fun getNumPeople(): Long = personUseCase.getCount()
     
@@ -100,6 +104,15 @@ class DetectScreenViewModel(
             return
         }
         lastRecognitionTime = currentTime
+        
+        // ✅ NOVO: Verificar se já registrou ponto para a mesma pessoa recentemente
+        val recognizedPersonName = lastRecognizedPersonName.value
+        if (recognizedPersonName != null && 
+            recognizedPersonName == lastRegisteredPerson && 
+            currentTime - lastRegistrationTime < 10000) { // 10 segundos
+            Log.d("DetectScreenViewModel", "⚠️ Ponto já registrado para $recognizedPersonName recentemente (há ${currentTime - lastRegistrationTime}ms)")
+            return
+        }
         
         // ✅ OTIMIZADO: Cancelar job anterior se existir
         try {
@@ -171,7 +184,12 @@ class DetectScreenViewModel(
                                 if (ponto != null) {
                                     savedPonto.value = ponto
                                     showSuccessScreen.value = true
-                                    Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso")
+                                    
+                                    // ✅ NOVO: Marcar que registrou ponto para esta pessoa
+                                    lastRegisteredPerson = funcionario.nome
+                                    lastRegistrationTime = System.currentTimeMillis()
+                                    
+                                    Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso para: ${funcionario.nome}")
                                     break
                                 }
                             } else {
@@ -379,6 +397,10 @@ class DetectScreenViewModel(
             showSuccessScreen.value = false
             savedPonto.value = null
             lastRecognizedPersonName.value = null
+            
+            // ✅ NOVO: Limpar controles de duplicação após um tempo
+            // Não limpar imediatamente para evitar registros duplicados
+            // Os controles serão limpos automaticamente após 10 segundos
             
             Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso")
         } catch (e: Exception) {
