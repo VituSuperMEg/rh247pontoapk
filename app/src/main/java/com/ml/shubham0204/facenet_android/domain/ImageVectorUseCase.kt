@@ -168,7 +168,7 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    if (distance > 0.74) {
+                    if (distance > 0.73) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
@@ -177,11 +177,6 @@ class ImageVectorUseCase(
                                 FaceRecognitionResult("SPOOF_DETECTED", boundingBox, spoofResult),
                             )
                         } else {
-                            android.util.Log.d("ImageVectorUseCase", "✅ Face $index reconhecida como: ${recognitionResult.personName}")
-                            if (spoofResult != null) {
-                                android.util.Log.d("ImageVectorUseCase", "   - Spoof score: ${spoofResult.score} (threshold: $spoofThreshold) - VÁLIDO")
-                                android.util.Log.d("ImageVectorUseCase", "   - isSpoof: ${spoofResult.isSpoof}, score > threshold: ${spoofResult.score > spoofThreshold}")
-                            }
                             faceRecognitionResults.add(
                                 FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
                             )
