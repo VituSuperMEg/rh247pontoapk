@@ -847,13 +847,20 @@ class BackupService(private val context: Context) {
                     put("funcionarioSecretaria", ponto.funcionarioSecretaria)
                     put("funcionarioLotacao", ponto.funcionarioLotacao)
                     put("dataHora", ponto.dataHora)
-                    put("tipoPonto", ponto.tipoPonto)
                     put("latitude", ponto.latitude)
                     put("longitude", ponto.longitude)
                     put("observacao", ponto.observacao)
                     put("fotoBase64", ponto.fotoBase64)
                     put("synced", ponto.synced)
                     put("entidadeId", ponto.entidadeId) // ✅ NOVO: Campo entidadeId
+                    // ✅ NOVO: Incluir MAC criptografado se disponível
+                    if (ponto.macDispositivoCriptografado != null) {
+                        put("macDispositivoCriptografado", ponto.macDispositivoCriptografado)
+                    }
+                    // ✅ NOVO: Incluir fuso horário se disponível
+                    if (ponto.fusoHorario != null) {
+                        put("fusoHorario", ponto.fusoHorario)
+                    }
                 })
             }
         }
@@ -1014,13 +1021,14 @@ class BackupService(private val context: Context) {
                     funcionarioSecretaria = json.getString("funcionarioSecretaria"),
                     funcionarioLotacao = json.getString("funcionarioLotacao"),
                     dataHora = json.getLong("dataHora"),
-                    tipoPonto = json.getString("tipoPonto"),
                     latitude = if (json.has("latitude") && !json.isNull("latitude")) json.getDouble("latitude") else null,
                     longitude = if (json.has("longitude") && !json.isNull("longitude")) json.getDouble("longitude") else null,
                     observacao = if (json.has("observacao") && !json.isNull("observacao")) json.getString("observacao") else null,
                     fotoBase64 = if (json.has("fotoBase64") && !json.isNull("fotoBase64")) json.getString("fotoBase64") else null,
                     synced = json.getBoolean("synced"),
-                    entidadeId = if (json.has("entidadeId") && !json.isNull("entidadeId")) json.getString("entidadeId") else null // ✅ NOVO: Campo entidadeId
+                    entidadeId = if (json.has("entidadeId") && !json.isNull("entidadeId")) json.getString("entidadeId") else null, // ✅ NOVO: Campo entidadeId
+                    macDispositivoCriptografado = if (json.has("macDispositivoCriptografado") && !json.isNull("macDispositivoCriptografado")) json.getString("macDispositivoCriptografado") else null,
+                    fusoHorario = if (json.has("fusoHorario") && !json.isNull("fusoHorario")) json.getString("fusoHorario") else null
                 )
                 val insertedId = pontosDao.insert(ponto)
                 Log.d(TAG, "✅ Ponto importado: ${ponto.funcionarioNome} (ID: $insertedId)")

@@ -62,6 +62,10 @@ class DetectScreenViewModel(
     // ✅ NOVO: Controle de duplicação de registros
     private var lastRegisteredPerson: String? = null
     private var lastRegistrationTime: Long = 0
+    
+    // ✅ NOVO: Controle de foto única para cada ponto
+    private var lastPhotoTimestamp: Long = 0
+    private var lastPhotoHash: String? = null
 
     fun getNumPeople(): Long = personUseCase.getCount()
     
@@ -89,7 +93,46 @@ class DetectScreenViewModel(
     }
     
     fun setCurrentFaceBitmap(bitmap: Bitmap?) {
+        // ✅ NOVO: Validar se a foto é nova e única
+        if (bitmap != null) {
+            val currentTime = System.currentTimeMillis()
+            val photoHash = generatePhotoHash(bitmap)
+            
+            // ✅ NOVO: Verificar se é a mesma foto usada recentemente
+            if (photoHash == lastPhotoHash && (currentTime - lastPhotoTimestamp) < 5000) { // 5 segundos
+                Log.d("DetectScreenViewModel", "⚠️ Foto duplicada detectada - ignorando captura")
+                return
+            }
+            
+            // ✅ NOVO: Atualizar controles de foto única
+            lastPhotoTimestamp = currentTime
+            lastPhotoHash = photoHash
+            
+            Log.d("DetectScreenViewModel", "📸 Nova foto capturada - timestamp: $currentTime, hash: ${photoHash.take(8)}...")
+        }
+        
         currentFaceBitmap.value = bitmap
+    }
+    
+    // ✅ NOVO: Função para gerar hash único da foto
+    private fun generatePhotoHash(bitmap: Bitmap): String {
+        return try {
+            val width = bitmap.width
+            val height = bitmap.height
+            val sampleSize = 8 // Amostrar apenas alguns pixels para performance
+            
+            val hash = StringBuilder()
+            for (y in 0 until height step sampleSize) {
+                for (x in 0 until width step sampleSize) {
+                    val pixel = bitmap.getPixel(x, y)
+                    hash.append(pixel.toString(16))
+                }
+            }
+            hash.toString().hashCode().toString()
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao gerar hash da foto: ${e.message}")
+            System.currentTimeMillis().toString() // Fallback para timestamp
+        }
     }
     
     fun setLastRecognizedPersonName(name: String?) {
@@ -354,7 +397,6 @@ class DetectScreenViewModel(
                 funcionarioCargo = funcionario.cargo,
                 funcionarioSecretaria = funcionario.secretaria,
                 funcionarioLotacao = funcionario.lotacao,
-                tipoPonto = "PONTO",
                 dataHora = horarioAtual,
                 latitude = latitude,
                 longitude = longitude,
@@ -369,9 +411,7 @@ class DetectScreenViewModel(
                 Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso")
             }
             
-            // 🔊 Reproduzir som de beep quando ponto for registrado
             try {
-                Log.d("DetectScreenViewModel", "🔊 Reproduzindo som de confirmação...")
                 SoundUtils.playBeepSound(context)
             } catch (e: Exception) {
                 Log.w("DetectScreenViewModel", "⚠️ Erro ao reproduzir som: ${e.message}")
@@ -398,11 +438,15 @@ class DetectScreenViewModel(
             savedPonto.value = null
             lastRecognizedPersonName.value = null
             
+            // ✅ NOVO: Limpar controles de foto única após registro do ponto
+            lastPhotoTimestamp = 0
+            lastPhotoHash = null
+            
             // ✅ NOVO: Limpar controles de duplicação após um tempo
             // Não limpar imediatamente para evitar registros duplicados
             // Os controles serão limpos automaticamente após 10 segundos
             
-            Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso")
+            Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso - controles de foto limpos")
         } catch (e: Exception) {
             Log.e("DetectScreenViewModel", "❌ Erro ao resetar reconhecimento: ${e.message}")
         }

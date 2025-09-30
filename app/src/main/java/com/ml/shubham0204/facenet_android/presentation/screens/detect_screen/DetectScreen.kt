@@ -379,12 +379,14 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         }
     }
 
-    // ✅ OTIMIZADO: Monitoramento mais eficiente e rápido
+    // ✅ OTIMIZADO: Monitoramento mais eficiente e rápido com controle de foto única
     LaunchedEffect(faceDetectionOverlay, isInitialized) {
         if (faceDetectionOverlay != null && isInitialized) {
+            var lastPhotoCaptureTime = 0L
+            
             while (isActive) {
                 try {
-                    delay(800) // ✅ OTIMIZADO: Reduzido para 800ms para leitura mais rápida
+                    delay(800) // ✅ OTIMIZADO: Aumentado para 1200ms para evitar capturas excessivas
                     
                     // ✅ OTIMIZADO: Verificar se ainda está processando antes de continuar
                     if (isProcessingRecognition || showSuccessScreen) {
@@ -397,13 +399,20 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                     if (recognizedPerson != null && recognizedPerson != "Not recognized") {
                         android.util.Log.d("DetectScreen", "🔄 Monitorando pessoa: $recognizedPerson")
                         
-                        // ✅ OTIMIZADO: Capturar foto apenas quando necessário e mais rápido
-                        if (!isProcessingRecognition) {
+                        // ✅ NOVO: Controle de tempo para evitar capturas excessivas
+                        val currentTime = System.currentTimeMillis()
+                        val timeSinceLastCapture = currentTime - lastPhotoCaptureTime
+                        
+                        // ✅ OTIMIZADO: Capturar foto apenas quando necessário e com intervalo mínimo
+                        if (!isProcessingRecognition && timeSinceLastCapture > 2000) { // 2 segundos mínimo entre capturas
                             val currentBitmap = faceDetectionOverlay?.getCurrentFrameBitmap()
                             if (currentBitmap != null) {
                                 viewModel.setCurrentFaceBitmap(currentBitmap)
-                                android.util.Log.d("DetectScreen", "📸 Foto capturada do frame atual")
+                                lastPhotoCaptureTime = currentTime
+                                android.util.Log.d("DetectScreen", "📸 Nova foto capturada do frame atual (intervalo: ${timeSinceLastCapture}ms)")
                             }
+                        } else if (timeSinceLastCapture <= 2000) {
+                            android.util.Log.d("DetectScreen", "⏳ Aguardando intervalo mínimo para nova captura (${2000 - timeSinceLastCapture}ms restantes)")
                         }
                     }
                 } catch (e: Exception) {

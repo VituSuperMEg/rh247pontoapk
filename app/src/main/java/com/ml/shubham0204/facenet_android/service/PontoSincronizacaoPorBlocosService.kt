@@ -210,7 +210,7 @@ class PontoSincronizacaoPorBlocosService {
                     funcionarioId = ponto.funcionarioCpf,
                     funcionarioNome = ponto.funcionarioNome,
                     dataHora = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(ponto.dataHora)),
-                    tipoPonto = ponto.tipoPonto.uppercase(),
+                    tipoPonto = "PONTO", // ✅ CORRIGIDO: Adicionar tipoPonto obrigatório
                     latitude = ponto.latitude,
                     longitude = ponto.longitude,
                     fotoBase64 = ponto.fotoBase64,

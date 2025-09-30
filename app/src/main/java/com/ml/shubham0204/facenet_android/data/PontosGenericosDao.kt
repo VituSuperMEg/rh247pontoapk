@@ -1,21 +1,78 @@
 package com.ml.shubham0204.facenet_android.data
 
+import android.content.Context
 import android.util.Log
 import com.ml.shubham0204.facenet_android.data.ObjectBoxStore.store
+import com.ml.shubham0204.facenet_android.utils.DeviceMacUtils
 import io.objectbox.Box
 
 class PontosGenericosDao {
     private val box: Box<PontosGenericosEntity> = store.boxFor(PontosGenericosEntity::class.java)
     
-    fun insert(ponto: PontosGenericosEntity): Long {
+    fun insert(ponto: PontosGenericosEntity, context: Context? = null): Long {
         return try {
+            // ✅ NOVO: Garantir que o fuso horário seja sempre do Brasil se não estiver definido
+            if (ponto.fusoHorario.isNullOrBlank()) {
+                ponto.fusoHorario = "America/Sao_Paulo"
+            }
+            
+            // ✅ NOVO: Garantir que o MAC do dispositivo seja sempre definido
+            if ((ponto.macDispositivoCriptografado == null || ponto.macDispositivoCriptografado!!.isBlank()) && context != null) {
+                val macCriptografado = DeviceMacUtils.getMacDispositivoCriptografado(context)
+                ponto.macDispositivoCriptografado = macCriptografado // pode ser nulo; mantemos nulo se não conseguir obter
+            }
+            
             val id = box.put(ponto)
-            Log.d("PontosGenericosDao", "✅ Ponto salvo com ID: $id")
+            val macLog = ponto.macDispositivoCriptografado?.take(8) ?: "<null>"
+            val fusoLog = ponto.fusoHorario ?: "<null>"
+            Log.d("PontosGenericosDao", "✅ Ponto salvo com ID: $id (fuso: $fusoLog, MAC: $macLog)")
             id
         } catch (e: Exception) {
             Log.e("PontosGenericosDao", "❌ Erro ao salvar ponto: ${e.message}")
             throw e
         }
+    }
+    
+    // ✅ NOVO: Método para criar ponto com fuso horário do Brasil e MAC do dispositivo
+    fun criarPontoComFusoBrasil(
+        context: Context,
+        funcionarioId: String,
+        funcionarioNome: String,
+        funcionarioMatricula: String,
+        funcionarioCpf: String,
+        funcionarioCargo: String,
+        funcionarioSecretaria: String,
+        funcionarioLotacao: String,
+        dataHora: Long = System.currentTimeMillis(),
+        latitude: Double? = null,
+        longitude: Double? = null,
+        observacao: String? = null,
+        fotoBase64: String? = null,
+        entidadeId: String? = null
+    ): Long {
+        // ✅ NOVO: Obter MAC do dispositivo criptografado
+        val macCriptografado = DeviceMacUtils.getMacDispositivoCriptografado(context)
+        
+        val ponto = PontosGenericosEntity(
+            funcionarioId = funcionarioId,
+            funcionarioNome = funcionarioNome,
+            funcionarioMatricula = funcionarioMatricula,
+            funcionarioCpf = funcionarioCpf,
+            funcionarioCargo = funcionarioCargo,
+            funcionarioSecretaria = funcionarioSecretaria,
+            funcionarioLotacao = funcionarioLotacao,
+            dataHora = dataHora,
+            macDispositivoCriptografado = macCriptografado ?: "", // ✅ MAC do dispositivo criptografado
+            latitude = latitude,
+            longitude = longitude,
+            observacao = observacao,
+            fotoBase64 = fotoBase64,
+            synced = false,
+            entidadeId = entidadeId,
+            fusoHorario = "America/Sao_Paulo" // ✅ Fuso horário do Brasil
+        )
+        
+        return insert(ponto, context)
     }
     
     fun getAll(): List<PontosGenericosEntity> {
@@ -209,6 +266,84 @@ class PontosGenericosDao {
         } catch (e: Exception) {
             Log.e("PontosGenericosDao", "❌ Erro ao corrigir pontos sem entidade: ${e.message}")
             0
+        }
+    }
+    
+    // ✅ NOVO: Corrigir pontos antigos que não têm fuso horário definido
+    fun corrigirPontosSemFusoHorario(): Int {
+        return try {
+            val pontosSemFuso = box.all.filter { it.fusoHorario.isNullOrBlank() }
+            
+            if (pontosSemFuso.isEmpty()) {
+                Log.d("PontosGenericosDao", "✅ Todos os pontos já têm fuso horário definido")
+                return 0
+            }
+            
+            Log.d("PontosGenericosDao", "🔧 Corrigindo ${pontosSemFuso.size} pontos sem fuso horário...")
+            
+            var pontosCorrigidos = 0
+            
+            pontosSemFuso.forEach { ponto ->
+                ponto.fusoHorario = "America/Sao_Paulo" // Fuso horário do Brasil
+                box.put(ponto)
+                pontosCorrigidos++
+                val fusoLog = ponto.fusoHorario ?: "<null>"
+                Log.d("PontosGenericosDao", "✅ Ponto corrigido: ${ponto.funcionarioNome} -> fuso: $fusoLog")
+            }
+            
+            Log.d("PontosGenericosDao", "✅ Correção de fuso horário concluída: $pontosCorrigidos pontos corrigidos")
+            pontosCorrigidos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao corrigir pontos sem fuso horário: ${e.message}")
+            0
+        }
+    }
+    
+    // ✅ NOVO: Corrigir pontos antigos que não têm MAC do dispositivo definido
+    fun corrigirPontosSemMacDispositivo(context: Context): Int {
+        return try {
+            val pontosSemMac = box.all.filter { it.macDispositivoCriptografado.isNullOrBlank() }
+            
+            if (pontosSemMac.isEmpty()) {
+                Log.d("PontosGenericosDao", "✅ Todos os pontos já têm MAC do dispositivo definido")
+                return 0
+            }
+            
+            Log.d("PontosGenericosDao", "🔧 Corrigindo ${pontosSemMac.size} pontos sem MAC do dispositivo...")
+            
+            val macCriptografado = DeviceMacUtils.getMacDispositivoCriptografado(context)
+            if (macCriptografado == null) {
+                Log.e("PontosGenericosDao", "❌ Não foi possível obter MAC do dispositivo para correção")
+                return 0
+            }
+            
+            var pontosCorrigidos = 0
+            
+            pontosSemMac.forEach { ponto ->
+                ponto.macDispositivoCriptografado = macCriptografado
+                box.put(ponto)
+                pontosCorrigidos++
+                val macLog = macCriptografado.take(8)
+                Log.d("PontosGenericosDao", "✅ Ponto corrigido: ${ponto.funcionarioNome} -> MAC: $macLog...")
+            }
+            
+            Log.d("PontosGenericosDao", "✅ Correção de MAC do dispositivo concluída: $pontosCorrigidos pontos corrigidos")
+            pontosCorrigidos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao corrigir pontos sem MAC do dispositivo: ${e.message}")
+            0
+        }
+    }
+    
+    // ✅ NOVO: Buscar pontos por MAC do dispositivo
+    fun getByMacDispositivo(macCriptografado: String): List<PontosGenericosEntity> {
+        return try {
+            val pontos = box.all.filter { it.macDispositivoCriptografado == macCriptografado }
+            Log.d("PontosGenericosDao", "📋 Pontos do dispositivo ${macCriptografado.take(8)}...: ${pontos.size}")
+            pontos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao buscar pontos por MAC do dispositivo: ${e.message}")
+            emptyList()
         }
     }
 } 

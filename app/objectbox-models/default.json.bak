@@ -5,7 +5,7 @@
   "entities": [
     {
       "id": "1:7886976431312498614",
-      "lastPropertyId": "4:1044002615928688033",
+      "lastPropertyId": "5:315982973436881508",
       "name": "FaceImageRecord",
       "properties": [
         {
@@ -32,6 +32,11 @@
           "indexId": "2:1210613089703466990",
           "type": 28,
           "flags": 8
+        },
+        {
+          "id": "5:315982973436881508",
+          "name": "originalImagePath",
+          "type": 9
         }
       ],
       "relations": []

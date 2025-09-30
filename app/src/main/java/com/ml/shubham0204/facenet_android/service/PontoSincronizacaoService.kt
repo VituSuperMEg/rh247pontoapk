@@ -78,7 +78,7 @@ class PontoSincronizacaoService {
                 
                 Log.d(TAG, "📊 Total de pontos para sincronizar: ${pontosPendentes.size}")
                 pontosPendentes.forEachIndexed { index, ponto ->
-                    Log.d(TAG, "  🔹 [$index] ${ponto.funcionarioNome} - ${ponto.tipoPonto} - ${Date(ponto.dataHora)}")
+                    Log.d(TAG, "  🔹 [$index] ${ponto.funcionarioNome} - PONTO - ${Date(ponto.dataHora)}")
                 }
                 
                 
@@ -87,7 +87,7 @@ class PontoSincronizacaoService {
                         funcionarioId = ponto.funcionarioCpf, // Usar CPF em vez do ID interno
                         funcionarioNome = ponto.funcionarioNome,
                         dataHora = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(ponto.dataHora)),
-                        tipoPonto = ponto.tipoPonto.uppercase(),
+                        tipoPonto = "PONTO", // ✅ CORRIGIDO: Adicionar tipoPonto obrigatório
                         latitude = ponto.latitude,
                         longitude = ponto.longitude,
                         fotoBase64 = ponto.fotoBase64, // ✅ NOVO: Incluir foto base64
