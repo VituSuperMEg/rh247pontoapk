@@ -151,7 +151,7 @@
     },
     {
       "id": "4:6070835639547591035",
-      "lastPropertyId": "8:3054810561394905485",
+      "lastPropertyId": "11:2009397831074551829",
       "name": "ConfiguracoesEntity",
       "properties": [
         {
@@ -194,6 +194,21 @@
           "id": "8:3054810561394905485",
           "name": "intervaloSincronizacao",
           "type": 5
+        },
+        {
+          "id": "9:3779810133005233858",
+          "name": "geolocalizacaoHabilitada",
+          "type": 1
+        },
+        {
+          "id": "10:869012204662047550",
+          "name": "latitudeFixa",
+          "type": 8
+        },
+        {
+          "id": "11:2009397831074551829",
+          "name": "longitudeFixa",
+          "type": 8
         }
       ],
       "relations": []

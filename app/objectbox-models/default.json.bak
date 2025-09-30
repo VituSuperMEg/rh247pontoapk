@@ -151,7 +151,7 @@
     },
     {
       "id": "4:6070835639547591035",
-      "lastPropertyId": "8:3054810561394905485",
+      "lastPropertyId": "9:3779810133005233858",
       "name": "ConfiguracoesEntity",
       "properties": [
         {
@@ -194,13 +194,18 @@
           "id": "8:3054810561394905485",
           "name": "intervaloSincronizacao",
           "type": 5
+        },
+        {
+          "id": "9:3779810133005233858",
+          "name": "geolocalizacaoHabilitada",
+          "type": 1
         }
       ],
       "relations": []
     },
     {
       "id": "5:87332699017499048",
-      "lastPropertyId": "16:8642990150324389513",
+      "lastPropertyId": "18:1588206695007500998",
       "name": "PontosGenericosEntity",
       "properties": [
         {
@@ -250,11 +255,6 @@
           "type": 6
         },
         {
-          "id": "10:7545839979284100627",
-          "name": "tipoPonto",
-          "type": 9
-        },
-        {
           "id": "11:2299862372577751266",
           "name": "latitude",
           "type": 8
@@ -283,6 +283,16 @@
           "id": "16:8642990150324389513",
           "name": "entidadeId",
           "type": 9
+        },
+        {
+          "id": "17:2533418146038400208",
+          "name": "macDispositivoCriptografado",
+          "type": 9
+        },
+        {
+          "id": "18:1588206695007500998",
+          "name": "fusoHorario",
+          "type": 9
         }
       ],
       "relations": []
@@ -297,7 +307,8 @@
   "retiredEntityUids": [],
   "retiredIndexUids": [],
   "retiredPropertyUids": [
-    1955098665124372966
+    1955098665124372966,
+    7545839979284100627
   ],
   "retiredRelationUids": [],
   "version": 1

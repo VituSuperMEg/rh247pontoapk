@@ -27,6 +27,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import com.ml.shubham0204.facenet_android.utils.LocationUtils
+import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -810,11 +813,13 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             sincronizacaoAtiva = configuracoes.sincronizacaoAtiva,
                             horaSincronizacao = configuracoes.horaSincronizacao,
                             minutoSincronizacao = configuracoes.minutoSincronizacao,
-                            intervaloSincronizacao = configuracoes.intervaloSincronizacao
+                            intervaloSincronizacao = configuracoes.intervaloSincronizacao,
+                            geolocalizacaoHabilitada = configuracoes.geolocalizacaoHabilitada,
+                            latitudeFixa = configuracoes.latitudeFixa?.toString() ?: "",
+                            longitudeFixa = configuracoes.longitudeFixa?.toString() ?: ""
                         )
                     }
                     
-                    // Se a sincronização automática estiver ativada, agendar
                     if (configuracoes.sincronizacaoAtiva) {
                         agendarSincronizacaoAutomatica(
                             hora = configuracoes.horaSincronizacao,
@@ -824,7 +829,6 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     }
                 }
                 
-                // Carregar URL do servidor das preferências
                 _uiState.update { it.copy(serverUrl = appPreferences.serverUrl) }
             } catch (e: Exception) {
                 // TODO: Tratar erro
@@ -991,6 +995,70 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             "0.1.0 (10)" // Versão padrão em caso de erro
         }
     }
+
+    fun updateGeolocalizacaoHabilitada(value: Boolean) {
+        _uiState.update { it.copy(geolocalizacaoHabilitada = value) }
+        try {
+            val atual = configuracoesDao.getConfiguracoes()
+            if (atual != null) {
+                configuracoesDao.atualizarConfiguracoes(
+                    atual.copy(geolocalizacaoHabilitada = value)
+                )
+            } else {
+                configuracoesDao.salvarConfiguracoes(
+                    ConfiguracoesEntity(
+                        entidadeId = "",
+                        localizacaoId = _uiState.value.localizacaoId,
+                        codigoSincronizacao = _uiState.value.codigoSincronizacao,
+                        horaSincronizacao = _uiState.value.horaSincronizacao,
+                        minutoSincronizacao = _uiState.value.minutoSincronizacao,
+                        sincronizacaoAtiva = _uiState.value.sincronizacaoAtiva,
+                        intervaloSincronizacao = _uiState.value.intervaloSincronizacao,
+                        geolocalizacaoHabilitada = value,
+                        latitudeFixa = _uiState.value.latitudeFixa.toDoubleOrNull(),
+                        longitudeFixa = _uiState.value.longitudeFixa.toDoubleOrNull()
+                    )
+                )
+            }
+        } catch (e: Exception) {
+            Log.e("SettingsViewModel", "Erro ao salvar geolocalizacaoHabilitada: ${e.message}")
+        }
+    }
+
+    fun updateLatitudeFixa(value: String) {
+        _uiState.update { it.copy(latitudeFixa = value) }
+        try {
+            val atual = configuracoesDao.getConfiguracoes()
+            if (atual != null) configuracoesDao.atualizarConfiguracoes(atual.copy(latitudeFixa = value.toDoubleOrNull()))
+        } catch (e: Exception) { Log.e("SettingsViewModel", "Erro ao salvar latitudeFixa: ${e.message}") }
+    }
+
+    fun updateLongitudeFixa(value: String) {
+        _uiState.update { it.copy(longitudeFixa = value) }
+        try {
+            val atual = configuracoesDao.getConfiguracoes()
+            if (atual != null) configuracoesDao.atualizarConfiguracoes(atual.copy(longitudeFixa = value.toDoubleOrNull()))
+        } catch (e: Exception) { Log.e("SettingsViewModel", "Erro ao salvar longitudeFixa: ${e.message}") }
+    }
+
+    fun fetchAndSetCurrentLocation() {
+        viewModelScope.launch {
+            try {
+                // Executa na Main (Location APIs precisam de Looper)
+                val location = LocationUtils(context).getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)
+                if (location != null) {
+                    updateLatitudeFixa(location.latitude.toString())
+                    updateLongitudeFixa(location.longitude.toString())
+                    Toast.makeText(context, "Coordenadas preenchidas", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Não foi possível obter localização", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "Erro ao obter localização: ${e.message}")
+                Toast.makeText(context, "Erro ao obter localização", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 }
 
 data class SettingsUiState(
@@ -1012,7 +1080,10 @@ data class SettingsUiState(
     val updateMessage: String? = null,
     val hasUpdate: Boolean = false,
     val availableUpdate: TabletVersionData? = null,
-    val downloadProgress: Int = 0
+    val downloadProgress: Int = 0,
+    val geolocalizacaoHabilitada: Boolean = true,
+    val latitudeFixa: String = "",
+    val longitudeFixa: String = ""
 )
 
 data class HistoricoSincronizacao(

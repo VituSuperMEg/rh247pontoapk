@@ -784,6 +784,9 @@ class BackupService(private val context: Context) {
                     put("minutoSincronizacao", configuracoes.minutoSincronizacao)
                     put("sincronizacaoAtiva", configuracoes.sincronizacaoAtiva)
                     put("intervaloSincronizacao", configuracoes.intervaloSincronizacao)
+                    put("geolocalizacaoHabilitada", configuracoes.geolocalizacaoHabilitada)
+                    if (configuracoes.latitudeFixa != null) put("latitudeFixa", configuracoes.latitudeFixa)
+                    if (configuracoes.longitudeFixa != null) put("longitudeFixa", configuracoes.longitudeFixa)
                 })
             }
         }
@@ -918,7 +921,10 @@ class BackupService(private val context: Context) {
                 horaSincronizacao = json.getInt("horaSincronizacao"),
                 minutoSincronizacao = json.getInt("minutoSincronizacao"),
                 sincronizacaoAtiva = json.getBoolean("sincronizacaoAtiva"),
-                intervaloSincronizacao = json.getInt("intervaloSincronizacao")
+                intervaloSincronizacao = json.getInt("intervaloSincronizacao"),
+                geolocalizacaoHabilitada = if (json.has("geolocalizacaoHabilitada")) json.getBoolean("geolocalizacaoHabilitada") else true,
+                latitudeFixa = if (json.has("latitudeFixa") && !json.isNull("latitudeFixa")) json.getDouble("latitudeFixa") else null,
+                longitudeFixa = if (json.has("longitudeFixa") && !json.isNull("longitudeFixa")) json.getDouble("longitudeFixa") else null
             )
             configuracoesDao.salvarConfiguracoes(configuracoes)
         }

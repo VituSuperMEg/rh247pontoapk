@@ -24,6 +24,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import androidx.core.app.ActivityCompat
+import androidx.compose.ui.platform.LocalContext
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -46,8 +55,117 @@ fun ConfiguracoesTab(
     onSair: () -> Unit
 ) {
     val viewModel: SettingsViewModel = koinViewModel()
+    val context = LocalContext.current
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        val fine = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarse = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fine || coarse) {
+            viewModel.fetchAndSetCurrentLocation()
+        }
+    }
     val uiState by viewModel.uiState.collectAsState()
-    
+    // Seção: Geolocalização
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0B2239)),
+        border = BorderStroke(1.dp, Color(0xFF1E3A5F))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Geolocalização",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier.weight(1f)
+                )
+                Switch(
+                    checked = uiState.geolocalizacaoHabilitada,
+                    onCheckedChange = { checked ->
+                        viewModel.updateGeolocalizacaoHabilitada(checked)
+                        if (checked) {
+                            val fineGranted = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            val coarseGranted = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                            if (!fineGranted && !coarseGranted) {
+                                val activity = context as? Activity
+                                val showRationaleFine = activity?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.ACCESS_FINE_LOCATION) } ?: true
+                                val showRationaleCoarse = activity?.let { ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.ACCESS_COARSE_LOCATION) } ?: true
+                                if (showRationaleFine || showRationaleCoarse) {
+                                    locationPermissionLauncher.launch(arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION
+                                    ))
+                                } else {
+                                    // Provavelmente marcado como "Não perguntar novamente" → abrir configurações do app
+                                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                        data = Uri.fromParts("package", context.packageName, null)
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            } else {
+                                viewModel.fetchAndSetCurrentLocation()
+                            }
+                        }
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Quando habilitado, o app solicitará permissão e incluirá latitude/longitude ao registrar ponto.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFBFD3EA)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                val fineGranted = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val coarseGranted = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val granted = fineGranted || coarseGranted
+                Text(
+                    text = if (granted) "Permissão: CONCEDIDA" else "Permissão: NEGADA",
+                    color = if (granted) Color(0xFF7DD97D) else Color(0xFFD97D7D),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedButton(onClick = {
+                    if (!granted) {
+                        locationPermissionLauncher.launch(arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ))
+                    } else {
+                        viewModel.fetchAndSetCurrentLocation()
+                    }
+                }) { Text("Atualizar localização") }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(
+                    value = uiState.latitudeFixa,
+                    onValueChange = { v -> viewModel.updateLatitudeFixa(v.filter { it.isDigit() || it == '.' || it == '-' }) },
+                    label = { Text("Latitude fixa") },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                OutlinedTextField(
+                    value = uiState.longitudeFixa,
+                    onValueChange = { v -> viewModel.updateLongitudeFixa(v.filter { it.isDigit() || it == '.' || it == '-' }) },
+                    label = { Text("Longitude fixa") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Se definidos, os pontos usarão estas coordenadas e não solicitarão GPS.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFBFD3EA)
+            )
+        }
+    }
     var horaDropdownExpanded by remember { mutableStateOf(false) }
     var minutoDropdownExpanded by remember { mutableStateOf(false) }
     var intervaloDropdownExpanded by remember { mutableStateOf(false) }

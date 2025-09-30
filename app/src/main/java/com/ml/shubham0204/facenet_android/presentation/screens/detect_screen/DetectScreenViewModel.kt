@@ -344,9 +344,12 @@ class DetectScreenViewModel(
             val horarioAtual = System.currentTimeMillis()
             
             val locationResult = try {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    locationUtils.getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)
-                }
+                val geolocEnabled = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes()?.geolocalizacaoHabilitada ?: true } catch (_: Exception) { true }
+                if (geolocEnabled) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        locationUtils.getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)
+                    }
+                } else null
             } catch (e: Exception) {
                 Log.w("DetectScreenViewModel", "⚠️ Erro ao obter localização: ${e.message}")
                 null
@@ -355,7 +358,12 @@ class DetectScreenViewModel(
             val latitude: Double?
             val longitude: Double?
             
-            if (locationResult != null) {
+            // Preferir coordenadas fixas das configurações
+            val configuracoes = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes() } catch (_: Exception) { null }
+            if (configuracoes?.latitudeFixa != null && configuracoes.longitudeFixa != null) {
+                latitude = configuracoes.latitudeFixa
+                longitude = configuracoes.longitudeFixa
+            } else if (locationResult != null) {
                 latitude = locationResult.latitude
                 longitude = locationResult.longitude
             } else {

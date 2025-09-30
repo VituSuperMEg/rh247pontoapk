@@ -76,6 +76,8 @@ import androidx.compose.ui.text.font.FontWeight
 private val cameraPermissionStatus = mutableStateOf(false)
 private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT) // Aqui troco camara
 private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
+private val locationPermissionStatus = mutableStateOf(false)
+private lateinit var locationPermissionLauncher: ManagedActivityResultLauncher<Array<String>, Map<String, Boolean>>
 
 @kotlin.OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -478,6 +480,10 @@ private fun Camera(
     cameraPermissionStatus.value =
         ActivityCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
         PackageManager.PERMISSION_GRANTED
+    // Atualizar status de localização
+    locationPermissionStatus.value =
+        ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+        ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
     val cameraFacing by remember { cameraFacing }
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -488,6 +494,14 @@ private fun Camera(
             } else {
                 camaraPermissionDialog()
             }
+        }
+
+    // Launcher para múltiplas permissões de localização
+    locationPermissionLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            val fineGranted = results[Manifest.permission.ACCESS_FINE_LOCATION] == true
+            val coarseGranted = results[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            locationPermissionStatus.value = fineGranted || coarseGranted
         }
 
     DelayedVisibility(cameraPermissionStatus.value) {
@@ -550,6 +564,33 @@ private fun Camera(
                 modifier = Modifier.align(Alignment.CenterHorizontally),
             ) {
                 Text(text = "Allow")
+            }
+        }
+    }
+
+    // Solicitação de PERMISSÃO DE LOCALIZAÇÃO
+    DelayedVisibility(cameraPermissionStatus.value && !locationPermissionStatus.value) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Permitir Localização\nNecessária para registrar o ponto com coordenadas",
+                textAlign = TextAlign.Center
+            )
+            Button(
+                onClick = {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                },
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                Text(text = "Permitir Localização")
             }
         }
     }

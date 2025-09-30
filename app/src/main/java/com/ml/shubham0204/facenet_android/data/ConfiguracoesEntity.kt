@@ -12,5 +12,8 @@ data class ConfiguracoesEntity(
     val horaSincronizacao: Int = 8,
     val minutoSincronizacao: Int = 0,
     val sincronizacaoAtiva: Boolean = false,
-    val intervaloSincronizacao: Int = 24
+    val intervaloSincronizacao: Int = 24,
+    val geolocalizacaoHabilitada: Boolean = true,
+    val latitudeFixa: Double? = null,
+    val longitudeFixa: Double? = null
 ) 
