@@ -80,21 +80,26 @@ class LocationUtils(private val context: Context) {
             
             // Solicitar nova localização
             suspendCancellableCoroutine { continuation ->
+                val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                val resumed = java.util.concurrent.atomic.AtomicBoolean(false)
                 val locationListener = object : LocationListener {
                     override fun onLocationChanged(location: Location) {
                         Log.d("LocationUtils", "✅ Nova localização obtida: ${location.latitude}, ${location.longitude}")
                         Log.d("LocationUtils", "   - Precisão: ${location.accuracy}m")
                         Log.d("LocationUtils", "   - Provedor: ${location.provider}")
                         
-                        locationManager.removeUpdates(this)
-                        continuation.resume(
-                            LocationResult(
-                                latitude = location.latitude,
-                                longitude = location.longitude,
-                                accuracy = location.accuracy,
-                                isFromGPS = location.provider == LocationManager.GPS_PROVIDER
+                        if (resumed.compareAndSet(false, true)) {
+                            handler.removeCallbacksAndMessages(null)
+                            locationManager.removeUpdates(this)
+                            continuation.resume(
+                                LocationResult(
+                                    latitude = location.latitude,
+                                    longitude = location.longitude,
+                                    accuracy = location.accuracy,
+                                    isFromGPS = location.provider == LocationManager.GPS_PROVIDER
+                                )
                             )
-                        )
+                        }
                     }
                     
                     override fun onProviderEnabled(provider: String) {
@@ -109,11 +114,11 @@ class LocationUtils(private val context: Context) {
                 // Configurar timeout
                 val timeoutRunnable = Runnable {
                     Log.w("LocationUtils", "⏰ Timeout na obtenção de localização")
-                    locationManager.removeUpdates(locationListener)
-                    continuation.resume(null)
+                    if (resumed.compareAndSet(false, true)) {
+                        locationManager.removeUpdates(locationListener)
+                        continuation.resume(null)
+                    }
                 }
-                
-                val handler = android.os.Handler(android.os.Looper.getMainLooper())
                 handler.postDelayed(timeoutRunnable, timeoutMs)
                 
                 // Solicitar atualizações de localização
