@@ -1,11 +1,23 @@
 package com.ml.shubham0204.facenet_android
 
 import android.os.Bundle
+import android.view.View
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -26,14 +38,24 @@ import com.ml.shubham0204.facenet_android.utils.ClearAdeiltonPointsUtil
 import com.ml.shubham0204.facenet_android.utils.TabletDataSyncUtil
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
+import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+    
+    private val appPreferences: AppPreferences by inject()
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        
+        // 🖥️ CONFIGURAR TELA CHEIA: Verificar preferência do usuário
+        if (appPreferences.telaCheiaHabilitada) {
+            setupFullscreenMode()
+        }
         
         // Atualizar entidade_id dos funcionários existentes automaticamente
         updateFuncionariosEntidadeId()
@@ -42,6 +64,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val navHostController = rememberNavController()
+            
+            SetupFullscreenSystem()
             
             NavHost(
                 navController = navHostController,
@@ -371,6 +395,91 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {
                 android.util.Log.e("MainActivity", "❌ Erro na sincronização: ${e.message}")
             }
+        }
+    }
+    
+    /**
+     * 🖥️ CONFIGURAÇÃO DE TELA CHEIA: Esconde botões de navegação e barra de status
+     * Ideal para tablets em modo kiosk ou experiência imersiva
+     */
+    private fun setupFullscreenMode() {
+        try {
+            // Configurar flags para tela cheia
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+            )
+            
+            // Esconder barra de navegação (botões de ação)
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            )
+            
+            // Configurar para manter tela ligada (opcional)
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            
+            android.util.Log.d("MainActivity", "🖥️ Modo de tela cheia configurado com sucesso")
+            
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Erro ao configurar tela cheia: ${e.message}")
+        }
+    }
+    
+    /**
+     * 🖥️ COMPOSABLE PARA CONFIGURAR SISTEMA DE BARRAS
+     * Aplica configurações de tela cheia via Compose
+     */
+    @Composable
+    private fun SetupFullscreenSystem() {
+        val view = LocalView.current
+        
+        SideEffect {
+            val window = (view.context as ComponentActivity).window
+            
+            // Configurar barra de status transparente
+            window.statusBarColor = Color.Transparent.toArgb()
+            window.navigationBarColor = Color.Transparent.toArgb()
+            
+            // Configurar controlador de barras do sistema
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            
+            // Esconder barras do sistema
+            insetsController.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            
+            // Configurar comportamento imersivo
+            insetsController.systemBarsBehavior = 
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            
+            android.util.Log.d("MainActivity", "🖥️ Sistema de barras configurado via Compose")
+        }
+    }
+    
+    /**
+     * 🖥️ MÉTODO PARA ALTERNAR MODO DE TELA CHEIA
+     * Pode ser chamado para ativar/desativar tela cheia dinamicamente
+     */
+    fun toggleFullscreenMode(isFullscreen: Boolean) {
+        try {
+            if (isFullscreen) {
+                // Ativar tela cheia
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                )
+                android.util.Log.d("MainActivity", "🖥️ Tela cheia ativada")
+            } else {
+                // Desativar tela cheia
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                android.util.Log.d("MainActivity", "🖥️ Tela cheia desativada")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MainActivity", "❌ Erro ao alternar tela cheia: ${e.message}")
         }
     }
 }

@@ -74,6 +74,9 @@ class BackupService(private val context: Context) {
         try {
             Log.d(TAG, "🔒 Iniciando criação de backup PROTEGIDO...")
             
+            // 🧹 LIMPEZA AUTOMÁTICA: Limpar cache antes de criar backup
+            performCacheCleanup()
+            
             // ✅ OTIMIZAÇÃO: Verificar memória disponível antes de iniciar
             val runtime = Runtime.getRuntime()
             val maxMemory = runtime.maxMemory()
@@ -1811,6 +1814,97 @@ class BackupService(private val context: Context) {
         }
         
         return buffer.toString()
+    }
+    
+    /**
+     * 🧹 LIMPEZA DE CACHE: Remove arquivos temporários e cache antigo
+     * Resolve o problema de acúmulo de 4GB de cache
+     */
+    private suspend fun performCacheCleanup() {
+        try {
+            Log.d(TAG, "🧹 Executando limpeza de cache antes do backup...")
+            
+            var totalCleaned = 0L
+            var filesRemoved = 0
+            
+            // 1. Limpar diretórios temporários de backup
+            val tempDirs = listOf("temp_backups", "temp_extract", "temp_restore")
+            tempDirs.forEach { dirName ->
+                val tempDir = File(context.cacheDir, dirName)
+                if (tempDir.exists()) {
+                    val dirSize = getDirectorySize(tempDir)
+                    if (tempDir.deleteRecursively()) {
+                        totalCleaned += dirSize
+                        filesRemoved++
+                        Log.d(TAG, "🗑️ Removido diretório temporário: $dirName (${dirSize / 1024 / 1024}MB)")
+                    }
+                }
+            }
+            
+            // 2. Limpar arquivos temporários antigos (mais de 1 hora)
+            val oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000)
+            context.cacheDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.lastModified() < oneHourAgo && 
+                    (file.name.startsWith("temp_") || file.name.startsWith("photo_") || file.name.endsWith(".zip"))) {
+                    val fileSize = file.length()
+                    if (file.delete()) {
+                        totalCleaned += fileSize
+                        filesRemoved++
+                        Log.d(TAG, "🗑️ Removido arquivo temporário: ${file.name} (${fileSize / 1024}KB)")
+                    }
+                }
+            }
+            
+            // 3. Limpar backups antigos (manter apenas os 5 mais recentes)
+            val backupDir = File(context.filesDir, "backups")
+            if (backupDir.exists()) {
+                val backupFiles = backupDir.listFiles()
+                    ?.filter { it.isFile && it.name.endsWith(".json") }
+                    ?.sortedByDescending { it.lastModified() }
+                
+                if (backupFiles != null && backupFiles.size > 5) {
+                    val filesToRemove = backupFiles.drop(5)
+                    filesToRemove.forEach { file ->
+                        val fileSize = file.length()
+                        if (file.delete()) {
+                            totalCleaned += fileSize
+                            filesRemoved++
+                            Log.d(TAG, "🗑️ Removido backup antigo: ${file.name} (${fileSize / 1024 / 1024}MB)")
+                        }
+                    }
+                }
+            }
+            
+            // 4. Forçar garbage collection
+            System.gc()
+            
+            val cleanedMB = totalCleaned / 1024 / 1024
+            if (cleanedMB > 0) {
+                Log.d(TAG, "✅ Limpeza de cache concluída: ${cleanedMB}MB liberados, $filesRemoved arquivos removidos")
+            } else {
+                Log.d(TAG, "✅ Cache já estava limpo")
+            }
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro durante limpeza de cache", e)
+        }
+    }
+    
+    /**
+     * Calcula o tamanho total de um diretório recursivamente
+     */
+    private fun getDirectorySize(directory: File): Long {
+        var size = 0L
+        if (directory.exists() && directory.isDirectory) {
+            directory.listFiles()?.forEach { file ->
+                size += if (file.isDirectory) {
+                    getDirectorySize(file)
+                } else {
+                    file.length()
+                }
+            }
+        }
+        return size
     }
 }
 

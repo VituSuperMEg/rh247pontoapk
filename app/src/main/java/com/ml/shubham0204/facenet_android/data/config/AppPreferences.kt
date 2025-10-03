@@ -15,6 +15,7 @@ class AppPreferences(context: Context) : KoinComponent {
         private const val KEY_AUTO_UPDATE_CHECK = "auto_update_check"
         private const val KEY_LAST_UPDATE_CHECK = "last_update_check"
         private const val KEY_ENTIDADE_INFO = "entidade_info"
+        private const val KEY_TELA_CHEIA_HABILITADA = "tela_cheia_habilitada"
     }
     
     private val sharedPreferences: SharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -49,8 +50,12 @@ class AppPreferences(context: Context) : KoinComponent {
                 sharedPreferences.edit().putString(KEY_ENTIDADE_INFO, json).apply()
             } else {
                 sharedPreferences.edit().remove(KEY_ENTIDADE_INFO).apply()
-            }
         }
+    }
+    
+    var telaCheiaHabilitada: Boolean
+        get() = sharedPreferences.getBoolean(KEY_TELA_CHEIA_HABILITADA, true)
+        set(value) = sharedPreferences.edit().putBoolean(KEY_TELA_CHEIA_HABILITADA, value).apply()
     
     fun clearPreferences() {
         sharedPreferences.edit().clear().apply()

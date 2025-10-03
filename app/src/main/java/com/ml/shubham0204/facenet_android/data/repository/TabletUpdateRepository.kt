@@ -58,6 +58,8 @@ class TabletUpdateRepository(
             Log.d(TAG, "📥 Iniciando download da versão ${versionData.version}")
             Log.d(TAG, "🔗 URL de download original da API: ${versionData.downloadUrl}")
             
+            performAutomaticCleanup()
+            
             // Construir URL correta usando o endpoint correto
             val downloadUrl = "https://api.rh247.com.br/${ServerConfig.DOWNLOAD_ENDPOINT}?versao=${versionData.version}.apk"
             
@@ -179,6 +181,9 @@ class TabletUpdateRepository(
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
             Log.d(TAG, "📥 Iniciando download direto da URL: $downloadUrl")
+            
+            // 🧹 LIMPEZA AUTOMÁTICA: Limpar cache antes do download
+            performAutomaticCleanup()
             
             // Validar se a URL é válida
             try {
@@ -356,6 +361,188 @@ class TabletUpdateRepository(
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao comparar versões", e)
             false
+        }
+    }
+    
+    /**
+     * 🧹 LIMPEZA DE CACHE: Remove versões antigas e arquivos temporários
+     * Este método resolve o problema de acúmulo de 4GB de cache
+     */
+    suspend fun cleanupOldVersionsAndCache(): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "🧹 ===== INICIANDO LIMPEZA DE CACHE E VERSÕES ANTIGAS =====")
+            
+            var totalCleaned = 0L
+            var filesRemoved = 0
+            
+            // 1. Limpar diretório de downloads de atualizações (manter apenas a versão atual)
+            val downloadDir = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), DOWNLOAD_DIR)
+            if (downloadDir.exists()) {
+                Log.d(TAG, "📁 Limpando diretório de downloads: ${downloadDir.absolutePath}")
+                val currentVersion = getCurrentAppVersion()
+                
+                downloadDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.name.endsWith(".apk")) {
+                        // Verificar se é uma versão antiga
+                        val isOldVersion = !file.name.contains(currentVersion.replace(".", "_"))
+                        if (isOldVersion) {
+                            val fileSize = file.length()
+                            if (file.delete()) {
+                                totalCleaned += fileSize
+                                filesRemoved++
+                                Log.d(TAG, "🗑️ Removido APK antigo: ${file.name} (${fileSize / 1024 / 1024}MB)")
+                            } else {
+                                Log.w(TAG, "⚠️ Falha ao remover: ${file.name}")
+                            }
+                        } else {
+                            Log.d(TAG, "✅ Mantendo versão atual: ${file.name}")
+                        }
+                    }
+                }
+            }
+            
+            // 2. Limpar cache temporário do app
+            val cacheDir = context.cacheDir
+            if (cacheDir.exists()) {
+                Log.d(TAG, "📁 Limpando cache temporário: ${cacheDir.absolutePath}")
+                
+                // Limpar diretórios temporários específicos
+                val tempDirs = listOf("temp_backups", "temp_extract", "temp_restore")
+                tempDirs.forEach { dirName ->
+                    val tempDir = File(cacheDir, dirName)
+                    if (tempDir.exists()) {
+                        val dirSize = getDirectorySize(tempDir)
+                        if (tempDir.deleteRecursively()) {
+                            totalCleaned += dirSize
+                            filesRemoved++
+                            Log.d(TAG, "🗑️ Removido diretório temporário: $dirName (${dirSize / 1024 / 1024}MB)")
+                        }
+                    }
+                }
+                
+                // Limpar arquivos temporários antigos (mais de 1 dia)
+                val oneDayAgo = System.currentTimeMillis() - (24 * 60 * 60 * 1000)
+                cacheDir.listFiles()?.forEach { file ->
+                    if (file.isFile && file.lastModified() < oneDayAgo) {
+                        val fileSize = file.length()
+                        if (file.delete()) {
+                            totalCleaned += fileSize
+                            filesRemoved++
+                            Log.d(TAG, "🗑️ Removido arquivo temporário antigo: ${file.name} (${fileSize / 1024}KB)")
+                        }
+                    }
+                }
+            }
+            
+            // 3. Limpar cache de backup temporário
+            val backupCacheDir = File(context.filesDir, "backups")
+            if (backupCacheDir.exists()) {
+                Log.d(TAG, "📁 Limpando cache de backup: ${backupCacheDir.absolutePath}")
+                
+                // Manter apenas os 3 backups mais recentes
+                val backupFiles = backupCacheDir.listFiles()
+                    ?.filter { it.isFile && it.name.endsWith(".json") }
+                    ?.sortedByDescending { it.lastModified() }
+                
+                if (backupFiles != null && backupFiles.size > 3) {
+                    val filesToRemove = backupFiles.drop(3) // Manter apenas os 3 mais recentes
+                    filesToRemove.forEach { file ->
+                        val fileSize = file.length()
+                        if (file.delete()) {
+                            totalCleaned += fileSize
+                            filesRemoved++
+                            Log.d(TAG, "🗑️ Removido backup antigo: ${file.name} (${fileSize / 1024 / 1024}MB)")
+                        }
+                    }
+                }
+            }
+            
+            // 4. Limpar cache de fotos temporárias
+            val photoCacheFiles = cacheDir.listFiles()?.filter { 
+                it.isFile && (it.name.startsWith("photo_") || it.name.startsWith("temp_"))
+            }
+            photoCacheFiles?.forEach { file ->
+                val fileSize = file.length()
+                if (file.delete()) {
+                    totalCleaned += fileSize
+                    filesRemoved++
+                    Log.d(TAG, "🗑️ Removido arquivo de foto temporário: ${file.name} (${fileSize / 1024}KB)")
+                }
+            }
+            
+            // 5. Forçar garbage collection para liberar memória
+            System.gc()
+            
+            val cleanedMB = totalCleaned / 1024 / 1024
+            Log.d(TAG, "✅ ===== LIMPEZA CONCLUÍDA =====")
+            Log.d(TAG, "📊 Total limpo: ${cleanedMB}MB")
+            Log.d(TAG, "📊 Arquivos removidos: $filesRemoved")
+            Log.d(TAG, "💾 Espaço liberado: ${cleanedMB}MB")
+            
+            Result.success(Unit)
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro durante limpeza de cache", e)
+            Result.failure(e)
+        }
+    }
+    
+    /**
+     * Calcula o tamanho total de um diretório recursivamente
+     */
+    private fun getDirectorySize(directory: File): Long {
+        var size = 0L
+        if (directory.exists() && directory.isDirectory) {
+            directory.listFiles()?.forEach { file ->
+                size += if (file.isDirectory) {
+                    getDirectorySize(file)
+                } else {
+                    file.length()
+                }
+            }
+        }
+        return size
+    }
+    
+    /**
+     * 🧹 LIMPEZA AUTOMÁTICA: Executa limpeza antes de cada download
+     */
+    private suspend fun performAutomaticCleanup() {
+        try {
+            Log.d(TAG, "🧹 Executando limpeza automática antes do download...")
+            val cleanupResult = cleanupOldVersionsAndCache()
+            if (cleanupResult.isSuccess) {
+                Log.d(TAG, "✅ Limpeza automática concluída com sucesso")
+            } else {
+                Log.w(TAG, "⚠️ Limpeza automática falhou: ${cleanupResult.exceptionOrNull()?.message}")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro na limpeza automática", e)
+        }
+    }
+    
+    /**
+     * 🧹 LIMPEZA MANUAL: Método público para limpeza manual de cache
+     * Pode ser chamado pelo usuário através da interface
+     */
+    suspend fun performManualCleanup(): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Log.d(TAG, "🧹 Iniciando limpeza manual de cache...")
+            val cleanupResult = cleanupOldVersionsAndCache()
+            
+            if (cleanupResult.isSuccess) {
+                val message = "✅ Limpeza de cache concluída com sucesso! Espaço liberado e versões antigas removidas."
+                Log.d(TAG, message)
+                Result.success(message)
+            } else {
+                val errorMessage = "❌ Erro na limpeza de cache: ${cleanupResult.exceptionOrNull()?.message}"
+                Log.e(TAG, errorMessage)
+                Result.failure(Exception(errorMessage))
+            }
+        } catch (e: Exception) {
+            val errorMessage = "❌ Erro inesperado na limpeza: ${e.message}"
+            Log.e(TAG, errorMessage, e)
+            Result.failure(Exception(errorMessage))
         }
     }
 } 

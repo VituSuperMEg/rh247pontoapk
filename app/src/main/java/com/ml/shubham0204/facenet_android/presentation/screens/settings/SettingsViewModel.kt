@@ -1059,6 +1059,83 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             }
         }
     }
+    
+    /**
+     * 🧹 LIMPEZA DE CACHE: Limpa versões antigas e arquivos temporários
+     * Resolve o problema de acúmulo de 4GB de cache
+     */
+    fun performCacheCleanup() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = true, 
+                        updateMessage = "🧹 Limpando cache e versões antigas...",
+                        downloadProgress = 0
+                    ) 
+                }
+                
+                val cleanupResult = tabletUpdateRepository.performManualCleanup()
+                
+                cleanupResult.fold(
+                    onSuccess = { message ->
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = message,
+                                downloadProgress = 100
+                            ) 
+                        }
+                        Log.d("SettingsViewModel", "✅ Limpeza de cache concluída: $message")
+                    },
+                    onFailure = { error ->
+                        val errorMessage = "❌ Erro na limpeza de cache: ${error.message}"
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = errorMessage,
+                                downloadProgress = 0
+                            ) 
+                        }
+                        Log.e("SettingsViewModel", "❌ Erro na limpeza de cache", error)
+                    }
+                )
+                
+            } catch (e: Exception) {
+                val errorMessage = "❌ Erro inesperado na limpeza: ${e.message}"
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = false,
+                        updateMessage = errorMessage,
+                        downloadProgress = 0
+                    ) 
+                }
+                Log.e("SettingsViewModel", "❌ Erro inesperado na limpeza", e)
+            }
+        }
+    }
+    
+    /**
+     * 🖥️ ALTERNAR MODO DE TELA CHEIA
+     * Ativa/desativa o modo de tela cheia para esconder botões de navegação
+     */
+    fun toggleFullscreenMode(isEnabled: Boolean) {
+        viewModelScope.launch {
+            try {
+                _uiState.update { 
+                    it.copy(telaCheiaHabilitada = isEnabled) 
+                }
+                
+                // Salvar preferência
+                appPreferences.telaCheiaHabilitada = isEnabled
+                
+                Log.d("SettingsViewModel", "🖥️ Modo de tela cheia ${if (isEnabled) "ativado" else "desativado"}")
+                
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "❌ Erro ao alternar modo de tela cheia", e)
+            }
+        }
+    }
 }
 
 data class SettingsUiState(
@@ -1083,7 +1160,8 @@ data class SettingsUiState(
     val downloadProgress: Int = 0,
     val geolocalizacaoHabilitada: Boolean = true,
     val latitudeFixa: String = "",
-    val longitudeFixa: String = ""
+    val longitudeFixa: String = "",
+    val telaCheiaHabilitada: Boolean = true
 )
 
 data class HistoricoSincronizacao(
