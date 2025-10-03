@@ -216,36 +216,57 @@ class FileIntegrityManager {
      */
     fun createProtectedFileFromBinary(sourceFile: File, outputFile: File): Result<FileIntegrityInfo> {
         return try {
+            Log.d(TAG, "🔒 Criando arquivo binário protegido via streaming...")
             
             val contentHash = generateFileHash(sourceFile)
-            
             val digitalSignature = createDigitalSignature(contentHash)
             
-            val binaryContent = sourceFile.readBytes()
-            val base64Content = Base64.getEncoder().encodeToString(binaryContent)
-            
-            val protectedData = ProtectedFileData(
-                content = base64Content,
-                hash = contentHash,
-                signature = digitalSignature,
-                timestamp = System.currentTimeMillis(),
-                version = "1.0",
-                isBinary = true,
-                originalFileName = sourceFile.name
-            )
-            
-            val jsonContent = protectedData.toJson()
-            
-            outputFile.writeText(jsonContent)
+            // ✅ OTIMIZAÇÃO: Escrever arquivo protegido via streaming sem carregar tudo na memória
+            outputFile.outputStream().buffered().writer().use { writer ->
+                writer.write("{")
+                writer.write("\"content\":\"")
+                
+                // Stream Base64 do arquivo binário
+                val base64Encoder = java.util.Base64.getEncoder().withoutPadding()
+                val bridge = object : java.io.OutputStream() {
+                    override fun write(b: Int) {
+                        writer.write(b)
+                    }
+                    override fun write(b: ByteArray, off: Int, len: Int) {
+                        writer.write(String(b, off, len))
+                    }
+                }
+                
+                sourceFile.inputStream().use { input ->
+                    base64Encoder.wrap(bridge).use { b64Out ->
+                        val buffer = ByteArray(16 * 1024) // 16KB buffer
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            b64Out.write(buffer, 0, read)
+                        }
+                    }
+                }
+                
+                writer.write("\",")
+                writer.write("\"hash\":\"$contentHash\",")
+                writer.write("\"signature\":\"$digitalSignature\",")
+                writer.write("\"timestamp\":${System.currentTimeMillis()},")
+                writer.write("\"version\":\"1.0\",")
+                writer.write("\"isBinary\":true,")
+                writer.write("\"originalFileName\":\"${sourceFile.name}\"")
+                writer.write("}")
+                writer.flush()
+            }
             
             val integrityInfo = FileIntegrityInfo(
                 file = outputFile,
                 hash = contentHash,
                 signature = digitalSignature,
-                timestamp = protectedData.timestamp,
+                timestamp = System.currentTimeMillis(),
                 isValid = true
             )
             
+            Log.d(TAG, "✅ Arquivo binário protegido criado via streaming: ${outputFile.absolutePath} (${outputFile.length()} bytes)")
             Result.success(integrityInfo)
             
         } catch (e: Exception) {

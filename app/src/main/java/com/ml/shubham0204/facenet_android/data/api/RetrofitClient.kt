@@ -32,7 +32,7 @@ object RetrofitClient {
 
     private val okHttpClient = OkHttpClient.Builder()
         .addInterceptor(HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.HEADERS
         })
         .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
         .hostnameVerifier { _, _ -> true }
