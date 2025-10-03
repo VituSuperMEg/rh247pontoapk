@@ -385,11 +385,9 @@ class DetectScreenViewModel(
                 null
             }
             
-            // ✅ NOVO: Garantir que sempre tenha uma entidade válida
             val entidadeId = if (!funcionario.entidadeId.isNullOrEmpty()) {
                 funcionario.entidadeId
             } else {
-                // Fallback: usar entidade das configurações
                 val configuracoesDao = ConfiguracoesDao()
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 configuracoes?.entidadeId ?: "ENTIDADE_PADRAO"
@@ -410,7 +408,7 @@ class DetectScreenViewModel(
                 longitude = longitude,
                 fotoBase64 = fotoBase64,
                 synced = false,
-                entidadeId = entidadeId // ✅ NOVO: Sempre ter entidade válida
+                entidadeId = entidadeId
             )
             
             val pontoId = pontosGenericosDao.insert(ponto)
@@ -446,13 +444,8 @@ class DetectScreenViewModel(
             savedPonto.value = null
             lastRecognizedPersonName.value = null
             
-            // ✅ NOVO: Limpar controles de foto única após registro do ponto
             lastPhotoTimestamp = 0
             lastPhotoHash = null
-            
-            // ✅ NOVO: Limpar controles de duplicação após um tempo
-            // Não limpar imediatamente para evitar registros duplicados
-            // Os controles serão limpos automaticamente após 10 segundos
             
             Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso - controles de foto limpos")
         } catch (e: Exception) {
@@ -460,24 +453,17 @@ class DetectScreenViewModel(
         }
     }
 
-    // ✅ NOVO: Função para verificar POOF
     private fun verificarPOOF(funcionario: FuncionariosEntity): Boolean {
         return try {
-            // Verificar se o funcionário está ativo (tem POOF válido)
+
             val poofValido = funcionario.ativo == 1
-            
-            Log.d("DetectScreenViewModel", "🔍 Verificando POOF para ${funcionario.nome}:")
-            Log.d("DetectScreenViewModel", "   - Status ativo: ${funcionario.ativo}")
-            Log.d("DetectScreenViewModel", "   - POOF válido: $poofValido")
             
             poofValido
         } catch (e: Exception) {
-            Log.e("DetectScreenViewModel", "❌ Erro ao verificar POOF: ${e.message}")
-            false // Em caso de erro, negar acesso por segurança
+            false
         }
     }
 
-    // ✅ NOVO: Função para mostrar mensagem de POOF inválido
     private fun mostrarMensagemPOOFInvalido(funcionario: FuncionariosEntity) {
         viewModelScope.launch {
             try {

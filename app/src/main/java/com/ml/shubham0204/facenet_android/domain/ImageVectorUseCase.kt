@@ -168,7 +168,7 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    if (distance > 0.77) {
+                    if (distance > 0.74) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         

@@ -14,12 +14,12 @@ data class PontosGenericosEntity(
     var funcionarioSecretaria: String = "",
     var funcionarioLotacao: String = "",
     var dataHora: Long = System.currentTimeMillis(),
-    var macDispositivoCriptografado: String? = null, // ✅ Permitir nulo para compatibilidade com dados antigos
+    var macDispositivoCriptografado: String? = null,
     var latitude: Double? = null,
     var longitude: Double? = null,
     var observacao: String? = null,
     var fotoBase64: String? = null,
     var synced: Boolean = false,
-    var entidadeId: String? = null, // ✅ NOVO: ID da entidade para agrupamento por blocos
-    var fusoHorario: String? = null // ✅ NOVO: Fuso horário padrão do Brasil (opcional para compatibilidade)
+    var entidadeId: String? = null,
+    var fusoHorario: String? = null
 ) 
