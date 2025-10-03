@@ -150,7 +150,63 @@ class FileIntegrityManager {
             Result.failure(e)
         }
     }
-    
+ 
+    fun createProtectedFileFromFileStreaming(sourceFile: File, outputFile: File): Result<FileIntegrityInfo> {
+        return try {
+            val contentHash = generateFileHash(sourceFile)
+            val digitalSignature = createDigitalSignature(contentHash)
+
+            // Escrever JSON manualmente e fazer streaming do campo "content" em Base64
+            outputFile.outputStream().buffered().writer().use { writer ->
+                writer.write("{")
+                writer.write("\"content\":\"")
+
+                // Stream Base64 do arquivo fonte dentro da string JSON
+                val base64Encoder = java.util.Base64.getEncoder().withoutPadding()
+                val bridge = object : java.io.OutputStream() {
+                    override fun write(b: Int) {
+                        writer.write(b)
+                    }
+                    override fun write(b: ByteArray, off: Int, len: Int) {
+                        writer.write(String(b, off, len))
+                    }
+                }
+
+                sourceFile.inputStream().use { input ->
+                    base64Encoder.wrap(bridge).use { b64Out ->
+                        val buffer = ByteArray(16 * 1024)
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            b64Out.write(buffer, 0, read)
+                        }
+                    }
+                }
+
+                writer.write("\",")
+                writer.write("\"hash\":\"$contentHash\",")
+                writer.write("\"signature\":\"$digitalSignature\",")
+                writer.write("\"timestamp\":${System.currentTimeMillis()},")
+                writer.write("\"version\":\"1.0\",")
+                writer.write("\"isBinary\":false,")
+                writer.write("\"originalFileName\":null")
+                writer.write("}")
+                writer.flush()
+            }
+
+            val integrityInfo = FileIntegrityInfo(
+                file = outputFile,
+                hash = contentHash,
+                signature = digitalSignature,
+                timestamp = System.currentTimeMillis(),
+                isValid = true
+            )
+            Result.success(integrityInfo)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Erro ao criar arquivo protegido (streaming)", e)
+            Result.failure(e)
+        }
+    }
+
     /**
      * Cria um arquivo protegido a partir de um arquivo binário (ZIP, etc.)
      * 
