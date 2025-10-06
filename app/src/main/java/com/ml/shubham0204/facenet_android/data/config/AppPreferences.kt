@@ -60,4 +60,28 @@ class AppPreferences(context: Context) : KoinComponent {
     fun clearPreferences() {
         sharedPreferences.edit().clear().apply()
     }
+    
+    /**
+     * Limpa apenas o cache de informações da entidade, mantendo outras configurações
+     */
+    fun clearEntidadeCache() {
+        sharedPreferences.edit().remove(KEY_ENTIDADE_INFO).apply()
+    }
+    
+    /**
+     * Limpa cache de configurações relacionadas ao servidor
+     */
+    fun clearServerCache() {
+        sharedPreferences.edit()
+            .remove(KEY_SERVER_URL)
+            .remove(KEY_ENTIDADE_INFO)
+            .apply()
+    }
+    
+    /**
+     * Limpa TODOS os caches e preferências (limpeza completa)
+     */
+    fun clearAllCaches() {
+        sharedPreferences.edit().clear().apply()
+    }
 } 

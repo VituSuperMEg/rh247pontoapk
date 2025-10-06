@@ -26,6 +26,7 @@ import com.ml.shubham0204.facenet_android.data.api.BackupListResponse
 import com.ml.shubham0204.facenet_android.data.api.BackupListRequest
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
+import com.ml.shubham0204.facenet_android.utils.CacheManager
 import okhttp3.ResponseBody
 // Imports USB comentados - funcionalidade desabilitada
 // import com.ml.shubham0204.facenet_android.utils.USBUtils
@@ -556,6 +557,87 @@ fun BackupTab() {
                         Spacer(modifier = Modifier.width(8.dp))
                     }
                     Text("Restaurar Backup")
+                }
+            }
+        }
+        
+        // ✅ NOVO: Seção de Limpeza de Cache
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Limpeza de Cache",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Limpa arquivos temporários, cache de imagens e dados desnecessários para liberar espaço de armazenamento.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { 
+                            scope.launch {
+                                try {
+                                    val cacheManager = CacheManager(context, AppPreferences(context))
+                                    val result = cacheManager.performQuickCacheCleanup()
+                                    result.fold(
+                                        onSuccess = { message ->
+                                            displayMessage("✅ $message")
+                                        },
+                                        onFailure = { error ->
+                                            displayMessage("❌ Erro: ${error.message}")
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    displayMessage("❌ Erro: ${e.message}")
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        Text("Limpeza Rápida")
+                    }
+                    
+                    Button(
+                        onClick = { 
+                            scope.launch {
+                                try {
+                                    val cacheManager = CacheManager(context, AppPreferences(context))
+                                    val result = cacheManager.performCompleteCacheCleanup()
+                                    result.fold(
+                                        onSuccess = { message ->
+                                            displayMessage("✅ $message")
+                                        },
+                                        onFailure = { error ->
+                                            displayMessage("❌ Erro: ${error.message}")
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    displayMessage("❌ Erro: ${e.message}")
+                                }
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF44336)
+                        )
+                    ) {
+                        Text("Limpeza Completa")
+                    }
                 }
             }
         }

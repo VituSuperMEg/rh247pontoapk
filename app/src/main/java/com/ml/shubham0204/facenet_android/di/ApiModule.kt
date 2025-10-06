@@ -4,6 +4,7 @@ import com.ml.shubham0204.facenet_android.data.api.TabletVersionApi
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import com.ml.shubham0204.facenet_android.data.config.ServerConfig
 import com.ml.shubham0204.facenet_android.data.repository.TabletUpdateRepository
+import com.ml.shubham0204.facenet_android.utils.CacheManager
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.dsl.module
@@ -45,5 +46,12 @@ val apiModule = module {
     
     single {
         AppPreferences(get())
+    }
+    
+    single {
+        CacheManager(
+            context = get(),
+            appPreferences = get()
+        )
     }
 } 

@@ -21,6 +21,7 @@ import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import com.ml.shubham0204.facenet_android.worker.SincronizacaoAutomaticaWorker
 import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
+import com.ml.shubham0204.facenet_android.utils.CacheManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +49,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     private val context: Context by inject()
     private val tabletUpdateRepository: TabletUpdateRepository by inject()
     private val appPreferences: AppPreferences by inject()
+    private val cacheManager: CacheManager by inject()
     
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -290,6 +292,10 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     sincronizacaoAtiva = currentState.sincronizacaoAtiva,
                     intervaloSincronizacao = currentState.intervaloSincronizacao
                 )
+                
+                // ✅ NOVO: Limpar cache do servidor antes de salvar
+                Log.d("SettingsViewModel", "🧹 Limpando cache do servidor...")
+                appPreferences.clearServerCache()
                 
                 // Salvar URL do servidor nas preferências
                 appPreferences.serverUrl = currentState.serverUrl
@@ -999,6 +1005,9 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun updateGeolocalizacaoHabilitada(value: Boolean) {
         _uiState.update { it.copy(geolocalizacaoHabilitada = value) }
         try {
+            // ✅ NOVO: Limpar cache da entidade antes de atualizar
+            appPreferences.clearEntidadeCache()
+            
             val atual = configuracoesDao.getConfiguracoes()
             if (atual != null) {
                 configuracoesDao.atualizarConfiguracoes(
@@ -1028,6 +1037,9 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun updateLatitudeFixa(value: String) {
         _uiState.update { it.copy(latitudeFixa = value) }
         try {
+            // ✅ NOVO: Limpar cache da entidade antes de atualizar
+            appPreferences.clearEntidadeCache()
+            
             val atual = configuracoesDao.getConfiguracoes()
             if (atual != null) configuracoesDao.atualizarConfiguracoes(atual.copy(latitudeFixa = value.toDoubleOrNull()))
         } catch (e: Exception) { Log.e("SettingsViewModel", "Erro ao salvar latitudeFixa: ${e.message}") }
@@ -1036,6 +1048,9 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun updateLongitudeFixa(value: String) {
         _uiState.update { it.copy(longitudeFixa = value) }
         try {
+            // ✅ NOVO: Limpar cache da entidade antes de atualizar
+            appPreferences.clearEntidadeCache()
+            
             val atual = configuracoesDao.getConfiguracoes()
             if (atual != null) configuracoesDao.atualizarConfiguracoes(atual.copy(longitudeFixa = value.toDoubleOrNull()))
         } catch (e: Exception) { Log.e("SettingsViewModel", "Erro ao salvar longitudeFixa: ${e.message}") }
@@ -1075,18 +1090,40 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     ) 
                 }
                 
-                val cleanupResult = tabletUpdateRepository.performManualCleanup()
+                // ✅ NOVO: Limpeza agressiva de cache
+                val cacheCleanupResult = cacheManager.performCompleteCacheCleanup()
                 
-                cleanupResult.fold(
-                    onSuccess = { message ->
-                        _uiState.update { 
-                            it.copy(
-                                isUpdating = false,
-                                updateMessage = message,
-                                downloadProgress = 100
-                            ) 
-                        }
-                        Log.d("SettingsViewModel", "✅ Limpeza de cache concluída: $message")
+                cacheCleanupResult.fold(
+                    onSuccess = { cacheMessage ->
+                        Log.d("SettingsViewModel", "✅ Limpeza de cache: $cacheMessage")
+                        
+                        // Continuar com limpeza de versões antigas
+                        val cleanupResult = tabletUpdateRepository.performManualCleanup()
+                        
+                        cleanupResult.fold(
+                            onSuccess = { message ->
+                                val finalMessage = "$cacheMessage\n$message"
+                                _uiState.update { 
+                                    it.copy(
+                                        isUpdating = false,
+                                        updateMessage = finalMessage,
+                                        downloadProgress = 100
+                                    ) 
+                                }
+                                Log.d("SettingsViewModel", "✅ Limpeza completa concluída: $finalMessage")
+                            },
+                            onFailure = { error ->
+                                val errorMessage = "$cacheMessage\n❌ Erro na limpeza de versões: ${error.message}"
+                                _uiState.update { 
+                                    it.copy(
+                                        isUpdating = false,
+                                        updateMessage = errorMessage,
+                                        downloadProgress = 0
+                                    ) 
+                                }
+                                Log.e("SettingsViewModel", "❌ Erro na limpeza de versões", error)
+                            }
+                        )
                     },
                     onFailure = { error ->
                         val errorMessage = "❌ Erro na limpeza de cache: ${error.message}"
@@ -1133,6 +1170,60 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                 
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "❌ Erro ao alternar modo de tela cheia", e)
+            }
+        }
+    }
+    
+    /**
+     * Limpeza rápida de cache (apenas cache essencial)
+     */
+    fun performQuickCacheCleanup() {
+        viewModelScope.launch {
+            try {
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = true, 
+                        updateMessage = "⚡ Limpeza rápida de cache...",
+                        downloadProgress = 0
+                    ) 
+                }
+                
+                val result = cacheManager.performQuickCacheCleanup()
+                
+                result.fold(
+                    onSuccess = { message ->
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = message,
+                                downloadProgress = 100
+                            ) 
+                        }
+                        Log.d("SettingsViewModel", "✅ Limpeza rápida concluída: $message")
+                    },
+                    onFailure = { error ->
+                        val errorMessage = "❌ Erro na limpeza rápida: ${error.message}"
+                        _uiState.update { 
+                            it.copy(
+                                isUpdating = false,
+                                updateMessage = errorMessage,
+                                downloadProgress = 0
+                            ) 
+                        }
+                        Log.e("SettingsViewModel", "❌ Erro na limpeza rápida", error)
+                    }
+                )
+                
+            } catch (e: Exception) {
+                val errorMessage = "❌ Erro inesperado na limpeza rápida: ${e.message}"
+                _uiState.update { 
+                    it.copy(
+                        isUpdating = false,
+                        updateMessage = errorMessage,
+                        downloadProgress = 0
+                    ) 
+                }
+                Log.e("SettingsViewModel", "❌ Erro inesperado na limpeza rápida", e)
             }
         }
     }

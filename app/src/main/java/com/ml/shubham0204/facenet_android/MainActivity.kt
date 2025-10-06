@@ -39,6 +39,7 @@ import com.ml.shubham0204.facenet_android.utils.TabletDataSyncUtil
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
+import com.ml.shubham0204.facenet_android.utils.CacheManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,6 +48,7 @@ import org.koin.android.ext.android.inject
 class MainActivity : ComponentActivity() {
     
     private val appPreferences: AppPreferences by inject()
+    private val cacheManager: CacheManager by inject()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +61,9 @@ class MainActivity : ComponentActivity() {
         
         // Atualizar entidade_id dos funcionários existentes automaticamente
         updateFuncionariosEntidadeId()
+        
+        // ✅ NOVO: Limpeza automática de cache no startup
+        performStartupCacheCleanup()
         
         // syncDataWithBackend()
 
@@ -480,6 +485,33 @@ class MainActivity : ComponentActivity() {
             }
         } catch (e: Exception) {
             android.util.Log.e("MainActivity", "❌ Erro ao alternar tela cheia: ${e.message}")
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Limpeza automática de cache no startup
+     * Executa limpeza rápida para evitar acúmulo de 4GB+ de cache
+     */
+    private fun performStartupCacheCleanup() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                android.util.Log.d("MainActivity", "🚀 Iniciando limpeza automática de cache...")
+                
+                // Executar limpeza rápida (não bloqueia o startup)
+                val result = cacheManager.performQuickCacheCleanup()
+                
+                result.fold(
+                    onSuccess = { message ->
+                        android.util.Log.d("MainActivity", "✅ Limpeza automática concluída: $message")
+                    },
+                    onFailure = { error ->
+                        android.util.Log.e("MainActivity", "❌ Erro na limpeza automática: ${error.message}")
+                    }
+                )
+                
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "❌ Erro inesperado na limpeza automática", e)
+            }
         }
     }
 }
