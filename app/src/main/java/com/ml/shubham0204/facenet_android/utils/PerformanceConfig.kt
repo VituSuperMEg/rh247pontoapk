@@ -8,7 +8,7 @@ object PerformanceConfig {
     const val RECOGNITION_DELAY_MS = 100L // Delay entre tentativas
     
     const val IMAGE_PROCESSING_INTERVAL_MS = 1000L // 1 segundo entre processamentos
-    const val IMAGE_PROCESSING_INTERVAL_ERROR_MS = 1000L // 2 segundos quando há erros
+    const val IMAGE_PROCESSING_INTERVAL_ERROR_MS = 1000L // 1 segundos quando há erros
     const val MAX_CONSECUTIVE_ERRORS = 3 // Máximo de erros consecutivos antes de pausar
     const val MAX_FRAME_COUNT = 100 // Reset a cada 100 frames para liberar memória
     

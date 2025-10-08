@@ -26,7 +26,8 @@ import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToLogs: () -> Unit = {}
 ) {
     FaceNetAndroidTheme {
         Scaffold(
@@ -72,7 +73,8 @@ fun SettingsScreen(
                     0 -> ConfiguracoesTab(
                         onSalvar = { /* TODO */ },
                         onCancelar = onNavigateBack,
-                        onSair = { /* TODO */ }
+                        onSair = { /* TODO */ },
+                        onNavigateToLogs = onNavigateToLogs
                     )
                     1 -> BackupTab()
                     2 -> HistoricoTab()

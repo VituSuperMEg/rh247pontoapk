@@ -22,6 +22,7 @@ import com.ml.shubham0204.facenet_android.utils.LocationResult
 import com.ml.shubham0204.facenet_android.utils.ConnectivityUtils
 import com.ml.shubham0204.facenet_android.utils.SoundUtils
 import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
+import com.ml.shubham0204.facenet_android.utils.CrashReporter
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import kotlinx.coroutines.delay
@@ -184,6 +185,9 @@ class DetectScreenViewModel(
                 isProcessingRecognition.value = true
                 Log.d("DetectScreenViewModel", "🔄 Iniciando reconhecimento facial...")
                 
+                // Log de início do processo
+                CrashReporter.logEvent(context, "Iniciando reconhecimento facial", "INFO")
+                
                 // ✅ OTIMIZADO: Aguardar até que uma pessoa seja reconhecida
                 var attempts = 0
                 val maxAttempts = PerformanceConfig.MAX_RECOGNITION_ATTEMPTS
@@ -255,6 +259,8 @@ class DetectScreenViewModel(
                 // Não é um erro, apenas cancelamento normal
             } catch (e: Exception) {
                 Log.e("DetectScreenViewModel", "❌ Erro no reconhecimento: ${e.message}")
+                // Log do erro para crash reporting
+                CrashReporter.logException(context, e, "processFaceRecognition")
             } finally {
                 isProcessingRecognition.value = false
                 recognitionJob = null
@@ -331,6 +337,8 @@ class DetectScreenViewModel(
             
         } catch (e: Exception) {
             Log.e("DetectScreenViewModel", "❌ Erro ao buscar pessoa reconhecida: ${e.message}")
+            // Log do erro para crash reporting
+            CrashReporter.logException(context, e, "findRecognizedEmployee")
             return null
         }
     }
@@ -428,6 +436,8 @@ class DetectScreenViewModel(
             ponto
         } catch (e: Exception) {
             Log.e("DetectScreenViewModel", "❌ Erro ao registrar ponto: ${e.message}")
+            // Log do erro para crash reporting
+            CrashReporter.logException(context, e, "registerPonto")
             null
         }
     }

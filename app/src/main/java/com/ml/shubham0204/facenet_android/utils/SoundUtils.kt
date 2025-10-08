@@ -37,7 +37,6 @@ object SoundUtils {
                 
                 setVolume(volume, volume)
                 
-                // Configurar fonte do arquivo de som
                 val assetFileDescriptor = context.assets.openFd("bep.wav")
                 setDataSource(
                     assetFileDescriptor.fileDescriptor,

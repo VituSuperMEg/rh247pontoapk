@@ -9,6 +9,7 @@ import com.ml.shubham0204.facenet_android.data.RecognitionMetrics
 import com.ml.shubham0204.facenet_android.domain.embeddings.FaceNet
 import com.ml.shubham0204.facenet_android.domain.face_detection.FaceSpoofDetector
 import com.ml.shubham0204.facenet_android.domain.face_detection.MediapipeFaceDetector
+import com.ml.shubham0204.facenet_android.utils.CrashReporter
 import org.koin.core.annotation.Single
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -59,6 +60,7 @@ class ImageVectorUseCase(
             return Result.failure(faceDetectionResult.exceptionOrNull()!!)
         }
     }
+    
     
     // ✅ NOVO: Função para adicionar múltiplas imagens de uma vez
     suspend fun addMultipleImages(
@@ -168,7 +170,7 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    if (distance > 0.74) {
+                    if (distance > 0.77) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
@@ -240,13 +242,17 @@ class ImageVectorUseCase(
     suspend fun checkIfFaceAlreadyExists(
         imageUri: Uri,
         currentPersonID: Long? = null, // ID da pessoa atual (para permitir atualização da própria face)
-        similarityThreshold: Float = 0.74f // Limiar de similaridade (mais restritivo que reconhecimento)
+        similarityThreshold: Float = 0.77f // Limiar de similaridade (mais restritivo que reconhecimento)
     ): Result<FaceAlreadyExistsResult> {
         return try {
 
             val faceDetectionResult = mediapipeFaceDetector.getCroppedFace(imageUri)
             if (faceDetectionResult.isFailure) {
                 android.util.Log.e("ImageVectorUseCase", "❌ Erro ao detectar face na imagem")
+                // Log do erro para crash reporting (comentado por enquanto)
+                // faceDetectionResult.exceptionOrNull()?.let { exception ->
+                //     CrashReporter.logException(applicationContext, exception, "checkIfFaceAlreadyExists - Face Detection")
+                // }
                 return Result.failure(faceDetectionResult.exceptionOrNull()!!)
             }
             
@@ -285,6 +291,8 @@ class ImageVectorUseCase(
         } catch (e: Exception) {
             android.util.Log.e("ImageVectorUseCase", "❌ Erro ao verificar face existente: ${e.message}")
             e.printStackTrace()
+            // Log do erro para crash reporting (comentado por enquanto)
+            // CrashReporter.logException(applicationContext, e, "checkIfFaceAlreadyExists - General Error")
             return Result.failure(e)
         }
     }

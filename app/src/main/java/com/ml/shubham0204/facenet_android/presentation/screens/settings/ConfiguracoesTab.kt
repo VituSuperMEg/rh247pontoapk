@@ -52,7 +52,8 @@ import org.koin.androidx.compose.koinViewModel
 fun ConfiguracoesTab(
     onSalvar: () -> Unit,
     onCancelar: () -> Unit,
-    onSair: () -> Unit
+    onSair: () -> Unit,
+    onNavigateToLogs: () -> Unit = {}
 ) {
     val viewModel: SettingsViewModel = koinViewModel()
     val context = LocalContext.current
@@ -444,6 +445,44 @@ fun ConfiguracoesTab(
                 )
             }
         }
+        
+        // Botão de Logs do Sistema
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = Color(0xFFF5F5F5)
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Logs do Sistema",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Text(
+                    text = "Visualize logs de erro e crashes do aplicativo",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+                
+                OutlinedButton(
+                    onClick = onNavigateToLogs,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFF264064))
+                ) {
+                    Text("Ver Logs do Sistema", color = Color(0xFF264064))
+                }
+            }
+        }
+        
         Spacer(modifier = Modifier.height(16.dp))
 
         // Botões de Ação

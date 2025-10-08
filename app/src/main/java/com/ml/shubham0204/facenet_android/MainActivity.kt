@@ -33,6 +33,7 @@ import com.ml.shubham0204.facenet_android.presentation.screens.ponto_success.Pon
 import com.ml.shubham0204.facenet_android.presentation.screens.reports.ReportsScreen
 import com.ml.shubham0204.facenet_android.presentation.screens.settings.SettingsScreen
 import com.ml.shubham0204.facenet_android.presentation.screens.login.LoginScreen
+import com.ml.shubham0204.facenet_android.ui.screens.LogsScreen
 import com.ml.shubham0204.facenet_android.utils.ClearFacesUtil
 import com.ml.shubham0204.facenet_android.utils.ClearAdeiltonPointsUtil
 import com.ml.shubham0204.facenet_android.utils.TabletDataSyncUtil
@@ -270,7 +271,8 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("settings") {
                     SettingsScreen(
-                        onNavigateBack = { navHostController.navigateUp() }
+                        onNavigateBack = { navHostController.navigateUp() },
+                        onNavigateToLogs = { navHostController.navigate("logs") }
                     )
                 }
                 composable("reports") {
@@ -278,6 +280,11 @@ class MainActivity : ComponentActivity() {
                         onNavigateBack = { navHostController.navigateUp() },
                         onSyncClick = { /* TODO: Implementar sincronização */ },
                         onExportClick = { /* TODO: Implementar exportação */ }
+                    )
+                }
+                composable("logs") {
+                    LogsScreen(
+                        onNavigateBack = { navHostController.navigateUp() }
                     )
                 }
             }
