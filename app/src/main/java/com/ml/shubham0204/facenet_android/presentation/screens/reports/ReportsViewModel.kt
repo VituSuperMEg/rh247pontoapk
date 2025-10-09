@@ -28,7 +28,10 @@ data class ReportsState(
     val points: List<PontosGenericosEntity> = emptyList(),
     val totalPoints: Int = 0,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val currentPage: Int = 0,
+    val hasMorePages: Boolean = true,
+    val pageSize: Int = 50
 )
 
 @KoinViewModel
@@ -46,23 +49,40 @@ class ReportsViewModel(
             try {
                 reportsState.value = reportsState.value.copy(isLoading = true, error = null)
                 
-                val points = pontosGenericosDao.getAll()
+                val allPoints = pontosGenericosDao.getAll()
+                
+                // ✅ PAGINAÇÃO: Carregar todos os pontos, mas com paginação para evitar crash
+                val sortedPoints = allPoints.sortedByDescending { it.dataHora }
+                
+                android.util.Log.d("ReportsViewModel", "📊 Total de pontos encontrados: ${sortedPoints.size}")
                 
                 // Se não há pontos no banco, criar dados de exemplo para teste
-                val finalPoints = if (points.isEmpty()) {
+                val finalPoints = if (sortedPoints.isEmpty()) {
                     createSampleData()
                 } else {
-                    points
+                    sortedPoints
                 }
                 
-                val sortedPoints = finalPoints.sortedByDescending { it.dataHora }
+                // ✅ PAGINAÇÃO: Carregar apenas a primeira página
+                val pageSize = 50
+                val firstPage = finalPoints.take(pageSize)
+                val hasMore = finalPoints.size > pageSize
                 
                 reportsState.value = ReportsState(
-                    points = sortedPoints,
-                    totalPoints = sortedPoints.size,
-                    isLoading = false
+                    points = firstPage,
+                    totalPoints = finalPoints.size,
+                    isLoading = false,
+                    currentPage = 0,
+                    hasMorePages = hasMore,
+                    pageSize = pageSize
                 )
                 
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("ReportsViewModel", "OutOfMemoryError em loadReports: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Muitos pontos para carregar. Tente filtrar por data."
+                )
             } catch (e: Exception) {
                 // Log do crash para debug remoto (sem context para evitar problemas)
                 android.util.Log.e("ReportsViewModel", "Erro em loadReports: ${e.message}", e)
@@ -70,6 +90,44 @@ class ReportsViewModel(
                 reportsState.value = reportsState.value.copy(
                     isLoading = false,
                     error = "Erro ao carregar relatórios: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    fun loadMorePoints() {
+        viewModelScope.launch {
+            try {
+                if (!reportsState.value.hasMorePages) return@launch
+                
+                reportsState.value = reportsState.value.copy(isLoading = true)
+                
+                val allPoints = pontosGenericosDao.getAll().sortedByDescending { it.dataHora }
+                val currentPage = reportsState.value.currentPage + 1
+                val pageSize = reportsState.value.pageSize
+                val startIndex = currentPage * pageSize
+                val endIndex = startIndex + pageSize
+                
+                val newPoints = allPoints.subList(startIndex, minOf(endIndex, allPoints.size))
+                val hasMore = endIndex < allPoints.size
+                
+                val currentPoints = reportsState.value.points.toMutableList()
+                currentPoints.addAll(newPoints)
+                
+                reportsState.value = reportsState.value.copy(
+                    points = currentPoints,
+                    currentPage = currentPage,
+                    hasMorePages = hasMore,
+                    isLoading = false
+                )
+                
+                android.util.Log.d("ReportsViewModel", "📄 Página $currentPage carregada: ${newPoints.size} pontos. Total: ${currentPoints.size}")
+                
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao carregar mais pontos: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Erro ao carregar mais pontos: ${e.message}"
                 )
             }
         }
