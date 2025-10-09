@@ -170,7 +170,7 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    if (distance > 0.76) {
+                    if (distance > 0.78) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
@@ -242,7 +242,7 @@ class ImageVectorUseCase(
     suspend fun checkIfFaceAlreadyExists(
         imageUri: Uri,
         currentPersonID: Long? = null, // ID da pessoa atual (para permitir atualização da própria face)
-        similarityThreshold: Float = 0.77f // Limiar de similaridade (mais restritivo que reconhecimento)
+        similarityThreshold: Float = 0.78f // Limiar de similaridade (mais restritivo que reconhecimento)
     ): Result<FaceAlreadyExistsResult> {
         return try {
 
