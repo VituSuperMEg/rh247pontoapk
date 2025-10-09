@@ -81,6 +81,12 @@ class PontoSincronizacaoPorBlocosService {
                 // Buscar pontos não sincronizados agrupados por entidade
                 val pontosDao = PontosGenericosDao()
                 
+                // ✅ NOVO: Validar e corrigir pontos com campos vazios ou nulos
+                val pontosValidados = pontosDao.validarECorrigirPontos()
+                if (pontosValidados > 0) {
+                    Log.d(TAG, "🔧 $pontosValidados pontos foram validados e corrigidos")
+                }
+                
                 // ✅ NOVO: Corrigir pontos antigos que não têm entidadeId
                 val pontosCorrigidos = pontosDao.corrigirPontosSemEntidade()
                 if (pontosCorrigidos > 0) {
