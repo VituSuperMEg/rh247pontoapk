@@ -112,17 +112,9 @@ class PontoSincronizacaoPorBlocosService {
                 Log.d(TAG, "📊 Total de pontos para sincronizar: $totalPontos")
                 Log.d(TAG, "🏢 Entidades encontradas: ${pontosPorEntidade.keys}")
                 
+                // ✅ NOVO: Remover limite de pontos, processar em lotes
                 if (totalPontos > 1000) {
-                    Log.w(TAG, "⚠️ Muitos pontos para sincronizar ($totalPontos). Limitando processamento.")
-                    return@withContext SincronizacaoPorBlocosResult(
-                        sucesso = false,
-                        totalPontos = totalPontos,
-                        pontosSincronizados = 0,
-                        entidadesProcessadas = 0,
-                        duracaoSegundos = 0,
-                        mensagem = "⚠️ Muitos pontos para sincronizar de uma vez. Tente novamente mais tarde.",
-                        detalhesPorEntidade = emptyList()
-                    )
+                    Log.w(TAG, "⚠️ Muitos pontos para sincronizar ($totalPontos). Processamento pode demorar.")
                 }
                 
                 val resultadosPorEntidade = mutableListOf<EntidadeSyncResult>()
@@ -214,7 +206,7 @@ class PontoSincronizacaoPorBlocosService {
         }
     }
     
-    // Sincronizar pontos de uma entidade específica
+    // Sincronizar pontos de uma entidade específica (otimizado para evitar OutOfMemory)
     private suspend fun sincronizarPontosDaEntidade(
         entidadeId: String,
         pontos: List<PontosGenericosEntity>,
@@ -223,80 +215,168 @@ class PontoSincronizacaoPorBlocosService {
         return try {
             Log.d(TAG, "🔄 Sincronizando ${pontos.size} pontos da entidade: $entidadeId")
             
-            // Converter pontos para formato da API
-            val pontosParaAPI = pontos.map { ponto ->
-                PontoSyncRequest(
-                    funcionarioId = ponto.funcionarioCpf,
-                    funcionarioNome = ponto.funcionarioNome,
-                    dataHora = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(ponto.dataHora)),
-                    tipoPonto = "PONTO", // ✅ CORRIGIDO: Adicionar tipoPonto obrigatório
-                    latitude = ponto.latitude,
-                    longitude = ponto.longitude,
-                    fotoBase64 = ponto.fotoBase64,
-                    observacao = ponto.observacao
-                )
-            }
+            // ✅ NOVO: Processar em lotes se houver muitos pontos
+            val BATCH_SIZE = 50
+            var pontosSincronizados = 0
             
-            // Criar request para esta entidade
-            val requestEntidade = PontoSyncCompleteRequest(
-                localizacao_id = configuracoes.localizacaoId,
-                cod_sincroniza = configuracoes.codigoSincronizacao,
-                pontos = pontosParaAPI
-            )
-            
-            Log.d(TAG, "📡 Enviando ${pontosParaAPI.size} pontos da entidade $entidadeId para API...")
-            
-            // Fazer chamada para API usando a entidade específica
-            val apiService = RetrofitClient.instance
-            val response = apiService.sincronizarPontosCompleto(entidadeId, requestEntidade)
-            
-            if (response.isSuccessful) {
-                val responseBody = response.body() ?: ""
-                Log.d(TAG, "📡 Resposta da API para entidade $entidadeId: $responseBody")
+            if (pontos.size > BATCH_SIZE) {
+                Log.w(TAG, "⚠️ Entidade $entidadeId tem ${pontos.size} pontos. Processando em lotes de $BATCH_SIZE")
                 
-                val isSuccess = responseBody.contains("Pontos Sincronizado com Sucesso") || 
-                               responseBody.contains("success") || 
-                               responseBody.contains("Sucesso")
+                val lotes = pontos.chunked(BATCH_SIZE)
                 
-                if (isSuccess) {
-                    Log.d(TAG, "✅ Entidade $entidadeId sincronizada com sucesso!")
+                for ((loteIndex, lote) in lotes.withIndex()) {
+                    Log.d(TAG, "📦 Processando lote ${loteIndex + 1}/${lotes.size} da entidade $entidadeId")
+                    
+                    try {
+                        val pontosParaAPI = lote.map { ponto ->
+                            PontoSyncRequest(
+                                funcionarioId = ponto.funcionarioCpf,
+                                funcionarioNome = ponto.funcionarioNome,
+                                dataHora = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(ponto.dataHora)),
+                                tipoPonto = "PONTO",
+                                latitude = ponto.latitude,
+                                longitude = ponto.longitude,
+                                fotoBase64 = ponto.fotoBase64,
+                                observacao = ponto.observacao
+                            )
+                        }
+                        
+                        val requestLote = PontoSyncCompleteRequest(
+                            localizacao_id = configuracoes.localizacaoId,
+                            cod_sincroniza = configuracoes.codigoSincronizacao,
+                            pontos = pontosParaAPI
+                        )
+                        
+                        val apiService = RetrofitClient.instance
+                        val response = apiService.sincronizarPontosCompleto(entidadeId, requestLote)
+                        
+                        if (response.isSuccessful) {
+                            val responseBody = response.body() ?: ""
+                            val isSuccess = responseBody.contains("Pontos Sincronizado com Sucesso") || 
+                                           responseBody.contains("success") || 
+                                           responseBody.contains("Sucesso")
+                            
+                            if (isSuccess) {
+                                pontosSincronizados += lote.size
+                                Log.d(TAG, "✅ Lote ${loteIndex + 1} da entidade $entidadeId sincronizado")
+                            }
+                        }
+                        
+                        // ✅ CRÍTICO: Liberar memória entre lotes
+                        if (loteIndex < lotes.size - 1) {
+                            System.gc()
+                            kotlinx.coroutines.delay(300)
+                        }
+                        
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Erro no lote ${loteIndex + 1} da entidade $entidadeId: ${e.message}")
+                    }
+                }
+                
+                if (pontosSincronizados == pontos.size) {
                     EntidadeSyncResult(
                         entidadeId = entidadeId,
                         sucesso = true,
-                        quantidadePontos = pontos.size,
+                        quantidadePontos = pontosSincronizados,
                         mensagem = "Pontos sincronizados com sucesso"
                     )
                 } else {
-                    Log.e(TAG, "❌ API retornou erro para entidade $entidadeId: $responseBody")
+                    EntidadeSyncResult(
+                        entidadeId = entidadeId,
+                        sucesso = false,
+                        quantidadePontos = pontosSincronizados,
+                        mensagem = "Sincronização parcial: $pontosSincronizados/${pontos.size} pontos",
+                        erroOriginal = null
+                    )
+                }
+                
+            } else {
+                // Processar tudo de uma vez se for pequeno
+                val pontosParaAPI = pontos.map { ponto ->
+                    PontoSyncRequest(
+                        funcionarioId = ponto.funcionarioCpf,
+                        funcionarioNome = ponto.funcionarioNome,
+                        dataHora = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(ponto.dataHora)),
+                        tipoPonto = "PONTO",
+                        latitude = ponto.latitude,
+                        longitude = ponto.longitude,
+                        fotoBase64 = ponto.fotoBase64,
+                        observacao = ponto.observacao
+                    )
+                }
+                
+                val requestEntidade = PontoSyncCompleteRequest(
+                    localizacao_id = configuracoes.localizacaoId,
+                    cod_sincroniza = configuracoes.codigoSincronizacao,
+                    pontos = pontosParaAPI
+                )
+                
+                Log.d(TAG, "📡 Enviando ${pontosParaAPI.size} pontos da entidade $entidadeId para API...")
+                
+                val apiService = RetrofitClient.instance
+                val response = apiService.sincronizarPontosCompleto(entidadeId, requestEntidade)
+                
+                if (response.isSuccessful) {
+                    val responseBody = response.body() ?: ""
+                    Log.d(TAG, "📡 Resposta da API para entidade $entidadeId: $responseBody")
+                    
+                    val isSuccess = responseBody.contains("Pontos Sincronizado com Sucesso") || 
+                                   responseBody.contains("success") || 
+                                   responseBody.contains("Sucesso")
+                    
+                    if (isSuccess) {
+                        Log.d(TAG, "✅ Entidade $entidadeId sincronizada com sucesso!")
+                        EntidadeSyncResult(
+                            entidadeId = entidadeId,
+                            sucesso = true,
+                            quantidadePontos = pontos.size,
+                            mensagem = "Pontos sincronizados com sucesso"
+                        )
+                    } else {
+                        Log.e(TAG, "❌ API retornou erro para entidade $entidadeId: $responseBody")
+                        EntidadeSyncResult(
+                            entidadeId = entidadeId,
+                            sucesso = false,
+                            quantidadePontos = pontos.size,
+                            mensagem = "Erro na API: $responseBody",
+                            erroOriginal = responseBody
+                        )
+                    }
+                } else {
+                    val errorBody = response.errorBody()?.string() ?: "Erro desconhecido"
+                    Log.e(TAG, "❌ Erro HTTP ${response.code()} para entidade $entidadeId: $errorBody")
                     EntidadeSyncResult(
                         entidadeId = entidadeId,
                         sucesso = false,
                         quantidadePontos = pontos.size,
-                        mensagem = "Erro na API: $responseBody",
-                        erroOriginal = responseBody
+                        mensagem = "Erro HTTP ${response.code()}: $errorBody",
+                        erroOriginal = "Erro HTTP ${response.code()}: $errorBody"
                     )
                 }
-            } else {
-                val errorBody = response.errorBody()?.string() ?: "Erro desconhecido"
-                Log.e(TAG, "❌ Erro HTTP ${response.code()} para entidade $entidadeId: $errorBody")
-                EntidadeSyncResult(
-                    entidadeId = entidadeId,
-                    sucesso = false,
-                    quantidadePontos = pontos.size,
-                    mensagem = "Erro HTTP ${response.code()}: $errorBody",
-                    erroOriginal = "Erro HTTP ${response.code()}: $errorBody"
-                )
             }
             
         } catch (e: Exception) {
             Log.e(TAG, "❌ Erro ao sincronizar entidade $entidadeId: ${e.message}")
-            EntidadeSyncResult(
-                entidadeId = entidadeId,
-                sucesso = false,
-                quantidadePontos = pontos.size,
-                mensagem = ErrorMessageHelper.getFriendlyErrorMessage(e),
-                erroOriginal = e.stackTraceToString()
-            )
+            
+            // Verificar se é erro de memória
+            if (e is OutOfMemoryError || e.message?.contains("OutOfMemory", ignoreCase = true) == true) {
+                Log.e(TAG, "💥 ERRO DE MEMÓRIA na entidade $entidadeId!")
+                EntidadeSyncResult(
+                    entidadeId = entidadeId,
+                    sucesso = false,
+                    quantidadePontos = pontos.size,
+                    mensagem = "Erro de memória. Muitos dados para processar.",
+                    erroOriginal = e.stackTraceToString()
+                )
+            } else {
+                EntidadeSyncResult(
+                    entidadeId = entidadeId,
+                    sucesso = false,
+                    quantidadePontos = pontos.size,
+                    mensagem = ErrorMessageHelper.getFriendlyErrorMessage(e),
+                    erroOriginal = e.stackTraceToString()
+                )
+            }
         }
     }
     
