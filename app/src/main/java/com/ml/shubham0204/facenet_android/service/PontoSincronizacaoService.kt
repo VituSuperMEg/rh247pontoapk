@@ -69,6 +69,13 @@ class PontoSincronizacaoService {
                 
                 // Buscar pontos não sincronizados
                 val pontosDao = PontosGenericosDao()
+                
+                // ✅ NOVO: Validar e corrigir pontos com campos vazios ou nulos
+                val pontosValidados = pontosDao.validarECorrigirPontos()
+                if (pontosValidados > 0) {
+                    Log.d(TAG, "🔧 $pontosValidados pontos foram validados e corrigidos")
+                }
+                
                 val pontosPendentes = pontosDao.getNaoSincronizados()
                 
                 if (pontosPendentes.isEmpty()) {

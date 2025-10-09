@@ -49,6 +49,12 @@ class ReportsViewModel(
             try {
                 reportsState.value = reportsState.value.copy(isLoading = true, error = null)
                 
+                // ✅ NOVO: Validar e corrigir pontos antes de carregar
+                val pontosValidados = pontosGenericosDao.validarECorrigirPontos()
+                if (pontosValidados > 0) {
+                    android.util.Log.d("ReportsViewModel", "🔧 $pontosValidados pontos foram validados e corrigidos")
+                }
+                
                 val allPoints = pontosGenericosDao.getAll()
                 
                 // ✅ PAGINAÇÃO: Carregar todos os pontos, mas com paginação para evitar crash
@@ -242,17 +248,42 @@ class ReportsViewModel(
     fun filterByDate(startDate: Long, endDate: Long) {
         viewModelScope.launch {
             try {
+                reportsState.value = reportsState.value.copy(isLoading = true, error = null)
+                
                 val allPoints = pontosGenericosDao.getAll()
                 val filteredPoints = allPoints.filter { ponto ->
                     ponto.dataHora in startDate..endDate
                 }.sortedByDescending { it.dataHora }
                 
+                android.util.Log.d("ReportsViewModel", "📊 Filtro por data: ${filteredPoints.size} pontos encontrados")
+                
+                // ✅ PROTEÇÃO: Limitar pontos filtrados para evitar crash
+                val limitedPoints = if (filteredPoints.size > 50) {
+                    android.util.Log.w("ReportsViewModel", "⚠️ Limitando pontos filtrados de ${filteredPoints.size} para 50")
+                    filteredPoints.take(50)
+                } else {
+                    filteredPoints
+                }
+                
                 reportsState.value = reportsState.value.copy(
-                    points = filteredPoints,
-                    totalPoints = filteredPoints.size
+                    points = limitedPoints,
+                    totalPoints = filteredPoints.size,
+                    isLoading = false,
+                    currentPage = 0,
+                    hasMorePages = filteredPoints.size > 50,
+                    pageSize = 50
+                )
+                
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("ReportsViewModel", "OutOfMemoryError em filterByDate: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Muitos pontos para filtrar. Tente um período menor."
                 )
             } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro em filterByDate: ${e.message}", e)
                 reportsState.value = reportsState.value.copy(
+                    isLoading = false,
                     error = "Erro ao filtrar: ${e.message}"
                 )
             }
@@ -262,18 +293,86 @@ class ReportsViewModel(
     fun filterByEmployee(employeeName: String) {
         viewModelScope.launch {
             try {
+                reportsState.value = reportsState.value.copy(isLoading = true, error = null)
+                
                 val allPoints = pontosGenericosDao.getAll()
                 val filteredPoints = allPoints.filter { ponto ->
                     ponto.funcionarioNome.contains(employeeName, ignoreCase = true)
                 }.sortedByDescending { it.dataHora }
                 
+                android.util.Log.d("ReportsViewModel", "📊 Filtro por funcionário: ${filteredPoints.size} pontos encontrados")
+                
+                // ✅ PROTEÇÃO: Limitar pontos filtrados para evitar crash
+                val limitedPoints = if (filteredPoints.size > 50) {
+                    android.util.Log.w("ReportsViewModel", "⚠️ Limitando pontos filtrados de ${filteredPoints.size} para 50")
+                    filteredPoints.take(50)
+                } else {
+                    filteredPoints
+                }
+                
                 reportsState.value = reportsState.value.copy(
-                    points = filteredPoints,
-                    totalPoints = filteredPoints.size
+                    points = limitedPoints,
+                    totalPoints = filteredPoints.size,
+                    isLoading = false,
+                    currentPage = 0,
+                    hasMorePages = filteredPoints.size > 50,
+                    pageSize = 50
+                )
+                
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("ReportsViewModel", "OutOfMemoryError em filterByEmployee: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Muitos pontos para filtrar. Tente um funcionário específico."
                 )
             } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro em filterByEmployee: ${e.message}", e)
                 reportsState.value = reportsState.value.copy(
+                    isLoading = false,
                     error = "Erro ao filtrar: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    fun loadMoreFilteredPoints() {
+        viewModelScope.launch {
+            try {
+                if (!reportsState.value.hasMorePages) return@launch
+                
+                reportsState.value = reportsState.value.copy(isLoading = true)
+                
+                // Recarregar todos os pontos e aplicar filtro novamente
+                val allPoints = pontosGenericosDao.getAll()
+                val currentPoints = reportsState.value.points
+                val currentPage = reportsState.value.currentPage + 1
+                val pageSize = reportsState.value.pageSize
+                
+                // Aplicar o mesmo filtro que foi usado anteriormente
+                val filteredPoints = allPoints.sortedByDescending { it.dataHora }
+                val startIndex = currentPage * pageSize
+                val endIndex = startIndex + pageSize
+                
+                val newPoints = filteredPoints.subList(startIndex, minOf(endIndex, filteredPoints.size))
+                val hasMore = endIndex < filteredPoints.size
+                
+                val updatedPoints = currentPoints.toMutableList()
+                updatedPoints.addAll(newPoints)
+                
+                reportsState.value = reportsState.value.copy(
+                    points = updatedPoints,
+                    currentPage = currentPage,
+                    hasMorePages = hasMore,
+                    isLoading = false
+                )
+                
+                android.util.Log.d("ReportsViewModel", "📄 Página filtrada $currentPage carregada: ${newPoints.size} pontos. Total: ${updatedPoints.size}")
+                
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao carregar mais pontos filtrados: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Erro ao carregar mais pontos: ${e.message}"
                 )
             }
         }
