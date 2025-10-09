@@ -1215,18 +1215,45 @@ class BackupService(private val context: Context) {
                 val json = funcionariosArray.getJSONObject(i)
                 val oldFuncionarioId = json.getLong("id") // ID original do backup
                 
+                // Função auxiliar para obter string com valor padrão
+                fun getStringOrDefault(key: String, defaultValue: String = ""): String {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getString(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter int com valor padrão
+                fun getIntOrDefault(key: String, defaultValue: Int): Int {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getInt(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter long com valor padrão
+                fun getLongOrDefault(key: String, defaultValue: Long): Long {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getLong(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
                 val funcionario = FuncionariosEntity(
                     id = 0, // ObjectBox vai gerar novo ID automaticamente
-                    codigo = json.getString("codigo"),
-                    nome = json.getString("nome"),
-                    ativo = json.getInt("ativo"),
-                    matricula = json.getString("matricula"),
-                    cpf = json.getString("cpf"),
-                    cargo = json.getString("cargo"),
-                    secretaria = json.getString("secretaria"),
-                    lotacao = json.getString("lotacao"),
-                    apiId = json.getLong("apiId"),
-                    dataImportacao = json.getLong("dataImportacao")
+                    codigo = getStringOrDefault("codigo"),
+                    nome = getStringOrDefault("nome"),
+                    ativo = getIntOrDefault("ativo", 1),
+                    matricula = getStringOrDefault("matricula"),
+                    cpf = getStringOrDefault("cpf"),
+                    cargo = getStringOrDefault("cargo"),
+                    secretaria = getStringOrDefault("secretaria"),
+                    lotacao = getStringOrDefault("lotacao"),
+                    apiId = getLongOrDefault("apiId", 0),
+                    dataImportacao = getLongOrDefault("dataImportacao", System.currentTimeMillis())
                 )
                 val newFuncionarioId = funcionariosDao.insert(funcionario)
                 
@@ -1247,16 +1274,44 @@ class BackupService(private val context: Context) {
         if (configuracoesArray.length() > 0) {
             val configuracoesDao = ConfiguracoesDao()
             val json = configuracoesArray.getJSONObject(0)
+            
+            // Função auxiliar para obter string com valor padrão
+            fun getStringOrDefault(key: String, defaultValue: String = ""): String {
+                return if (json.has(key) && !json.isNull(key)) {
+                    json.getString(key)
+                } else {
+                    defaultValue
+                }
+            }
+            
+            // Função auxiliar para obter int com valor padrão
+            fun getIntOrDefault(key: String, defaultValue: Int): Int {
+                return if (json.has(key) && !json.isNull(key)) {
+                    json.getInt(key)
+                } else {
+                    defaultValue
+                }
+            }
+            
+            // Função auxiliar para obter boolean com valor padrão
+            fun getBooleanOrDefault(key: String, defaultValue: Boolean): Boolean {
+                return if (json.has(key) && !json.isNull(key)) {
+                    json.getBoolean(key)
+                } else {
+                    defaultValue
+                }
+            }
+            
             val configuracoes = ConfiguracoesEntity(
-                id = json.getLong("id"),
-                entidadeId = json.getString("entidadeId"),
-                localizacaoId = json.getString("localizacaoId"),
-                codigoSincronizacao = json.getString("codigoSincronizacao"),
-                horaSincronizacao = json.getInt("horaSincronizacao"),
-                minutoSincronizacao = json.getInt("minutoSincronizacao"),
-                sincronizacaoAtiva = json.getBoolean("sincronizacaoAtiva"),
-                intervaloSincronizacao = json.getInt("intervaloSincronizacao"),
-                geolocalizacaoHabilitada = if (json.has("geolocalizacaoHabilitada")) json.getBoolean("geolocalizacaoHabilitada") else true,
+                id = if (json.has("id") && !json.isNull("id")) json.getLong("id") else 1,
+                entidadeId = getStringOrDefault("entidadeId"),
+                localizacaoId = getStringOrDefault("localizacaoId"),
+                codigoSincronizacao = getStringOrDefault("codigoSincronizacao"),
+                horaSincronizacao = getIntOrDefault("horaSincronizacao", 8),
+                minutoSincronizacao = getIntOrDefault("minutoSincronizacao", 0),
+                sincronizacaoAtiva = getBooleanOrDefault("sincronizacaoAtiva", false),
+                intervaloSincronizacao = getIntOrDefault("intervaloSincronizacao", 24),
+                geolocalizacaoHabilitada = getBooleanOrDefault("geolocalizacaoHabilitada", true),
                 latitudeFixa = if (json.has("latitudeFixa") && !json.isNull("latitudeFixa")) json.getDouble("latitudeFixa") else null,
                 longitudeFixa = if (json.has("longitudeFixa") && !json.isNull("longitudeFixa")) json.getDouble("longitudeFixa") else null
             )
@@ -1280,13 +1335,31 @@ class BackupService(private val context: Context) {
                 // Usar o mapeamento para encontrar o novo funcionarioId
                 val newFuncionarioId = funcionarioIdMapping[oldFuncionarioId] ?: oldFuncionarioId
                 
+                // Função auxiliar para obter string com valor padrão
+                fun getStringOrDefault(key: String, defaultValue: String = ""): String {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getString(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter long com valor padrão
+                fun getLongOrDefault(key: String, defaultValue: Long): Long {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getLong(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
                 val pessoa = PersonRecord(
                     personID = 0, // ObjectBox vai gerar novo ID automaticamente
-                    personName = json.getString("personName"),
-                    numImages = json.getLong("numImages"),
-                    addTime = json.getLong("addTime"),
+                    personName = getStringOrDefault("personName"),
+                    numImages = getLongOrDefault("numImages", 0),
+                    addTime = getLongOrDefault("addTime", System.currentTimeMillis()),
                     funcionarioId = newFuncionarioId, // Usar o novo funcionarioId mapeado
-                    funcionarioApiId = json.getLong("funcionarioApiId")
+                    funcionarioApiId = getLongOrDefault("funcionarioApiId", 0)
                 )
                 val newPersonID = personBox.put(pessoa)
                 
@@ -1313,13 +1386,32 @@ class BackupService(private val context: Context) {
             try {
                 val json = faceImagesArray.getJSONObject(i)
                 val oldPersonID = json.getLong("personID") // ID original do backup
-                val personName = json.getString("personName")
+                
+                // Função auxiliar para obter string com valor padrão
+                fun getStringOrDefault(key: String, defaultValue: String = ""): String {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getString(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter int com valor padrão
+                fun getIntOrDefault(key: String, defaultValue: Int): Int {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getInt(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                val personName = getStringOrDefault("personName")
                 
                 // ✅ OTIMIZAÇÃO: Suporte para ambos os formatos (JSONArray e Base64)
                 val embedding = if (json.has("embeddingSize")) {
                     // Novo formato: Base64
-                    val base64String = json.getString("faceEmbedding")
-                    val embeddingSize = json.getInt("embeddingSize")
+                    val base64String = getStringOrDefault("faceEmbedding")
+                    val embeddingSize = getIntOrDefault("embeddingSize", 0)
                     val embeddingBytes = Base64.getDecoder().decode(base64String)
                     
                     FloatArray(embeddingSize) { j ->
@@ -1369,21 +1461,58 @@ class BackupService(private val context: Context) {
         for (i in 0 until pontosArray.length()) {
             try {
                 val json = pontosArray.getJSONObject(i)
+                
+                // Função auxiliar para obter string com valor padrão
+                fun getStringOrDefault(key: String, defaultValue: String = ""): String {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getString(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter long com valor padrão
+                fun getLongOrDefault(key: String, defaultValue: Long): Long {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getLong(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter boolean com valor padrão
+                fun getBooleanOrDefault(key: String, defaultValue: Boolean): Boolean {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getBoolean(key)
+                    } else {
+                        defaultValue
+                    }
+                }
+                
+                // Função auxiliar para obter double opcional
+                fun getDoubleOrNull(key: String): Double? {
+                    return if (json.has(key) && !json.isNull(key)) {
+                        json.getDouble(key)
+                    } else {
+                        null
+                    }
+                }
+                
                 val ponto = PontosGenericosEntity(
                     id = 0, // ObjectBox vai gerar novo ID automaticamente
-                    funcionarioId = json.getString("funcionarioId"),
-                    funcionarioNome = json.getString("funcionarioNome"),
-                    funcionarioMatricula = json.getString("funcionarioMatricula"),
-                    funcionarioCpf = json.getString("funcionarioCpf"),
-                    funcionarioCargo = json.getString("funcionarioCargo"),
-                    funcionarioSecretaria = json.getString("funcionarioSecretaria"),
-                    funcionarioLotacao = json.getString("funcionarioLotacao"),
-                    dataHora = json.getLong("dataHora"),
-                    latitude = if (json.has("latitude") && !json.isNull("latitude")) json.getDouble("latitude") else null,
-                    longitude = if (json.has("longitude") && !json.isNull("longitude")) json.getDouble("longitude") else null,
+                    funcionarioId = getStringOrDefault("funcionarioId"),
+                    funcionarioNome = getStringOrDefault("funcionarioNome"),
+                    funcionarioMatricula = getStringOrDefault("funcionarioMatricula"),
+                    funcionarioCpf = getStringOrDefault("funcionarioCpf"),
+                    funcionarioCargo = getStringOrDefault("funcionarioCargo"),
+                    funcionarioSecretaria = getStringOrDefault("funcionarioSecretaria"),
+                    funcionarioLotacao = getStringOrDefault("funcionarioLotacao"),
+                    dataHora = getLongOrDefault("dataHora", System.currentTimeMillis()),
+                    latitude = getDoubleOrNull("latitude"),
+                    longitude = getDoubleOrNull("longitude"),
                     observacao = if (json.has("observacao") && !json.isNull("observacao")) json.getString("observacao") else null,
                     fotoBase64 = if (json.has("fotoBase64") && !json.isNull("fotoBase64")) json.getString("fotoBase64") else null,
-                    synced = json.getBoolean("synced"),
+                    synced = getBooleanOrDefault("synced", false),
                     entidadeId = if (json.has("entidadeId") && !json.isNull("entidadeId")) json.getString("entidadeId") else null, // ✅ NOVO: Campo entidadeId
                     macDispositivoCriptografado = if (json.has("macDispositivoCriptografado") && !json.isNull("macDispositivoCriptografado")) json.getString("macDispositivoCriptografado") else null,
                     fusoHorario = if (json.has("fusoHorario") && !json.isNull("fusoHorario")) json.getString("fusoHorario") else null
