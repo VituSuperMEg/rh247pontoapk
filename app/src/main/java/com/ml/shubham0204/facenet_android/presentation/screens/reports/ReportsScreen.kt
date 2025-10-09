@@ -193,11 +193,11 @@ fun ReportsScreen(
                 .padding(innerPadding)
         ) {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                 // Seção de Filtros Ativos
                 if (activeFilters.isNotEmpty()) {
                     item {
@@ -219,31 +219,68 @@ fun ReportsScreen(
                     }
                 }
                 
-                val groupedPoints = reportsState.points.groupBy { ponto ->
-                    val calendar = Calendar.getInstance().apply { timeInMillis = ponto.dataHora }
-                    calendar.get(Calendar.YEAR) to calendar.get(Calendar.DAY_OF_YEAR)
-                }
-                
-                groupedPoints.forEach { (dateKey, points) ->
-                    val calendar = Calendar.getInstance().apply {
-                        set(Calendar.YEAR, dateKey.first)
-                        set(Calendar.DAY_OF_YEAR, dateKey.second)
-                    }
-                    
-                    // Header da data
+                // ✅ PROTEÇÃO: Verificar se há erro no estado
+                if (reportsState.error != null) {
                     item {
-                        DateHeader(
-                            date = calendar.time,
-                            pointCount = points.size
-                        )
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "❌ ${reportsState.error}",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = Color.Red,
+                                modifier = Modifier.padding(16.dp)
+                            )
+                        }
                     }
-                    
-                    // Lista de pontos da data
-                    items(points) { ponto ->
+                } else if (reportsState.points.isNotEmpty()) {
+                    items(reportsState.points) { ponto ->
                         PointCard(ponto = ponto)
                     }
+                    
+                    if (reportsState.hasMorePages) {
+                        item {
+                            Button(
+                                onClick = { viewModel.loadMorePoints() },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                enabled = !reportsState.isLoading
+                            ) {
+                                if (reportsState.isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = if (reportsState.isLoading) "Carregando..." else "Carregar Mais Pontos",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                    
+                    item {
+                        Text(
+                            text = "📊 Mostrando ${reportsState.points.size} de ${reportsState.totalPoints} pontos",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                } else {
+                    item {
+                        Text(
+                            text = "Nenhum ponto encontrado",
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
                 }
-            }
+                } // Fechar LazyColumn
             
             // Indicador de carregamento
             if (reportsState.isLoading) {
