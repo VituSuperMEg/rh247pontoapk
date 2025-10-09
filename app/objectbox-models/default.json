@@ -215,7 +215,7 @@
     },
     {
       "id": "5:87332699017499048",
-      "lastPropertyId": "18:1588206695007500998",
+      "lastPropertyId": "19:7966435223884355347",
       "name": "PontosGenericosEntity",
       "properties": [
         {
@@ -302,6 +302,11 @@
         {
           "id": "18:1588206695007500998",
           "name": "fusoHorario",
+          "type": 9
+        },
+        {
+          "id": "19:7966435223884355347",
+          "name": "matriculaReal",
           "type": 9
         }
       ],

@@ -91,7 +91,8 @@ class PontoSincronizacaoService {
                         latitude = ponto.latitude,
                         longitude = ponto.longitude,
                         fotoBase64 = ponto.fotoBase64, // ✅ NOVO: Incluir foto base64
-                        observacao = ponto.observacao
+                        observacao = ponto.observacao,
+                        matriculaReal = ponto.matriculaReal // ✅ NOVO: Incluir matrícula selecionada
                     )
                 }
                 
@@ -113,6 +114,16 @@ class PontoSincronizacaoService {
                 // ✅ NOVO: Mostrar detalhes de cada ponto individualmente
                 Log.d(TAG, "🔍 === DETALHES DE CADA PONTO ===")
                 requestCompleto.pontos.forEachIndexed { index, pontoAPI ->
+                    Log.d(TAG, "  📋 Ponto $index:")
+                    Log.d(TAG, "    - funcionarioId: ${pontoAPI.funcionarioId}")
+                    Log.d(TAG, "    - funcionarioNome: ${pontoAPI.funcionarioNome}")
+                    Log.d(TAG, "    - dataHora: ${pontoAPI.dataHora}")
+                    Log.d(TAG, "    - tipoPonto: ${pontoAPI.tipoPonto}")
+                    Log.d(TAG, "    - latitude: ${pontoAPI.latitude}")
+                    Log.d(TAG, "    - longitude: ${pontoAPI.longitude}")
+                    Log.d(TAG, "    - fotoBase64: ${if (pontoAPI.fotoBase64?.isNotEmpty() == true) "SIM (${pontoAPI.fotoBase64.length} chars)" else "NÃO"}")
+                    Log.d(TAG, "    - observacao: ${pontoAPI.observacao}")
+                    Log.d(TAG, "    - matriculaReal: ${pontoAPI.matriculaReal ?: "NULL"}") // ✅ NOVO: Log da matrícula real
                     Log.d(TAG, "Ponto API #${index + 1}:")
                     Log.d(TAG, "  funcionarioId (CPF): '${pontoAPI.funcionarioId}'")
                     Log.d(TAG, "  funcionarioNome: '${pontoAPI.funcionarioNome}'")

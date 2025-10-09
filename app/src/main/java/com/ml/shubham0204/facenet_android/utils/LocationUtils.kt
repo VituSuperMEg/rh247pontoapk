@@ -10,6 +10,8 @@ import android.os.Bundle
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import kotlin.coroutines.resume
 
 data class LocationResult(
@@ -79,9 +81,10 @@ class LocationUtils(private val context: Context) {
             }
             
             // Solicitar nova localização
-            suspendCancellableCoroutine { continuation ->
-                val handler = android.os.Handler(android.os.Looper.getMainLooper())
-                val resumed = java.util.concurrent.atomic.AtomicBoolean(false)
+            withContext(Dispatchers.Main) {
+                suspendCancellableCoroutine { continuation ->
+                    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                    val resumed = java.util.concurrent.atomic.AtomicBoolean(false)
                 val locationListener = object : LocationListener {
                     override fun onLocationChanged(location: Location) {
                         Log.d("LocationUtils", "✅ Nova localização obtida: ${location.latitude}, ${location.longitude}")
@@ -154,6 +157,7 @@ class LocationUtils(private val context: Context) {
                     handler.removeCallbacks(timeoutRunnable)
                     locationManager.removeUpdates(locationListener)
                 }
+            }
             }
             
         } catch (e: Exception) {

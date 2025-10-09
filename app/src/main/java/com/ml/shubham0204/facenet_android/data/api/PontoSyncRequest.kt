@@ -8,7 +8,8 @@ data class PontoSyncRequest(
     val latitude: Double? = null,
     val longitude: Double? = null,
     val fotoBase64: String? = null,
-    val observacao: String? = null
+    val observacao: String? = null,
+    val matriculaReal: String? = null // ✅ NOVO: Matrícula selecionada no modal
 )
 
 data class PontoSyncCompleteRequest(

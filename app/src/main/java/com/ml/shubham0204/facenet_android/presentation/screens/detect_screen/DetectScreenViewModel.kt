@@ -25,6 +25,8 @@ import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
 import com.ml.shubham0204.facenet_android.utils.CrashReporter
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
+import com.ml.shubham0204.facenet_android.data.api.ApiService
+import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -45,6 +47,7 @@ class DetectScreenViewModel(
     private val pontoSincronizacaoPorBlocosService: PontoSincronizacaoPorBlocosService // ✅ NOVO: Serviço por blocos
 ) : ViewModel(), KoinComponent {
     private val context: Context by inject()
+    private val apiService: ApiService = RetrofitClient.instance
     private val locationUtils = LocationUtils(context)
     val faceDetectionMetricsState = mutableStateOf<RecognitionMetrics?>(null)
     val isProcessingRecognition = mutableStateOf(false)
@@ -53,6 +56,12 @@ class DetectScreenViewModel(
     val showSuccessScreen = mutableStateOf(false)
     val savedPonto = mutableStateOf<PontosGenericosEntity?>(null)
     val lastRecognizedPersonName = mutableStateOf<String?>(null)
+    
+    // ✅ NOVO: Estados para seleção de matrícula
+    val showMatriculaSelectionModal = mutableStateOf(false)
+    val availableMatriculas = mutableStateOf<List<String>>(emptyList())
+    val selectedMatricula = mutableStateOf<String?>(null)
+    val pendingFuncionario = mutableStateOf<FuncionariosEntity?>(null)
     
     // ✅ NOVO: Job para controlar o reconhecimento
     private var recognitionJob: kotlinx.coroutines.Job? = null
@@ -69,6 +78,130 @@ class DetectScreenViewModel(
     private var lastPhotoHash: String? = null
 
     fun getNumPeople(): Long = personUseCase.getCount()
+    
+    // ✅ NOVO: Funções para seleção de matrícula
+    fun selectMatricula(matricula: String) {
+        selectedMatricula.value = matricula
+        showMatriculaSelectionModal.value = false
+        
+        // Processar o ponto com a matrícula selecionada
+        pendingFuncionario.value?.let { funcionario ->
+            viewModelScope.launch {
+                processPontoWithSelectedMatricula(funcionario, matricula)
+            }
+        }
+    }
+    
+    fun cancelMatriculaSelection() {
+        showMatriculaSelectionModal.value = false
+        availableMatriculas.value = emptyList()
+        selectedMatricula.value = null
+        pendingFuncionario.value = null
+    }
+    
+    private suspend fun processPontoWithSelectedMatricula(funcionario: FuncionariosEntity, matricula: String) {
+        Log.d("DetectScreenViewModel", "🔄 Processando ponto com matrícula selecionada: $matricula")
+        // ✅ NOVO: Processar o ponto com a matrícula selecionada
+        val ponto = registerPontoWithMatricula(funcionario, matricula)
+        if (ponto != null) {
+            Log.d("DetectScreenViewModel", "✅ Ponto criado com sucesso, iniciando sincronização...")
+        } else {
+            Log.e("DetectScreenViewModel", "❌ Falha ao criar ponto com matrícula selecionada")
+        }
+    }
+    
+    private suspend fun registerPontoWithMatricula(funcionario: FuncionariosEntity, matriculaSelecionada: String): PontosGenericosEntity? {
+        return try {
+            Log.d("DetectScreenViewModel", "💾 Registrando ponto para: ${funcionario.nome} com matrícula: $matriculaSelecionada")
+            
+            val horarioAtual = System.currentTimeMillis()
+            
+            val locationResult = try {
+                val geolocEnabled = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes()?.geolocalizacaoHabilitada ?: true } catch (_: Exception) { true }
+                if (geolocEnabled) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        locationUtils.getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)
+                    }
+                } else null
+            } catch (e: Exception) {
+                Log.w("DetectScreenViewModel", "⚠️ Erro ao obter localização: ${e.message}")
+                null
+            }
+            
+            val latitude: Double?
+            val longitude: Double?
+            
+            val entidadeId = if (!funcionario.entidadeId.isNullOrEmpty()) {
+                funcionario.entidadeId
+            } else {
+                val configuracoesDao = ConfiguracoesDao()
+                val configuracoes = configuracoesDao.getConfiguracoes()
+                configuracoes?.entidadeId ?: "ENTIDADE_PADRAO"
+            }
+            
+            // Preferir coordenadas fixas das configurações
+            val configuracoes = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes() } catch (_: Exception) { null }
+            if (configuracoes?.latitudeFixa != null && configuracoes.longitudeFixa != null) {
+                latitude = configuracoes.latitudeFixa
+                longitude = configuracoes.longitudeFixa
+            } else if (locationResult != null) {
+                latitude = locationResult.latitude
+                longitude = locationResult.longitude
+            } else {
+                latitude = null
+                longitude = null
+            }
+            
+            val fotoBase64 = currentFaceBitmap.value?.let { bitmap ->
+                if (BitmapUtils.isValidBitmap(bitmap)) {
+                    val base64 = BitmapUtils.bitmapToBase64(bitmap, 80)
+                    Log.d("DetectScreenViewModel", "📸 Foto capturada e convertida para base64 (${base64.length} chars)")
+                    base64
+                } else {
+                    Log.w("DetectScreenViewModel", "⚠️ Bitmap inválido para conversão")
+                    null
+                }
+            } ?: run {
+                Log.w("DetectScreenViewModel", "⚠️ Nenhuma foto disponível para captura")
+                null
+            }
+            
+            Log.d("DetectScreenViewModel", "🏢 Criando ponto para entidade: $entidadeId")
+            
+            val ponto = PontosGenericosEntity(
+                funcionarioId = funcionario.id.toString(),
+                funcionarioNome = funcionario.nome,
+                funcionarioMatricula = funcionario.matricula,
+                funcionarioCpf = funcionario.cpf,
+                funcionarioCargo = funcionario.cargo,
+                funcionarioSecretaria = funcionario.secretaria,
+                funcionarioLotacao = funcionario.lotacao,
+                dataHora = horarioAtual,
+                latitude = latitude,
+                longitude = longitude,
+                fotoBase64 = fotoBase64,
+                synced = false,
+                entidadeId = entidadeId,
+                matriculaReal = matriculaSelecionada // ✅ NOVO: Matrícula selecionada no modal
+            )
+            
+            pontosGenericosDao.insert(ponto)
+            savedPonto.value = ponto
+            showSuccessScreen.value = true
+            
+            // ✅ NOVO: Sincronização automática como na função original
+            Log.d("DetectScreenViewModel", "🔄 Iniciando sincronização automática para ponto com matrícula: $matriculaSelecionada")
+            attemptAutoSync()
+            
+            Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso para ${funcionario.nome} com matrícula: $matriculaSelecionada")
+            ponto
+            
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao registrar ponto: ${e.message}", e)
+            CrashReporter.logException(context, e, "registerPontoWithMatricula")
+            null
+        }
+    }
     
     // ✅ NOVO: Função para verificar e limpar o banco se necessário
     fun checkAndClearDatabase() {
@@ -351,6 +484,7 @@ class DetectScreenViewModel(
             
             val horarioAtual = System.currentTimeMillis()
             
+
             val locationResult = try {
                 val geolocEnabled = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes()?.geolocalizacaoHabilitada ?: true } catch (_: Exception) { true }
                 if (geolocEnabled) {
@@ -365,6 +499,22 @@ class DetectScreenViewModel(
             
             val latitude: Double?
             val longitude: Double?
+            
+            val entidadeIdForMatricula = funcionario.entidadeId ?: return null
+            val matriculas = apiService.obterVariasMatricula(entidadeIdForMatricula, funcionario.cpf)
+            if (matriculas.isSuccessful && matriculas.body()?.is_open_modal == true) {
+                val matriculasList = matriculas.body()?.matriculas?.mapNotNull { matricula ->
+                    when (matricula) {
+                        is Map<*, *> -> matricula["matricula"]?.toString()
+                        else -> matricula.toString()
+                    }
+                }?.filter { it.isNotBlank() } ?: emptyList()
+                
+                availableMatriculas.value = matriculasList
+                pendingFuncionario.value = funcionario
+                showMatriculaSelectionModal.value = true
+                return null
+            }
             
             // Preferir coordenadas fixas das configurações
             val configuracoes = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes() } catch (_: Exception) { null }

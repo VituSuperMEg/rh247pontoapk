@@ -21,5 +21,6 @@ data class PontosGenericosEntity(
     var fotoBase64: String? = null,
     var synced: Boolean = false,
     var entidadeId: String? = null,
-    var fusoHorario: String? = null
+    var fusoHorario: String? = null,
+    var matriculaReal: String? = null // Matrícula selecionada no modal
 ) 

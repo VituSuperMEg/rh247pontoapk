@@ -214,7 +214,8 @@ class PontoSincronizacaoPorBlocosService {
                     latitude = ponto.latitude,
                     longitude = ponto.longitude,
                     fotoBase64 = ponto.fotoBase64,
-                    observacao = ponto.observacao
+                    observacao = ponto.observacao,
+                    matriculaReal = ponto.matriculaReal // ✅ NOVO: Incluir matrícula selecionada
                 )
             }
             
@@ -226,6 +227,21 @@ class PontoSincronizacaoPorBlocosService {
             )
             
             Log.d(TAG, "📡 Enviando ${pontosParaAPI.size} pontos da entidade $entidadeId para API...")
+            
+            // ✅ NOVO: Log detalhado dos pontos sendo enviados
+            Log.d(TAG, "🔍 === DETALHES DOS PONTOS ENVIADOS ===")
+            pontosParaAPI.forEachIndexed { index, pontoAPI ->
+                Log.d(TAG, "  📋 Ponto $index:")
+                Log.d(TAG, "    - funcionarioId: ${pontoAPI.funcionarioId}")
+                Log.d(TAG, "    - funcionarioNome: ${pontoAPI.funcionarioNome}")
+                Log.d(TAG, "    - dataHora: ${pontoAPI.dataHora}")
+                Log.d(TAG, "    - tipoPonto: ${pontoAPI.tipoPonto}")
+                Log.d(TAG, "    - latitude: ${pontoAPI.latitude}")
+                Log.d(TAG, "    - longitude: ${pontoAPI.longitude}")
+                Log.d(TAG, "    - fotoBase64: ${if (pontoAPI.fotoBase64?.isNotEmpty() == true) "SIM (${pontoAPI.fotoBase64.length} chars)" else "NÃO"}")
+                Log.d(TAG, "    - observacao: ${pontoAPI.observacao}")
+                Log.d(TAG, "    - matriculaReal: ${pontoAPI.matriculaReal ?: "NULL"}") // ✅ NOVO: Log da matrícula real
+            }
             
             // Fazer chamada para API usando a entidade específica
             val apiService = RetrofitClient.instance

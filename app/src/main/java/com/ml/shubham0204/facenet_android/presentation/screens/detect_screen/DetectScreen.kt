@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cameraswitch
@@ -40,6 +41,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +71,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import com.ml.shubham0204.facenet_android.R
 import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
+import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
 import com.ml.shubham0204.facenet_android.presentation.components.AppAlertDialog
 import com.ml.shubham0204.facenet_android.presentation.components.DelayedVisibility
 import com.ml.shubham0204.facenet_android.presentation.components.FaceDetectionOverlay
@@ -181,6 +189,11 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     val showSuccessScreen by remember { viewModel.showSuccessScreen }
     val savedPonto by remember { viewModel.savedPonto }
     val isProcessingRecognition by remember { viewModel.isProcessingRecognition }
+    
+    // ✅ NOVO: Estados para seleção de matrícula
+    val showMatriculaSelectionModal by remember { viewModel.showMatriculaSelectionModal }
+    val availableMatriculas by remember { viewModel.availableMatriculas }
+    val pendingFuncionario by remember { viewModel.pendingFuncionario }
     
     // ✅ OTIMIZADO: Controlar inicialização única
     var isInitialized by remember { mutableStateOf(false) }
@@ -467,7 +480,128 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                 }
             }
         }
+        
+        // ✅ NOVO: Modal de seleção de matrícula
+        if (showMatriculaSelectionModal) {
+            MatriculaSelectionModal(
+                matriculas = availableMatriculas,
+                funcionario = pendingFuncionario,
+                onMatriculaSelected = { matricula ->
+                    viewModel.selectMatricula(matricula)
+                },
+                onCancel = {
+                    viewModel.cancelMatriculaSelection()
+                }
+            )
+        }
     }
+}
+
+// ✅ NOVO: Modal de seleção de matrícula
+@Composable
+private fun MatriculaSelectionModal(
+    matriculas: List<String>,
+    funcionario: FuncionariosEntity?,
+    onMatriculaSelected: (String) -> Unit,
+    onCancel: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = {
+            Text(
+                text = "Selecione sua Matrícula",
+                style = MaterialTheme.typography.headlineSmall,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Avatar do usuário (quadrado)
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            shape = RoundedCornerShape(12.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Face,
+                        contentDescription = "Avatar",
+                        modifier = Modifier.size(50.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                
+                // Nome do funcionário
+                if (funcionario != null) {
+                    Text(
+                        text = funcionario.nome,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+                
+                // Lista de matrículas para seleção
+                if (matriculas.isNotEmpty()) {
+                    Text(
+                        text = "Selecione uma matrícula:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        matriculas.forEach { matricula ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { 
+                                        onMatriculaSelected(matricula)
+                                    },
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                            ) {
+                                Text(
+                                    text = matricula,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "Nenhuma matrícula disponível",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            OutlinedButton(
+                onClick = onCancel
+            ) {
+                Text("Cancelar")
+            }
+        },
+        dismissButton = null
+    )
 }
 
 @OptIn(ExperimentalGetImage::class)
@@ -609,3 +743,4 @@ private fun camaraPermissionDialog() {
         },
     )
 }
+
