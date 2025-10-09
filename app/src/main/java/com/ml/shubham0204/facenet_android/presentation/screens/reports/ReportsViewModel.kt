@@ -31,8 +31,14 @@ data class ReportsState(
     val error: String? = null,
     val currentPage: Int = 0,
     val hasMorePages: Boolean = true,
-    val pageSize: Int = 50
+    val pageSize: Int = 50,
+    val activeFilters: List<ActiveFilter> = emptyList() // ✅ NOVO: Rastrear filtros ativos
 )
+
+sealed class ActiveFilter {
+    data class DATE_RANGE(val startDate: Date, val endDate: Date) : ActiveFilter()
+    data class EMPLOYEE(val employeeName: String) : ActiveFilter()
+}
 
 @KoinViewModel
 class ReportsViewModel(
@@ -138,7 +144,8 @@ class ReportsViewModel(
             try {
                 reportsState.value = reportsState.value.copy(isLoading = true, error = null)
                 
-                // ✅ NOVO: Usar sincronização por blocos de entidade
+                // ✅ CORRIGIDO: Sempre sincronizar TODOS os pontos não sincronizados, 
+                // independente dos filtros aplicados na tela
                 val pontosPorEntidade = pontoSincronizacaoPorBlocosService.getQuantidadePontosPendentesPorEntidade(context)
                 
                 if (pontosPorEntidade.isEmpty()) {
@@ -166,7 +173,9 @@ class ReportsViewModel(
                     // Aguardar um pouco e recarregar a lista
                     delay(1000)
                     Toast.makeText(context, "🔄 Atualizando lista...", Toast.LENGTH_SHORT).show()
-                    loadReports() // Recarregar a lista após sincronização
+                    
+                    // ✅ CORRIGIDO: Recarregar a lista mantendo os filtros atuais
+                    reloadCurrentView()
                     
                 } else {
                     val mensagemErro = if (resultado.pontosSincronizados > 0) {
@@ -247,9 +256,14 @@ class ReportsViewModel(
                     ponto.dataHora in startDate..endDate
                 }.sortedByDescending { it.dataHora }
                 
+                // ✅ CORRIGIDO: Manter filtros ativos no estado
+                val dateFilter = ActiveFilter.DATE_RANGE(Date(startDate), Date(endDate))
+                val currentFilters = reportsState.value.activeFilters.filter { it !is ActiveFilter.DATE_RANGE } + dateFilter
+                
                 reportsState.value = reportsState.value.copy(
                     points = filteredPoints,
-                    totalPoints = filteredPoints.size
+                    totalPoints = filteredPoints.size,
+                    activeFilters = currentFilters
                 )
             } catch (e: Exception) {
                 reportsState.value = reportsState.value.copy(
@@ -267,14 +281,113 @@ class ReportsViewModel(
                     ponto.funcionarioNome.contains(employeeName, ignoreCase = true)
                 }.sortedByDescending { it.dataHora }
                 
+                // ✅ CORRIGIDO: Manter filtros ativos no estado
+                val employeeFilter = ActiveFilter.EMPLOYEE(employeeName)
+                val currentFilters = reportsState.value.activeFilters.filter { it !is ActiveFilter.EMPLOYEE } + employeeFilter
+                
                 reportsState.value = reportsState.value.copy(
                     points = filteredPoints,
-                    totalPoints = filteredPoints.size
+                    totalPoints = filteredPoints.size,
+                    activeFilters = currentFilters
                 )
             } catch (e: Exception) {
                 reportsState.value = reportsState.value.copy(
                     error = "Erro ao filtrar: ${e.message}"
                 )
+            }
+        }
+    }
+    
+    // ✅ NOVO: Recarregar a view mantendo os filtros atuais
+    private fun reloadCurrentView() {
+        viewModelScope.launch {
+            try {
+                val currentFilters = reportsState.value.activeFilters
+                
+                if (currentFilters.isEmpty()) {
+                    // Se não há filtros, carregar todos os pontos
+                    loadReports()
+                } else {
+                    // Aplicar filtros atuais novamente
+                    applyCurrentFilters()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao recarregar view: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    error = "Erro ao recarregar: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // ✅ NOVO: Aplicar filtros atuais
+    private fun applyCurrentFilters() {
+        viewModelScope.launch {
+            try {
+                val allPoints = pontosGenericosDao.getAll()
+                var filteredPoints = allPoints
+                
+                // Aplicar todos os filtros ativos
+                reportsState.value.activeFilters.forEach { filter ->
+                    when (filter) {
+                        is ActiveFilter.DATE_RANGE -> {
+                            filteredPoints = filteredPoints.filter { ponto ->
+                                ponto.dataHora in filter.startDate.time..filter.endDate.time
+                            }
+                        }
+                        is ActiveFilter.EMPLOYEE -> {
+                            filteredPoints = filteredPoints.filter { ponto ->
+                                ponto.funcionarioNome.contains(filter.employeeName, ignoreCase = true)
+                            }
+                        }
+                    }
+                }
+                
+                val sortedPoints = filteredPoints.sortedByDescending { it.dataHora }
+                
+                reportsState.value = reportsState.value.copy(
+                    points = sortedPoints,
+                    totalPoints = sortedPoints.size,
+                    isLoading = false
+                )
+                
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao aplicar filtros: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    error = "Erro ao aplicar filtros: ${e.message}"
+                )
+            }
+        }
+    }
+    
+    // ✅ NOVO: Limpar todos os filtros
+    fun clearAllFilters() {
+        viewModelScope.launch {
+            try {
+                reportsState.value = reportsState.value.copy(
+                    activeFilters = emptyList()
+                )
+                loadReports()
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao limpar filtros: ${e.message}", e)
+            }
+        }
+    }
+    
+    // ✅ NOVO: Remover filtro específico
+    fun removeFilter(filterToRemove: ActiveFilter) {
+        viewModelScope.launch {
+            try {
+                val updatedFilters = reportsState.value.activeFilters.filter { it != filterToRemove }
+                reportsState.value = reportsState.value.copy(activeFilters = updatedFilters)
+                
+                if (updatedFilters.isEmpty()) {
+                    loadReports()
+                } else {
+                    applyCurrentFilters()
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao remover filtro: ${e.message}", e)
             }
         }
     }

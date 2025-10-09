@@ -48,10 +48,6 @@ enum class PeriodFilter(
     CUSTOM("Período Personalizado", Icons.Default.DateRange)
 }
 
-sealed class ActiveFilter {
-    data class DATE_RANGE(val startDate: Date, val endDate: Date) : ActiveFilter()
-    data class EMPLOYEE(val employeeName: String) : ActiveFilter()
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,8 +68,8 @@ fun ReportsScreen(
     var selectedEmployee by remember { mutableStateOf<String?>(null) }
     var selectedPeriod by remember { mutableStateOf<PeriodFilter?>(null) }
     
-    // Lista de filtros ativos
-    var activeFilters by remember { mutableStateOf<List<ActiveFilter>>(emptyList()) }
+    // ✅ CORRIGIDO: Usar filtros do ViewModel em vez de estado local
+    val activeFilters = reportsState.activeFilters
     
     // Lista de funcionários únicos para o filtro
     val uniqueEmployees = remember(reportsState.points) {
@@ -204,16 +200,14 @@ fun ReportsScreen(
                         ActiveFiltersSection(
                             activeFilters = activeFilters,
                             onRemoveFilter = { filterToRemove ->
-                                activeFilters = activeFilters.filter { it != filterToRemove }
-                                applyFilters(viewModel, activeFilters.filter { it != filterToRemove })
+                                viewModel.removeFilter(filterToRemove)
                             },
                             onClearAllFilters = {
-                                activeFilters = emptyList()
                                 selectedStartDate = null
                                 selectedEndDate = null
                                 selectedEmployee = null
                                 selectedPeriod = null
-                                viewModel.loadReports()
+                                viewModel.clearAllFilters()
                             }
                         )
                     }
@@ -309,10 +303,13 @@ fun ReportsScreen(
                 
                 when (period) {
                     PeriodFilter.TODAY, PeriodFilter.THIS_WEEK, PeriodFilter.THIS_MONTH, PeriodFilter.THIS_YEAR -> {
-                        // Adicionar filtro de período à lista
+                        // Aplicar filtro de período diretamente no ViewModel
                         val periodFilter = applyPeriodFilter(viewModel, period)
-                        activeFilters = activeFilters.filter { it !is ActiveFilter.DATE_RANGE } + periodFilter
-                        applyFilters(viewModel, activeFilters)
+                        when (periodFilter) {
+                            is ActiveFilter.DATE_RANGE -> {
+                                viewModel.filterByDate(periodFilter.startDate.time, periodFilter.endDate.time)
+                            }
+                        }
                     }
                     PeriodFilter.CUSTOM -> {
                         showDatePicker = true
@@ -324,13 +321,12 @@ fun ReportsScreen(
                 showEmployeePicker = true 
             },
             onClearFilters = {
-                activeFilters = emptyList()
                 selectedStartDate = null
                 selectedEndDate = null
                 selectedEmployee = null
                 selectedPeriod = null
                 showFilterDialog = false
-                viewModel.loadReports()
+                viewModel.clearAllFilters()
             },
             hasActiveFilters = activeFilters.isNotEmpty()
         )
@@ -346,10 +342,8 @@ fun ReportsScreen(
                 selectedPeriod = PeriodFilter.CUSTOM
                 showDatePicker = false
                 
-                // Adicionar filtro de data à lista
-                val dateFilter = ActiveFilter.DATE_RANGE(startDate, endDate)
-                activeFilters = activeFilters.filter { it !is ActiveFilter.DATE_RANGE } + dateFilter
-                applyFilters(viewModel, activeFilters)
+                // Aplicar filtro de data diretamente no ViewModel
+                viewModel.filterByDate(startDate.time, endDate.time)
             }
         )
     }
@@ -363,10 +357,8 @@ fun ReportsScreen(
                 selectedEmployee = employee
                 showEmployeePicker = false
                 
-                // Adicionar filtro de funcionário à lista
-                val employeeFilter = ActiveFilter.EMPLOYEE(employee)
-                activeFilters = activeFilters.filter { it !is ActiveFilter.EMPLOYEE } + employeeFilter
-                applyFilters(viewModel, activeFilters)
+                // Aplicar filtro de funcionário diretamente no ViewModel
+                viewModel.filterByEmployee(employee)
             }
         )
     }
@@ -450,24 +442,7 @@ private fun applyPeriodFilter(viewModel: ReportsViewModel, period: PeriodFilter)
     }
 }
 
-private fun applyFilters(viewModel: ReportsViewModel, filters: List<ActiveFilter>) {
-    if (filters.isEmpty()) {
-        viewModel.loadReports()
-        return
-    }
-    
-    // Aplicar todos os filtros
-    filters.forEach { filter ->
-        when (filter) {
-            is ActiveFilter.DATE_RANGE -> {
-                viewModel.filterByDate(filter.startDate.time, filter.endDate.time)
-            }
-            is ActiveFilter.EMPLOYEE -> {
-                viewModel.filterByEmployee(filter.employeeName)
-            }
-        }
-    }
-}
+// ✅ REMOVIDO: Função applyFilters não é mais necessária
 
 @Composable
 private fun FilterDialog(
