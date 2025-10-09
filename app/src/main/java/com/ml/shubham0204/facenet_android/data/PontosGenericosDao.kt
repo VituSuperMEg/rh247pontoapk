@@ -269,6 +269,118 @@ class PontosGenericosDao {
         }
     }
     
+    // ✅ NOVO: Validar e corrigir pontos com campos vazios ou nulos
+    fun validarECorrigirPontos(): Int {
+        return try {
+            val todosPontos = box.all
+            var pontosCorrigidos = 0
+            
+            Log.d("PontosGenericosDao", "🔍 Validando ${todosPontos.size} pontos...")
+            
+            todosPontos.forEach { ponto ->
+                var precisaCorrigir = false
+                
+                // ✅ Validar funcionarioNome (obrigatório)
+                if (ponto.funcionarioNome.isBlank()) {
+                    ponto.funcionarioNome = "FUNCIONARIO_DESCONHECIDO"
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: funcionarioNome vazio, corrigido para 'FUNCIONARIO_DESCONHECIDO'")
+                }
+                
+                // ✅ Validar funcionarioCpf (obrigatório)
+                if (ponto.funcionarioCpf.isBlank()) {
+                    ponto.funcionarioCpf = "000.000.000-00"
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: funcionarioCpf vazio, corrigido para '000.000.000-00'")
+                }
+                
+                // ✅ Validar funcionarioMatricula (obrigatório)
+                if (ponto.funcionarioMatricula.isBlank()) {
+                    ponto.funcionarioMatricula = "00000000"
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: funcionarioMatricula vazio, corrigido para '00000000'")
+                }
+                
+                // ✅ Validar funcionarioCargo (obrigatório)
+                if (ponto.funcionarioCargo.isBlank()) {
+                    ponto.funcionarioCargo = "CARGO_NAO_INFORMADO"
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: funcionarioCargo vazio, corrigido para 'CARGO_NAO_INFORMADO'")
+                }
+                
+                // ✅ Validar funcionarioSecretaria (obrigatório)
+                if (ponto.funcionarioSecretaria.isBlank()) {
+                    ponto.funcionarioSecretaria = "SECRETARIA_NAO_INFORMADA"
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: funcionarioSecretaria vazio, corrigido para 'SECRETARIA_NAO_INFORMADA'")
+                }
+                
+                // ✅ Validar funcionarioLotacao (obrigatório)
+                if (ponto.funcionarioLotacao.isBlank()) {
+                    ponto.funcionarioLotacao = "LOTACAO_NAO_INFORMADA"
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: funcionarioLotacao vazio, corrigido para 'LOTACAO_NAO_INFORMADA'")
+                }
+                
+                // ✅ Validar dataHora (obrigatório)
+                if (ponto.dataHora <= 0) {
+                    ponto.dataHora = System.currentTimeMillis()
+                    precisaCorrigir = true
+                    Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: dataHora inválida, corrigido para timestamp atual")
+                }
+                
+                // ✅ Validar entidadeId (obrigatório)
+                if (ponto.entidadeId.isNullOrBlank()) {
+                    val funcionarioDao = FuncionariosDao()
+                    val funcionario = funcionarioDao.getAll().find { it.cpf == ponto.funcionarioCpf }
+                    
+                    if (funcionario != null && !funcionario.entidadeId.isNullOrEmpty()) {
+                        ponto.entidadeId = funcionario.entidadeId
+                        precisaCorrigir = true
+                        Log.d("PontosGenericosDao", "✅ Ponto ${ponto.id}: entidadeId corrigido com dados do funcionário: ${funcionario.entidadeId}")
+                    } else {
+                        val configuracoesDao = ConfiguracoesDao()
+                        val configuracoes = configuracoesDao.getConfiguracoes()
+                        if (configuracoes != null && configuracoes.entidadeId.isNotEmpty()) {
+                            ponto.entidadeId = configuracoes.entidadeId
+                            precisaCorrigir = true
+                            Log.d("PontosGenericosDao", "✅ Ponto ${ponto.id}: entidadeId corrigido com entidade das configurações: ${configuracoes.entidadeId}")
+                        } else {
+                            ponto.entidadeId = "76"
+                            precisaCorrigir = true
+                            Log.w("PontosGenericosDao", "⚠️ Ponto ${ponto.id}: entidadeId não encontrado, usando 'ENTIDADE_PADRAO'")
+                        }
+                    }
+                }
+                
+                // ✅ Validar fusoHorario (obrigatório)
+                if (ponto.fusoHorario.isNullOrBlank()) {
+                    ponto.fusoHorario = "America/Sao_Paulo"
+                    precisaCorrigir = true
+                    Log.d("PontosGenericosDao", "✅ Ponto ${ponto.id}: fusoHorario corrigido para 'America/Sao_Paulo'")
+                }
+                
+                // ✅ Validar macDispositivoCriptografado (pode ser nulo, mas se vazio, melhor definir como nulo)
+                if (ponto.macDispositivoCriptografado != null && ponto.macDispositivoCriptografado!!.isBlank()) {
+                    ponto.macDispositivoCriptografado = null
+                    precisaCorrigir = true
+                    Log.d("PontosGenericosDao", "✅ Ponto ${ponto.id}: macDispositivoCriptografado vazio convertido para null")
+                }
+                
+                if (precisaCorrigir) {
+                    box.put(ponto)
+                    pontosCorrigidos++
+                }
+            }
+            
+            Log.d("PontosGenericosDao", "✅ Validação concluída: $pontosCorrigidos pontos corrigidos")
+            pontosCorrigidos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao validar pontos: ${e.message}")
+            0
+        }
+    }
+    
     // ✅ NOVO: Corrigir pontos antigos que não têm fuso horário definido
     fun corrigirPontosSemFusoHorario(): Int {
         return try {
