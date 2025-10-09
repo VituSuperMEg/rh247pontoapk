@@ -303,11 +303,13 @@ fun ReportsScreen(
                 
                 when (period) {
                     PeriodFilter.TODAY, PeriodFilter.THIS_WEEK, PeriodFilter.THIS_MONTH, PeriodFilter.THIS_YEAR -> {
-                        // Aplicar filtro de período diretamente no ViewModel
                         val periodFilter = applyPeriodFilter(viewModel, period)
                         when (periodFilter) {
                             is ActiveFilter.DATE_RANGE -> {
                                 viewModel.filterByDate(periodFilter.startDate.time, periodFilter.endDate.time)
+                            }
+                            is ActiveFilter.EMPLOYEE -> {
+                                // Não esperado aqui, mas necessário para when exaustivo
                             }
                         }
                     }

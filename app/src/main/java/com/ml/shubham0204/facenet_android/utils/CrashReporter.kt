@@ -44,26 +44,106 @@ object CrashReporter {
         
         Thread.setDefaultUncaughtExceptionHandler { thread, exception ->
             try {
-                // Log do crash
-                val crashMessage = "CRASH DETECTADO: ${exception.javaClass.simpleName}: ${exception.message}"
-                logEvent(context, crashMessage, "ERROR")
-                
-                // Log da stack trace completa
-                val stackTrace = exception.stackTraceToString()
-                logEvent(context, "Stack Trace: $stackTrace", "ERROR")
-                
-                // Log de informações do sistema
-                logEvent(context, "Thread: ${thread.name}, ID: ${thread.id}", "ERROR")
-                
-                // Força a escrita dos logs
-                forceFlushLogs(context)
+                // ✅ CRÍTICO: Salvar crash IMEDIATAMENTE de forma síncrona
+                saveCrashToFile(context, exception, thread)
                 
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao capturar crash", e)
+                // Tenta salvar pelo menos o erro básico
+                try {
+                    val emergencyFile = File(context.filesDir, "emergency_crash.txt")
+                    FileWriter(emergencyFile, true).use { writer ->
+                        writer.write("\n=== CRASH DE EMERGÊNCIA ===\n")
+                        writer.write("Data: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())}\n")
+                        writer.write("Erro: ${exception.message}\n")
+                        writer.flush()
+                    }
+                } catch (emergencyException: Exception) {
+                    // Último recurso: apenas log
+                    Log.e(TAG, "Falha total ao salvar crash", emergencyException)
+                }
             }
             
             // Chama o handler padrão para finalizar o app
             defaultHandler?.uncaughtException(thread, exception)
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Salva crash de forma síncrona e robusta
+     */
+    private fun saveCrashToFile(context: Context, exception: Throwable, thread: Thread) {
+        try {
+            val timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault()).format(Date())
+            val crashFile = File(context.filesDir, "app_crashes.txt")
+            
+            // Usa FileOutputStream com flush para garantir escrita imediata
+            val fileOutputStream = crashFile.outputStream().buffered()
+            fileOutputStream.use { output ->
+                val writer = output.writer()
+                
+                // Cabeçalho do crash
+                writer.write("\n========================================\n")
+                writer.write("CRASH DETECTADO\n")
+                writer.write("========================================\n")
+                writer.write("Data/Hora: $timestamp\n")
+                writer.write("Thread: ${thread.name} (ID: ${thread.id})\n")
+                writer.write("Exceção: ${exception.javaClass.simpleName}\n")
+                writer.write("Mensagem: ${exception.message}\n")
+                writer.write("\n--- Stack Trace ---\n")
+                writer.write(exception.stackTraceToString())
+                writer.write("\n")
+                
+                // Se houver causa raiz, incluir também
+                var cause = exception.cause
+                var level = 1
+                while (cause != null && level <= 5) {
+                    writer.write("\n--- Causa Raiz (Nível $level) ---\n")
+                    writer.write("Exceção: ${cause.javaClass.simpleName}\n")
+                    writer.write("Mensagem: ${cause.message}\n")
+                    writer.write(cause.stackTraceToString())
+                    writer.write("\n")
+                    cause = cause.cause
+                    level++
+                }
+                
+                // Informações do sistema
+                writer.write("\n--- Informações do Sistema ---\n")
+                writer.write("Android Version: ${android.os.Build.VERSION.RELEASE}\n")
+                writer.write("SDK Level: ${android.os.Build.VERSION.SDK_INT}\n")
+                writer.write("Manufacturer: ${android.os.Build.MANUFACTURER}\n")
+                writer.write("Model: ${android.os.Build.MODEL}\n")
+                writer.write("Device: ${android.os.Build.DEVICE}\n")
+                
+                // Memória disponível
+                val runtime = Runtime.getRuntime()
+                writer.write("\n--- Memória ---\n")
+                writer.write("Total Memory: ${runtime.totalMemory() / 1024 / 1024} MB\n")
+                writer.write("Free Memory: ${runtime.freeMemory() / 1024 / 1024} MB\n")
+                writer.write("Max Memory: ${runtime.maxMemory() / 1024 / 1024} MB\n")
+                
+                writer.write("\n========================================\n\n")
+                
+                // CRÍTICO: Força a escrita no disco
+                writer.flush()
+                output.flush()
+            }
+            
+            // Também salva no log normal
+            val logFile = File(context.filesDir, LOG_FILE_NAME)
+            FileWriter(logFile, true).use { writer ->
+                writer.write("\n[$timestamp] [FATAL] CRASH: ${exception.message}\n")
+                writer.flush()
+            }
+            
+            // Log no Logcat também
+            Log.e(TAG, "💥 CRASH SALVO EM: ${crashFile.absolutePath}")
+            Log.e(TAG, "💥 Exceção: ${exception.javaClass.simpleName}: ${exception.message}")
+            
+        } catch (e: Exception) {
+            // Se falhar, tenta método ainda mais simples
+            Log.e(TAG, "❌ Falha ao salvar crash detalhado", e)
+            throw e // Re-throw para acionar o fallback
         }
     }
     
@@ -150,6 +230,100 @@ object CrashReporter {
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao ler logs", e)
             "Erro ao ler logs: ${e.message}"
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Obtém todos os crashes salvos
+     */
+    fun getCrashes(context: Context): String {
+        return try {
+            val crashFile = File(context.filesDir, "app_crashes.txt")
+            val emergencyFile = File(context.filesDir, "emergency_crash.txt")
+            
+            val crashesText = StringBuilder()
+            
+            // Crashes normais
+            if (crashFile.exists()) {
+                crashesText.append("=== CRASHES REGISTRADOS ===\n\n")
+                crashesText.append(crashFile.readText())
+            }
+            
+            // Crashes de emergência
+            if (emergencyFile.exists()) {
+                crashesText.append("\n\n=== CRASHES DE EMERGÊNCIA ===\n\n")
+                crashesText.append(emergencyFile.readText())
+            }
+            
+            if (crashesText.isEmpty()) {
+                "Nenhum crash registrado ✅"
+            } else {
+                crashesText.toString()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao ler crashes", e)
+            "Erro ao ler crashes: ${e.message}"
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Obtém contagem de crashes
+     */
+    fun getCrashCount(context: Context): Int {
+        return try {
+            val crashFile = File(context.filesDir, "app_crashes.txt")
+            if (crashFile.exists()) {
+                val content = crashFile.readText()
+                // Conta quantas vezes aparece "CRASH DETECTADO"
+                content.split("CRASH DETECTADO").size - 1
+            } else {
+                0
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao contar crashes", e)
+            0
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Limpa crashes salvos
+     */
+    fun clearCrashes(context: Context) {
+        try {
+            val crashFile = File(context.filesDir, "app_crashes.txt")
+            if (crashFile.exists()) {
+                crashFile.delete()
+                Log.d(TAG, "Crashes limpos com sucesso")
+            }
+            
+            val emergencyFile = File(context.filesDir, "emergency_crash.txt")
+            if (emergencyFile.exists()) {
+                emergencyFile.delete()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao limpar crashes", e)
+        }
+    }
+    
+    /**
+     * ✅ NOVO: Exporta crashes para arquivo externo
+     */
+    fun exportCrashes(context: Context): File? {
+        return try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val exportFile = File(context.getExternalFilesDir(null), "crashes_export_$timestamp.txt")
+            
+            val crashes = getCrashes(context)
+            FileWriter(exportFile).use { writer ->
+                writer.write(crashes)
+                writer.flush()
+            }
+            
+            Log.d(TAG, "Crashes exportados para: ${exportFile.absolutePath}")
+            exportFile
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao exportar crashes", e)
+            null
         }
     }
     

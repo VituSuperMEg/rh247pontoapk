@@ -293,16 +293,6 @@ class ReportsViewModel(
                     ponto.funcionarioNome.contains(employeeName, ignoreCase = true)
                 }.sortedByDescending { it.dataHora }
                 
-<<<<<<< HEAD
-                // ✅ CORRIGIDO: Manter filtros ativos no estado
-                val employeeFilter = ActiveFilter.EMPLOYEE(employeeName)
-                val currentFilters = reportsState.value.activeFilters.filter { it !is ActiveFilter.EMPLOYEE } + employeeFilter
-                
-                reportsState.value = reportsState.value.copy(
-                    points = filteredPoints,
-                    totalPoints = filteredPoints.size,
-                    activeFilters = currentFilters
-=======
                 android.util.Log.d("ReportsViewModel", "📊 Filtro por funcionário: ${filteredPoints.size} pontos encontrados")
                 
                 // ✅ PROTEÇÃO: Limitar pontos filtrados para evitar crash
@@ -313,9 +303,14 @@ class ReportsViewModel(
                     filteredPoints
                 }
                 
+                // ✅ CORRIGIDO: Manter filtros ativos no estado
+                val employeeFilter = ActiveFilter.EMPLOYEE(employeeName)
+                val currentFilters = reportsState.value.activeFilters.filter { it !is ActiveFilter.EMPLOYEE } + employeeFilter
+                
                 reportsState.value = reportsState.value.copy(
                     points = limitedPoints,
                     totalPoints = filteredPoints.size,
+                    activeFilters = currentFilters,
                     isLoading = false,
                     currentPage = 0,
                     hasMorePages = filteredPoints.size > 50,
@@ -327,7 +322,6 @@ class ReportsViewModel(
                 reportsState.value = reportsState.value.copy(
                     isLoading = false,
                     error = "Muitos pontos para filtrar. Tente um funcionário específico."
->>>>>>> 3603d681413c851485be586439bf877fe4991663
                 )
             } catch (e: Exception) {
                 android.util.Log.e("ReportsViewModel", "Erro em filterByEmployee: ${e.message}", e)
@@ -339,7 +333,6 @@ class ReportsViewModel(
         }
     }
     
-<<<<<<< HEAD
     // ✅ NOVO: Recarregar a view mantendo os filtros atuais
     private fun reloadCurrentView() {
         viewModelScope.launch {
@@ -430,7 +423,11 @@ class ReportsViewModel(
                 }
             } catch (e: Exception) {
                 android.util.Log.e("ReportsViewModel", "Erro ao remover filtro: ${e.message}", e)
-=======
+            }
+        }
+    }
+    
+    // ✅ NOVO: Carregar mais pontos filtrados
     fun loadMoreFilteredPoints() {
         viewModelScope.launch {
             try {
@@ -470,7 +467,6 @@ class ReportsViewModel(
                     isLoading = false,
                     error = "Erro ao carregar mais pontos: ${e.message}"
                 )
->>>>>>> 3603d681413c851485be586439bf877fe4991663
             }
         }
     }
