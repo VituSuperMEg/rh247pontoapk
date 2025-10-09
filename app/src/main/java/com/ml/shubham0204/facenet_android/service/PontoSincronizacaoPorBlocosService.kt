@@ -106,6 +106,19 @@ class PontoSincronizacaoPorBlocosService {
                 Log.d(TAG, "📊 Total de pontos para sincronizar: $totalPontos")
                 Log.d(TAG, "🏢 Entidades encontradas: ${pontosPorEntidade.keys}")
                 
+                if (totalPontos > 1000) {
+                    Log.w(TAG, "⚠️ Muitos pontos para sincronizar ($totalPontos). Limitando processamento.")
+                    return@withContext SincronizacaoPorBlocosResult(
+                        sucesso = false,
+                        totalPontos = totalPontos,
+                        pontosSincronizados = 0,
+                        entidadesProcessadas = 0,
+                        duracaoSegundos = 0,
+                        mensagem = "⚠️ Muitos pontos para sincronizar de uma vez. Tente novamente mais tarde.",
+                        detalhesPorEntidade = emptyList()
+                    )
+                }
+                
                 val resultadosPorEntidade = mutableListOf<EntidadeSyncResult>()
                 var pontosSincronizadosTotal = 0
                 var entidadesProcessadas = 0

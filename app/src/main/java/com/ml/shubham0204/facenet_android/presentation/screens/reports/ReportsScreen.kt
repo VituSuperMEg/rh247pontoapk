@@ -81,7 +81,11 @@ fun ReportsScreen(
     }
     
     LaunchedEffect(Unit) {
-        viewModel.loadReports()
+        try {
+            viewModel.loadReports()
+        } catch (e: Exception) {
+            android.util.Log.e("ReportsScreen", "Erro ao carregar relatórios: ${e.message}", e)
+        }
     }
     
     Scaffold(

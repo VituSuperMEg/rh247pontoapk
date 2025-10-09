@@ -13,6 +13,7 @@ import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
+import com.ml.shubham0204.facenet_android.utils.CrashReporter
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.android.annotation.KoinViewModel
@@ -63,6 +64,9 @@ class ReportsViewModel(
                 )
                 
             } catch (e: Exception) {
+                // Log do crash para debug remoto (sem context para evitar problemas)
+                android.util.Log.e("ReportsViewModel", "Erro em loadReports: ${e.message}", e)
+                
                 reportsState.value = reportsState.value.copy(
                     isLoading = false,
                     error = "Erro ao carregar relatórios: ${e.message}"
@@ -121,6 +125,9 @@ class ReportsViewModel(
                 }
                 
             } catch (e: Exception) {
+                // Log do crash para debug remoto
+                CrashReporter.logException(context, e, "ReportsViewModel.syncPoints")
+                
                 Toast.makeText(
                     context, 
                     "❌ Erro na sincronização: ${e.message}", 
@@ -215,19 +222,17 @@ class ReportsViewModel(
     }
     
     private fun createSampleData(): List<PontosGenericosEntity> {
-        val calendar = Calendar.getInstance()
-        calendar.set(2025, Calendar.AUGUST, 28, 11, 11, 45) // 28 de agosto de 2025
-        
-        val samplePoints = mutableListOf<PontosGenericosEntity>()
-        
-        // Criar 25 pontos para o ADAMS no dia 28 de agosto
-        val times = listOf(
-            "11:11:45", "11:11:40", "11:11:00", "11:10:42", "11:09:06", "11:09:03",
-            "10:45:30", "10:30:15", "10:15:22", "10:00:08", "09:45:33", "09:30:17",
-            "09:15:44", "09:00:29", "08:45:11", "08:30:55", "08:15:38", "08:00:12",
-            "07:45:26", "07:30:49", "07:15:03", "07:00:37", "06:45:21", "06:30:14",
-            "06:15:58"
-        )
+        try {
+            val calendar = Calendar.getInstance()
+            calendar.set(2025, Calendar.AUGUST, 28, 11, 11, 45) // 28 de agosto de 2025
+            
+            val samplePoints = mutableListOf<PontosGenericosEntity>()
+            
+            // ✅ OTIMIZADO: Reduzir para apenas 10 pontos para evitar OutOfMemoryError
+            val times = listOf(
+                "11:11:45", "11:11:40", "11:11:00", "11:10:42", "11:09:06",
+                "10:45:30", "10:30:15", "10:15:22", "10:00:08", "09:45:33"
+            )
         
         times.forEachIndexed { index, timeStr ->
             val timeParts = timeStr.split(":")
@@ -255,31 +260,39 @@ class ReportsViewModel(
             samplePoints.add(ponto)
         }
         
-        // Adicionar alguns pontos de outros dias para mostrar agrupamento
-        calendar.set(2025, Calendar.AUGUST, 27, 17, 30, 0)
-        for (i in 1..5) {
-            calendar.add(Calendar.HOUR, -1)
-            val ponto = PontosGenericosEntity(
-                id = samplePoints.size.toLong() + 1,
-                funcionarioId = "1",
-                funcionarioNome = "ADAMS ANTONIO GIRAO MENESES",
-                funcionarioMatricula = "00002625",
-                funcionarioCpf = "009.050.763-03",
-                funcionarioCargo = "MEDICO",
-                funcionarioSecretaria = "SAUDE FUNDO MUNICIPAL DE SAUDE",
-                funcionarioLotacao = "SAUDE FUNDO MUNICIPAL DE SAUDE - PLANTAO",
-                dataHora = calendar.timeInMillis,
-                latitude = null,
-                longitude = null,
-                observacao = null,
-                fotoBase64 = null,
-                synced = true,
-                entidadeId = "ENTIDADE_TESTE" // ✅ NOVO: Entidade para dados de teste
-            )
-            samplePoints.add(ponto)
+            // ✅ OTIMIZADO: Reduzir pontos de outros dias para evitar OutOfMemoryError
+            calendar.set(2025, Calendar.AUGUST, 27, 17, 30, 0)
+            for (i in 1..3) { // Reduzido de 5 para 3
+                calendar.add(Calendar.HOUR, -1)
+                val ponto = PontosGenericosEntity(
+                    id = samplePoints.size.toLong() + 1,
+                    funcionarioId = "1",
+                    funcionarioNome = "ADAMS ANTONIO GIRAO MENESES",
+                    funcionarioMatricula = "00002625",
+                    funcionarioCpf = "009.050.763-03",
+                    funcionarioCargo = "MEDICO",
+                    funcionarioSecretaria = "SAUDE FUNDO MUNICIPAL DE SAUDE",
+                    funcionarioLotacao = "SAUDE FUNDO MUNICIPAL DE SAUDE - PLANTAO",
+                    dataHora = calendar.timeInMillis,
+                    latitude = null,
+                    longitude = null,
+                    observacao = null,
+                    fotoBase64 = null,
+                    synced = true,
+                    entidadeId = "ENTIDADE_TESTE" // ✅ NOVO: Entidade para dados de teste
+                )
+                samplePoints.add(ponto)
+            }
+            
+            return samplePoints
+            
+        } catch (e: OutOfMemoryError) {
+            android.util.Log.e("ReportsViewModel", "OutOfMemoryError em createSampleData: ${e.message}", e)
+            return emptyList() // Retorna lista vazia em caso de OutOfMemoryError
+        } catch (e: Exception) {
+            android.util.Log.e("ReportsViewModel", "Erro em createSampleData: ${e.message}", e)
+            return emptyList()
         }
-        
-        return samplePoints
     }
 
     private fun generateAFDContent(points: List<PontosGenericosEntity>): String {
