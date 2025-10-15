@@ -305,7 +305,7 @@ class ImageVectorUseCase(
         // 0.7f = Moderado
         // 0.8f = Permissivo (recomendado para debugging)
         // 0.9f = Muito permissivo
-        return 0.8f
+        return 0.5f
     }
 }
 
