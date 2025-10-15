@@ -17,6 +17,7 @@ import org.tensorflow.lite.support.common.FileUtil
 import org.tensorflow.lite.support.common.ops.CastOp
 import org.tensorflow.lite.support.image.ImageProcessor
 import org.tensorflow.lite.support.image.TensorImage
+import com.ml.shubham0204.facenet_android.utils.FaceRecognitionConfig
 import kotlin.math.exp
 import kotlin.time.DurationUnit
 import kotlin.time.measureTime
@@ -148,10 +149,24 @@ class FaceSpoofDetector(
                     (it.first + it.second)
                 }
             val label = output.indexOf(output.max())
-            val iSpoof = label != 1
-            val score = output[label] / 2f
+            
+            // ✅ MELHORADO: Lógica mais rigorosa para detecção de spoof
+            // 0 = Real, 1 = Spoof, 2 = Outros (objetos, etc.)
+            val isSpoof = when (label) {
+                0 -> false // Real
+                1 -> true  // Spoof (foto, vídeo)
+                2 -> true  // Outros objetos (não é uma face real)
+                else -> true // Por segurança, considerar como spoof
+            }
+            
+            // ✅ NOVO: Score mais rigoroso - penalizar mais objetos não-humanos
+            val baseScore = output[label] / 2f
+            val adjustedScore = baseScore * FaceRecognitionConfig.calculateConfidenceMultiplier(label)
+            
+            // ✅ NOVO: Log para debug
+            android.util.Log.d("FaceSpoofDetector", "🔍 Spoof Detection: label=$label, isSpoof=$isSpoof, score=${String.format("%.3f", adjustedScore)}")
 
-            return@withContext FaceSpoofResult(isSpoof = iSpoof, score = score, timeMillis = time)
+            return@withContext FaceSpoofResult(isSpoof = isSpoof, score = adjustedScore, timeMillis = time)
         }
 
     private fun softMax(x: FloatArray): FloatArray {

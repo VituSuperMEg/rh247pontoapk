@@ -10,6 +10,7 @@ import com.ml.shubham0204.facenet_android.domain.embeddings.FaceNet
 import com.ml.shubham0204.facenet_android.domain.face_detection.FaceSpoofDetector
 import com.ml.shubham0204.facenet_android.domain.face_detection.MediapipeFaceDetector
 import com.ml.shubham0204.facenet_android.utils.CrashReporter
+import com.ml.shubham0204.facenet_android.utils.FaceRecognitionConfig
 import org.koin.core.annotation.Single
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -170,11 +171,21 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    if (distance > 0.78) {
-                    val spoofThreshold = getSpoofThreshold()
-                    val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
+                    // ✅ MELHORADO: Threshold mais rigoroso para reduzir falsos positivos
+                    val similarityThreshold = FaceRecognitionConfig.getSimilarityThreshold()
+                    val distanceThreshold = 1.0f - similarityThreshold 
+                    
+                    // ✅ NOVO: Verificar qualidade da face detectada
+                    val faceQuality = validateFaceQuality(boundingBox, frameBitmap)
+                    
+                    if (distance <= distanceThreshold && faceQuality.isValid) {
+                        val spoofThreshold = getSpoofThreshold()
+                        val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
-                        if (isSpoofDetected) {
+                        // ✅ NOVO: Verificação adicional de confiança
+                        val confidenceScore = calculateConfidenceScore(distance, faceQuality, spoofResult)
+                        
+                        if (isSpoofDetected || confidenceScore < FaceRecognitionConfig.getConfidenceThreshold()) {
                             faceRecognitionResults.add(
                                 FaceRecognitionResult("SPOOF_DETECTED", boundingBox, spoofResult),
                             )
@@ -184,6 +195,7 @@ class ImageVectorUseCase(
                             )
                         }
                     } else {
+                        val reason = if (!faceQuality.isValid) "INVALID_FACE_QUALITY" else "LOW_SIMILARITY"
                         faceRecognitionResults.add(
                             FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
                         )
@@ -299,13 +311,77 @@ class ImageVectorUseCase(
     
     // ✅ NOVO: Função para obter threshold dinâmico do spoof detection
     private fun getSpoofThreshold(): Float {
-        // Threshold mais permissivo para reduzir falsos positivos
-        // Valores possíveis:
-        // 0.5f = Muito restritivo (pode bloquear pessoas reais)
-        // 0.7f = Moderado
-        // 0.8f = Permissivo (recomendado para debugging)
-        // 0.9f = Muito permissivo
-        return 0.5f
+        return FaceRecognitionConfig.getSpoofThreshold()
+    }
+    
+    // ✅ NOVO: Validação de qualidade da face detectada
+    private fun validateFaceQuality(boundingBox: Rect, frameBitmap: Bitmap): FaceQualityResult {
+        val width = boundingBox.width()
+        val height = boundingBox.height()
+        val area = width * height
+        val frameArea = frameBitmap.width * frameBitmap.height
+        
+        // Verificar tamanho mínimo da face usando configurações centralizadas
+        val areaRatio = area.toFloat() / frameArea.toFloat()
+        val aspectRatio = height.toFloat() / width.toFloat()
+        
+        // Verificar se a face não está muito pequena
+        val isSizeValid = areaRatio >= FaceRecognitionConfig.FaceQuality.MIN_AREA_RATIO && 
+                         width >= FaceRecognitionConfig.FaceQuality.MIN_FACE_WIDTH && 
+                         height >= FaceRecognitionConfig.FaceQuality.MIN_FACE_HEIGHT
+        
+        // Verificar se a proporção é razoável para uma face humana
+        val isAspectRatioValid = aspectRatio >= FaceRecognitionConfig.FaceQuality.MIN_ASPECT_RATIO && 
+                                aspectRatio <= FaceRecognitionConfig.FaceQuality.MAX_ASPECT_RATIO
+        
+        // Verificar se a face está centralizada na imagem (não muito nas bordas)
+        val centerX = boundingBox.centerX()
+        val centerY = boundingBox.centerY()
+        val frameCenterX = frameBitmap.width / 2
+        val frameCenterY = frameBitmap.height / 2
+        val distanceFromCenter = kotlin.math.sqrt(
+            ((centerX - frameCenterX) * (centerX - frameCenterX) + 
+             (centerY - frameCenterY) * (centerY - frameCenterY)).toDouble()
+        ).toFloat()
+        val maxDistance = kotlin.math.sqrt(
+            (frameBitmap.width * frameBitmap.width + frameBitmap.height * frameBitmap.height).toDouble()
+        ).toFloat() * FaceRecognitionConfig.FaceQuality.MAX_DISTANCE_FROM_CENTER_RATIO
+        
+        val isPositionValid = distanceFromCenter <= maxDistance
+        
+        val isValid = isSizeValid && isAspectRatioValid && isPositionValid
+        
+        android.util.Log.d("ImageVectorUseCase", "🔍 Validação de qualidade: " +
+            "tamanho=${isSizeValid}, proporção=${isAspectRatioValid}, posição=${isPositionValid}, " +
+            "área=${String.format("%.3f", areaRatio)}, proporção=${String.format("%.2f", aspectRatio)}")
+        
+        return FaceQualityResult(
+            isValid = isValid,
+            areaRatio = areaRatio,
+            aspectRatio = aspectRatio,
+            distanceFromCenter = distanceFromCenter
+        )
+    }
+    
+    // ✅ NOVO: Cálculo de pontuação de confiança
+    private fun calculateConfidenceScore(
+        distance: Float, 
+        faceQuality: FaceQualityResult, 
+        spoofResult: SpoofDetectionResult?
+    ): Float {
+        var confidence = 1.0f - distance // Baseado na similaridade
+        
+        // Penalizar por baixa qualidade da face
+        if (faceQuality.areaRatio < 0.02f) confidence *= 0.8f // Face muito pequena
+        if (faceQuality.aspectRatio < 0.9f || faceQuality.aspectRatio > 1.3f) confidence *= 0.9f // Proporção estranha
+        if (faceQuality.distanceFromCenter > faceQuality.distanceFromCenter * 0.5f) confidence *= 0.9f // Muito nas bordas
+        
+        // Penalizar por detecção de spoof
+        if (spoofResult != null && spoofResult.isSpoof) {
+            confidence *= (1.0f - spoofResult.score * 0.5f) // Reduzir confiança baseado no score de spoof
+        }
+        
+        return kotlin.math.max(0.0f, kotlin.math.min(1.0f, confidence))
     }
 }
 
@@ -314,4 +390,12 @@ data class FaceAlreadyExistsResult(
     val exists: Boolean, // Se a face já existe
     val existingFace: FaceImageRecord?, // Face existente (se encontrada)
     val similarity: Float // Nível de similaridade (0.0 a 1.0)
+)
+
+// ✅ NOVO: Classe de resultado para validação de qualidade da face
+data class FaceQualityResult(
+    val isValid: Boolean, // Se a face atende aos critérios de qualidade
+    val areaRatio: Float, // Proporção da área da face em relação à imagem total
+    val aspectRatio: Float, // Proporção altura/largura da face
+    val distanceFromCenter: Float // Distância do centro da imagem
 )

@@ -14,6 +14,7 @@ import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.facedetector.FaceDetector
 import com.ml.shubham0204.facenet_android.domain.AppException
 import com.ml.shubham0204.facenet_android.domain.ErrorCode
+import com.ml.shubham0204.facenet_android.utils.FaceRecognitionConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.koin.core.annotation.Single
@@ -105,10 +106,15 @@ class MediapipeFaceDetector(
     // Used by ImageVectorUseCase.kt
     suspend fun getAllCroppedFaces(frameBitmap: Bitmap): List<Pair<Bitmap, Rect>> =
         withContext(Dispatchers.IO) {
-            return@withContext faceDetector
+            val detections = faceDetector
                 .detect(BitmapImageBuilder(frameBitmap).build())
                 .detections()
-                .filter { validateRect(frameBitmap, it.boundingBox().toRect()) }
+            
+            return@withContext detections
+                .filter { detection -> 
+                    val rect = detection.boundingBox().toRect()
+                    validateRect(frameBitmap, rect) && validateFaceQuality(frameBitmap, rect)
+                }
                 .map { detection -> detection.boundingBox().toRect() }
                 .map { rect ->
                     val croppedBitmap =
@@ -152,4 +158,64 @@ class MediapipeFaceDetector(
             boundingBox.top >= 0 &&
             (boundingBox.left + boundingBox.width()) < cameraFrameBitmap.width &&
             (boundingBox.top + boundingBox.height()) < cameraFrameBitmap.height
+    
+    // ✅ NOVO: Validação de qualidade da face para evitar objetos
+    private fun validateFaceQuality(
+        frameBitmap: Bitmap,
+        boundingBox: Rect,
+    ): Boolean {
+        val width = boundingBox.width()
+        val height = boundingBox.height()
+        val area = width * height
+        val frameArea = frameBitmap.width * frameBitmap.height
+        
+        // ✅ Filtro 1: Tamanho mínimo da face usando configurações centralizadas
+        val areaRatio = area.toFloat() / frameArea.toFloat()
+        if (areaRatio < FaceRecognitionConfig.FaceQuality.MIN_AREA_RATIO) {
+            android.util.Log.d("MediapipeFaceDetector", "❌ Face muito pequena: ${String.format("%.3f", areaRatio)}")
+            return false
+        }
+        
+        // ✅ Filtro 2: Dimensões mínimas absolutas
+        if (width < FaceRecognitionConfig.FaceQuality.MIN_FACE_WIDTH || 
+            height < FaceRecognitionConfig.FaceQuality.MIN_FACE_HEIGHT) {
+            android.util.Log.d("MediapipeFaceDetector", "❌ Face com dimensões muito pequenas: ${width}x${height}")
+            return false
+        }
+        
+        // ✅ Filtro 3: Proporção da face usando configurações centralizadas
+        val aspectRatio = height.toFloat() / width.toFloat()
+        if (aspectRatio < FaceRecognitionConfig.FaceQuality.MIN_ASPECT_RATIO || 
+            aspectRatio > FaceRecognitionConfig.FaceQuality.MAX_ASPECT_RATIO) {
+            android.util.Log.d("MediapipeFaceDetector", "❌ Proporção inválida: ${String.format("%.2f", aspectRatio)}")
+            return false
+        }
+        
+        // ✅ Filtro 4: Verificar se a face não está muito nas bordas
+        val centerX = boundingBox.centerX()
+        val centerY = boundingBox.centerY()
+        val frameCenterX = frameBitmap.width / 2
+        val frameCenterY = frameBitmap.height / 2
+        val distanceFromCenter = kotlin.math.sqrt(
+            ((centerX - frameCenterX) * (centerX - frameCenterX) + 
+             (centerY - frameCenterY) * (centerY - frameCenterY)).toDouble()
+        ).toFloat()
+        val maxDistance = kotlin.math.sqrt(
+            (frameBitmap.width * frameBitmap.width + frameBitmap.height * frameBitmap.height).toDouble()
+        ).toFloat() * FaceRecognitionConfig.FaceQuality.MAX_DISTANCE_FROM_CENTER_RATIO
+        
+        if (distanceFromCenter > maxDistance) {
+            android.util.Log.d("MediapipeFaceDetector", "❌ Face muito nas bordas: distância=${String.format("%.1f", distanceFromCenter)}")
+            return false
+        }
+        
+        // ✅ Filtro 5: Verificar se a face não é muito grande (pode ser um objeto)
+        if (areaRatio > FaceRecognitionConfig.FaceQuality.MAX_AREA_RATIO) {
+            android.util.Log.d("MediapipeFaceDetector", "❌ Face muito grande: ${String.format("%.3f", areaRatio)}")
+            return false
+        }
+        
+        android.util.Log.d("MediapipeFaceDetector", "✅ Face válida: área=${String.format("%.3f", areaRatio)}, proporção=${String.format("%.2f", aspectRatio)}")
+        return true
+    }
 }
