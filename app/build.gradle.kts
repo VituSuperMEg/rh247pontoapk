@@ -16,8 +16,8 @@ android {
         applicationId = "com.ml.shubham0204.facenet_android"
         minSdk = 26
         targetSdk = 34
-        versionCode = 67
-        versionName = "0.6.7"
+        versionCode = 68
+        versionName = "0.6.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

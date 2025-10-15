@@ -75,6 +75,10 @@ import com.ml.shubham0204.facenet_android.presentation.components.AppAlertDialog
 import com.ml.shubham0204.facenet_android.presentation.theme.FaceNetAndroidTheme
 import org.koin.androidx.compose.koinViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.layout.ContentScale
@@ -780,10 +784,13 @@ private fun IntegratedCameraCapture(
     var isFaceDetected by remember { mutableStateOf(false) }
     var isFaceCentered by remember { mutableStateOf(false) }
     var isStable by remember { mutableStateOf(false) }
+    var isCloseEnough by remember { mutableStateOf(false) } // ✅ NOVO: Verifica se está próximo o suficiente
+    var faceSize by remember { mutableStateOf(0f) } // ✅ NOVO: Tamanho do rosto detectado
     var captureCountdown by remember { mutableStateOf(0) }
     var currentPhotoIndex by remember { mutableStateOf(0) }
     var isCapturing by remember { mutableStateOf(false) }
     var imageCapture by remember { mutableStateOf<androidx.camera.core.ImageCapture?>(null) }
+    var imageAnalysis by remember { mutableStateOf<androidx.camera.core.ImageAnalysis?>(null) } // ✅ NOVO: Para análise em tempo real
     
     // ✅ MELHORADO: LaunchedEffect para capturar fotos automaticamente com countdown visual
     LaunchedEffect(Unit) {
@@ -816,15 +823,40 @@ private fun IntegratedCameraCapture(
             currentPhotoIndex = photoCount
             android.util.Log.d("AddFaceScreen", "📊 Atualizando currentPhotoIndex para: $currentPhotoIndex")
             
-            // ✅ MELHORADO: Simular detecção de face com mudança de cor
-            isFaceDetected = true
-            viewModel.setFaceDetectionStatus("Detectando face...")
-            delay(1000)
+            // ✅ MELHORADO: Aguardar detecção de face (agora com detecção real)
+            android.util.Log.d("AddFaceScreen", "👤 Aguardando detecção de face...")
+            viewModel.setFaceDetectionStatus("Aguardando rosto...")
+            while (!isFaceDetected && isActive) {
+                delay(100)
+            }
             
-            // ✅ MELHORADO: Simular centralização com mudança de cor
-            isFaceCentered = true
+            android.util.Log.d("AddFaceScreen", "✅ Face detectada!")
+            viewModel.setFaceDetectionStatus("Rosto detectado...")
+            delay(500)
+            
+            // ✅ NOVO: Aguardar usuário estar próximo o suficiente
+            android.util.Log.d("AddFaceScreen", "📏 Verificando proximidade...")
+            viewModel.setFaceDetectionStatus("Aproxime-se da câmera...")
+            
+            var proximityWaitTime = 0
+            while (!isCloseEnough && isActive && proximityWaitTime < 20000) { // Timeout de 20s
+                delay(100)
+                proximityWaitTime += 100
+                
+                // Log periódico do tamanho do rosto
+                if (proximityWaitTime % 2000 == 0) {
+                    android.util.Log.d("AddFaceScreen", "📏 Tamanho do rosto: ${(faceSize * 100).toInt()}% (mínimo: 30%)")
+                }
+            }
+            
+            if (!isCloseEnough) {
+                android.util.Log.w("AddFaceScreen", "⚠️ Timeout aguardando proximidade, tentando mesmo assim...")
+            } else {
+                android.util.Log.d("AddFaceScreen", "✅ Usuário está próximo o suficiente!")
+            }
+            
             viewModel.setFaceDetectionStatus("Centralizando...")
-            delay(1000)
+            delay(500)
             
             // ✅ MELHORADO: Simular estabilização com mudança de cor
             isStable = true
@@ -903,6 +935,8 @@ private fun IntegratedCameraCapture(
                 isFaceDetected = false
                 isFaceCentered = false
                 isStable = false
+                isCloseEnough = false // ✅ NOVO: Resetar proximidade
+                faceSize = 0f // ✅ NOVO: Resetar tamanho
                 captureCountdown = 0
                 
                 // Aguardar um pouco antes da próxima captura
@@ -967,6 +1001,98 @@ private fun IntegratedCameraCapture(
                             .setJpegQuality(90) // ✅ NOVO: Qualidade JPEG otimizada
                             .build()
                         
+                        // ✅ NOVO: ImageAnalysis para detecção de rosto em tempo real
+                        val analysis = androidx.camera.core.ImageAnalysis.Builder()
+                            .setTargetAspectRatio(androidx.camera.core.AspectRatio.RATIO_16_9)
+                            .setBackpressureStrategy(androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .setOutputImageFormat(androidx.camera.core.ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                            .build()
+                        
+                        // ✅ NOVO: Configurar analisador de faces
+                        val faceDetector = com.ml.shubham0204.facenet_android.domain.face_detection.MediapipeFaceDetector(context)
+                        analysis.setAnalyzer(java.util.concurrent.Executors.newSingleThreadExecutor()) { imageProxy ->
+                            try {
+                                // ✅ Converter ImageProxy para Bitmap
+                                val image = imageProxy.image ?: run {
+                                    imageProxy.close()
+                                    return@setAnalyzer
+                                }
+                                
+                                var bitmap = android.graphics.Bitmap.createBitmap(
+                                    image.width,
+                                    image.height,
+                                    android.graphics.Bitmap.Config.ARGB_8888,
+                                )
+                                bitmap.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
+                                
+                                // Aplicar rotação se necessário
+                                if (imageProxy.imageInfo.rotationDegrees != 0) {
+                                    val matrix = android.graphics.Matrix()
+                                    matrix.postRotate(imageProxy.imageInfo.rotationDegrees.toFloat())
+                                    bitmap = android.graphics.Bitmap.createBitmap(
+                                        bitmap,
+                                        0,
+                                        0,
+                                        bitmap.width,
+                                        bitmap.height,
+                                        matrix,
+                                        false,
+                                    )
+                                }
+                                
+                                // Detectar faces no bitmap
+                                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                    try {
+                                        val faces = faceDetector.getAllCroppedFaces(bitmap)
+                                        
+                                        withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            if (faces.isNotEmpty()) {
+                                                isFaceDetected = true
+                                                
+                                                // ✅ NOVO: Calcular tamanho do rosto em relação à imagem
+                                                val face = faces.first()
+                                                val faceRect = face.second
+                                                val imageArea = bitmap.width * bitmap.height
+                                                val faceArea = faceRect.width() * faceRect.height()
+                                                faceSize = faceArea.toFloat() / imageArea.toFloat()
+                                                
+                                                // ✅ NOVO: Definir se está próximo o suficiente (30% da área da imagem)
+                                                val minFaceSize = 0.15f // 15% da área total
+                                                isCloseEnough = faceSize >= minFaceSize
+                                                
+                                                // ✅ NOVO: Verificar se está centralizado
+                                                val centerX = bitmap.width / 2f
+                                                val centerY = bitmap.height / 2f
+                                                val faceCenterX = faceRect.centerX()
+                                                val faceCenterY = faceRect.centerY()
+                                                val distanceFromCenter = kotlin.math.sqrt(
+                                                    ((faceCenterX - centerX) * (faceCenterX - centerX) + 
+                                                     (faceCenterY - centerY) * (faceCenterY - centerY)).toDouble()
+                                                ).toFloat()
+                                                val maxDistance = bitmap.width * 0.2f // 20% da largura
+                                                isFaceCentered = distanceFromCenter < maxDistance && isCloseEnough
+                                                
+                                                android.util.Log.d("AddFaceScreen", 
+                                                    "📏 Face: ${(faceSize * 100).toInt()}% | Próximo: $isCloseEnough | Centralizado: $isFaceCentered"
+                                                )
+                                            } else {
+                                                isFaceDetected = false
+                                                isFaceCentered = false
+                                                isCloseEnough = false
+                                                faceSize = 0f
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        android.util.Log.e("AddFaceScreen", "❌ Erro ao detectar face: ${e.message}")
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                android.util.Log.e("AddFaceScreen", "❌ Erro ao processar imagem: ${e.message}")
+                            } finally {
+                                imageProxy.close()
+                            }
+                        }
+                        
                         // ✅ CORRIGIDO: Seleção de câmera mais robusta
                         val cameraSelector = try {
                             // Primeiro tenta a câmera frontal
@@ -1003,17 +1129,21 @@ private fun IntegratedCameraCapture(
                         cameraProvider.unbindAll()
                         
                         try {
+                            // ✅ NOVO: Incluir ImageAnalysis no bind
                             cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
                                 cameraSelector,
                                 preview,
-                                capture
+                                capture,
+                                analysis
                             )
                             
-                            // ✅ MELHORADO: Armazenar referência do ImageCapture com verificação
+                            // ✅ MELHORADO: Armazenar referência do ImageCapture e ImageAnalysis com verificação
                             imageCapture = capture
+                            imageAnalysis = analysis
                             android.util.Log.d("AddFaceScreen", "✅ Câmera inicializada com sucesso!")
                             android.util.Log.d("AddFaceScreen", "📷 ImageCapture configurado: ${imageCapture != null}")
+                            android.util.Log.d("AddFaceScreen", "📷 ImageAnalysis configurado: ${imageAnalysis != null}")
                             
                         } catch (e: Exception) {
                             android.util.Log.e("AddFaceScreen", "❌ Erro ao fazer bind da câmera: ${e.message}")
@@ -1025,10 +1155,12 @@ private fun IntegratedCameraCapture(
                                     lifecycleOwner,
                                     androidx.camera.core.CameraSelector.DEFAULT_FRONT_CAMERA,
                                     preview,
-                                    capture
+                                    capture,
+                                    analysis
                                 )
                                 
                                 imageCapture = capture
+                                imageAnalysis = analysis
                                 android.util.Log.d("AddFaceScreen", "✅ Câmera padrão inicializada com sucesso!")
                                 
                             } catch (e2: Exception) {
@@ -1097,8 +1229,9 @@ private fun IntegratedCameraCapture(
                             color = when {
                                 captureCountdown > 0 -> Color.Red // Vermelho durante countdown
                                 isStable -> Color.Green // Verde quando estável
-                                isFaceCentered -> Color.Yellow // Amarelo quando centralizado
-                                isFaceDetected -> Color(0xFFFF9800) // Laranja quando detectado
+                                isFaceCentered && isCloseEnough -> Color.Yellow // Amarelo quando centralizado e próximo
+                                isCloseEnough -> Color.Cyan // Ciano quando próximo mas não centralizado
+                                isFaceDetected -> Color(0xFFFF9800) // Laranja quando detectado mas longe
                                 else -> Color.White // Branco por padrão
                             },
                             shape = CircleShape
@@ -1107,7 +1240,8 @@ private fun IntegratedCameraCapture(
                             color = when {
                                 captureCountdown > 0 -> Color.Red.copy(alpha = 0.1f) // Fundo vermelho suave
                                 isStable -> Color.Green.copy(alpha = 0.1f) // Fundo verde suave
-                                isFaceCentered -> Color.Yellow.copy(alpha = 0.1f) // Fundo amarelo suave
+                                isFaceCentered && isCloseEnough -> Color.Yellow.copy(alpha = 0.1f) // Fundo amarelo suave
+                                isCloseEnough -> Color.Cyan.copy(alpha = 0.1f) // Fundo ciano suave
                                 isFaceDetected -> Color(0xFFFF9800).copy(alpha = 0.1f) // Fundo laranja suave
                                 else -> Color.Transparent
                             },
@@ -1145,23 +1279,59 @@ private fun IntegratedCameraCapture(
                                 modifier = Modifier.size(64.dp)
                             )
                         }
-                        isFaceCentered -> {
-                            // Ícone de face quando centralizado
+                        isFaceCentered && isCloseEnough -> {
+                            // Ícone de face quando centralizado e próximo
                             Icon(
                                 imageVector = Icons.Default.Face,
-                                contentDescription = "Centralizado",
+                                contentDescription = "Centralizado e próximo",
                                 tint = Color.Yellow,
                                 modifier = Modifier.size(64.dp)
                             )
                         }
+                        isCloseEnough -> {
+                            // Ícone de face quando próximo mas não centralizado
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Face,
+                                    contentDescription = "Próximo",
+                                    tint = Color.Cyan,
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Text(
+                                    text = "Centralize",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                         isFaceDetected -> {
-                            // Ícone de face quando detectado
-                            Icon(
-                                imageVector = Icons.Default.Face,
-                                contentDescription = "Detectado",
-                                tint = Color(0xFFFF9800),
-                                modifier = Modifier.size(64.dp)
-                            )
+                            // ✅ NOVO: Mostrar indicação de aproximação com porcentagem
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Face,
+                                    contentDescription = "Detectado - aproxime-se",
+                                    tint = Color(0xFFFF9800),
+                                    modifier = Modifier.size(64.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Aproxime-se",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "${(faceSize * 100).toInt()}% / 15%",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                         else -> {
                             // Instrução inicial
@@ -1184,8 +1354,9 @@ private fun IntegratedCameraCapture(
                         viewModel.selectedImageURIs.value.size >= 3 -> "🎉 Todas as fotos foram capturadas!"
                         captureCountdown > 0 -> "📸 Capturando em $captureCountdown segundos..."
                         isStable -> "✅ Rosto estável! Preparando para capturar..."
-                        isFaceCentered -> "🎯 Rosto centralizado! Aguarde estabilizar..."
-                        isFaceDetected -> "👤 Rosto detectado! Centralize o rosto no círculo..."
+                        isFaceCentered && isCloseEnough -> "🎯 Perfeito! Rosto centralizado e próximo..."
+                        isCloseEnough -> "👍 Boa distância! Centralize o rosto no círculo..."
+                        isFaceDetected -> "⚠️ Aproxime-se mais da câmera! (${(faceSize * 100).toInt()}% / 15%)"
                         else -> "📱 Posicione seu rosto no círculo"
                     },
                     style = MaterialTheme.typography.bodyLarge,
