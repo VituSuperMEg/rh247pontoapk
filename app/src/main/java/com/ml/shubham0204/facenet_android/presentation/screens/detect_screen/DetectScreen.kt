@@ -258,9 +258,12 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
     var faceDetectionOverlay by remember { mutableStateOf<FaceDetectionOverlay?>(null) }
     
     Box {
-        Camera(viewModel, onOverlayCreated = { overlay ->
-            faceDetectionOverlay = overlay
-        })
+        Camera(
+            viewModel, 
+            onOverlayCreated = { overlay ->
+                faceDetectionOverlay = overlay
+            }
+        )
         
         DateTimeHeader()
         
@@ -388,7 +391,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
             
             while (isActive) {
                 try {
-                    delay(800) // ✅ OTIMIZADO: Aumentado para 1200ms para evitar capturas excessivas
+                    delay(800) // ✅ OTIMIZADO: 800ms entre verificações
                     
                     // ✅ OTIMIZADO: Verificar se ainda está processando antes de continuar
                     if (isProcessingRecognition || showSuccessScreen) {
@@ -398,7 +401,7 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                     val recognizedPerson = faceDetectionOverlay?.getLastRecognizedPerson()
                     
                     // Log para debug
-                    if (recognizedPerson != null && recognizedPerson != "Not recognized") {
+                    if (recognizedPerson != null && recognizedPerson != "Not recognized" && recognizedPerson != "Não Encontrado") {
                         android.util.Log.d("DetectScreen", "🔄 Monitorando pessoa: $recognizedPerson")
                         
                         // ✅ NOVO: Controle de tempo para evitar capturas excessivas
@@ -409,9 +412,10 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
                         if (!isProcessingRecognition && timeSinceLastCapture > 2000) { // 2 segundos mínimo entre capturas
                             val currentBitmap = faceDetectionOverlay?.getCurrentFrameBitmap()
                             if (currentBitmap != null) {
-                                viewModel.setCurrentFaceBitmap(currentBitmap)
+                                // ✅ CORREÇÃO CRÍTICA: Passar o nome da pessoa reconhecida para associar à foto
+                                viewModel.setCurrentFaceBitmap(currentBitmap, belongsTo = recognizedPerson)
                                 lastPhotoCaptureTime = currentTime
-                                android.util.Log.d("DetectScreen", "📸 Nova foto capturada do frame atual (intervalo: ${timeSinceLastCapture}ms)")
+                                android.util.Log.d("DetectScreen", "📸 Nova foto capturada do frame atual (intervalo: ${timeSinceLastCapture}ms) para: $recognizedPerson")
                             }
                         } else if (timeSinceLastCapture <= 2000) {
                             android.util.Log.d("DetectScreen", "⏳ Aguardando intervalo mínimo para nova captura (${2000 - timeSinceLastCapture}ms restantes)")

@@ -108,7 +108,38 @@ class MediapipeFaceDetector(
             return@withContext faceDetector
                 .detect(BitmapImageBuilder(frameBitmap).build())
                 .detections()
-                .filter { validateRect(frameBitmap, it.boundingBox().toRect()) }
+                .filter { detection ->
+                    val categories = detection.categories()
+                    val confidence = if (categories.isNotEmpty()) {
+                        categories[0].score()
+                    } else {
+                        0f
+                    }
+                
+                    
+                    if (confidence < 0.76f) { // Mínimo 70% de confiança
+                        return@filter false
+                    }
+                    
+                    val rect = detection.boundingBox().toRect()
+                    
+                    if (!validateRect(frameBitmap, rect)) {
+                        android.util.Log.w("MediapipeFaceDetector", "⚠️ Bounding box fora dos limites")
+                        return@filter false
+                    }
+                    
+                    val aspectRatio = rect.width().toFloat() / rect.height().toFloat()
+                    if (aspectRatio < 0.5f || aspectRatio > 2.0f) {
+                        return@filter false
+                    }
+                    
+                    val minSize = 40 
+                    if (rect.width() < minSize || rect.height() < minSize) {
+                        return@filter false
+                    }
+                    
+                    true
+                }
                 .map { detection -> detection.boundingBox().toRect() }
                 .map { rect ->
                     val croppedBitmap =

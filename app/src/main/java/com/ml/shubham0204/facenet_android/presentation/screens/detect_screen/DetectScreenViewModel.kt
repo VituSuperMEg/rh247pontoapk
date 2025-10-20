@@ -67,6 +67,9 @@ class DetectScreenViewModel(
     // ✅ NOVO: Controle de foto única para cada ponto
     private var lastPhotoTimestamp: Long = 0
     private var lastPhotoHash: String? = null
+    
+    // ✅ CORREÇÃO: Armazenar o nome do funcionário associado à foto atual
+    private var currentPhotoBelongsTo: String? = null
 
     fun getNumPeople(): Long = personUseCase.getCount()
     
@@ -93,7 +96,7 @@ class DetectScreenViewModel(
         }
     }
     
-    fun setCurrentFaceBitmap(bitmap: Bitmap?) {
+    fun setCurrentFaceBitmap(bitmap: Bitmap?, belongsTo: String? = null) {
         // ✅ NOVO: Validar se a foto é nova e única
         if (bitmap != null) {
             val currentTime = System.currentTimeMillis()
@@ -109,7 +112,13 @@ class DetectScreenViewModel(
             lastPhotoTimestamp = currentTime
             lastPhotoHash = photoHash
             
-            Log.d("DetectScreenViewModel", "📸 Nova foto capturada - timestamp: $currentTime, hash: ${photoHash.take(8)}...")
+            // ✅ CORREÇÃO: Armazenar a quem a foto pertence
+            currentPhotoBelongsTo = belongsTo
+            
+            Log.d("DetectScreenViewModel", "📸 Nova foto capturada - timestamp: $currentTime, hash: ${photoHash.take(8)}..., pertence a: $belongsTo")
+        } else {
+            // Se bitmap é null, limpar também o dono
+            currentPhotoBelongsTo = null
         }
         
         currentFaceBitmap.value = bitmap
@@ -351,6 +360,38 @@ class DetectScreenViewModel(
             
             val horarioAtual = System.currentTimeMillis()
             
+            // ✅ CORREÇÃO CRÍTICA: Validar que a foto pertence ao funcionário correto
+            val photoAge = horarioAtual - lastPhotoTimestamp
+            
+            if (currentPhotoBelongsTo != null && currentPhotoBelongsTo != funcionario.nome) {
+                Log.e("DetectScreenViewModel", "🚫 ERRO CRÍTICO: Foto pertence a '$currentPhotoBelongsTo' mas tentando registrar para '${funcionario.nome}'")
+                Log.e("DetectScreenViewModel", "🚫 BLOQUEANDO registro para evitar foto incorreta!")
+                
+                // Limpar foto antiga para forçar captura de nova foto
+                currentFaceBitmap.value = null
+                currentPhotoBelongsTo = null
+                lastPhotoHash = null
+                lastPhotoTimestamp = 0
+                
+                return null
+            }
+            
+            // ✅ CORREÇÃO: Validar idade da foto (não deve ser muito antiga)
+            if (photoAge > 5000) { // Foto com mais de 5 segundos é considerada antiga
+                Log.w("DetectScreenViewModel", "⚠️ Foto muito antiga (${photoAge}ms) - pode não pertencer ao funcionário atual")
+                Log.w("DetectScreenViewModel", "⚠️ Limpando foto antiga e abortando registro")
+                
+                // Limpar foto antiga
+                currentFaceBitmap.value = null
+                currentPhotoBelongsTo = null
+                lastPhotoHash = null
+                lastPhotoTimestamp = 0
+                
+                return null
+            }
+            
+            Log.d("DetectScreenViewModel", "✅ Validação de foto OK: pertence a '${currentPhotoBelongsTo}', idade: ${photoAge}ms")
+            
             val locationResult = try {
                 val geolocEnabled = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes()?.geolocalizacaoHabilitada ?: true } catch (_: Exception) { true }
                 if (geolocEnabled) {
@@ -382,7 +423,7 @@ class DetectScreenViewModel(
             val fotoBase64 = currentFaceBitmap.value?.let { bitmap ->
                 if (BitmapUtils.isValidBitmap(bitmap)) {
                     val base64 = BitmapUtils.bitmapToBase64(bitmap, 80)
-                    Log.d("DetectScreenViewModel", "📸 Foto capturada e convertida para base64 (${base64.length} chars)")
+                    Log.d("DetectScreenViewModel", "📸 Foto capturada e convertida para base64 (${base64.length} chars) para ${funcionario.nome}")
                     base64
                 } else {
                     Log.w("DetectScreenViewModel", "⚠️ Bitmap inválido para conversão")
@@ -422,8 +463,16 @@ class DetectScreenViewModel(
             val pontoId = pontosGenericosDao.insert(ponto)
 
             if (fotoBase64 != null) {
-                Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso")
+                Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso para ${funcionario.nome}")
             }
+            
+            // ✅ CORREÇÃO CRÍTICA: Limpar foto imediatamente após salvar ponto
+            // Isso garante que a foto não será reutilizada para outro funcionário
+            Log.d("DetectScreenViewModel", "🧹 Limpando foto após salvar ponto para evitar reutilização")
+            currentFaceBitmap.value = null
+            currentPhotoBelongsTo = null
+            lastPhotoHash = null
+            lastPhotoTimestamp = 0
             
             try {
                 SoundUtils.playBeepSound(context)

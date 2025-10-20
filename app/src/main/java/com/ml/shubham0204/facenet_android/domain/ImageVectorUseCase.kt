@@ -170,20 +170,26 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    if (distance > 0.76) {
+                    val similarityThreshold = 0.76f // 80% de similaridade
+                    
+                    
+                    if (distance > similarityThreshold) {
                     val spoofThreshold = getSpoofThreshold()
                     val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
                         
                         if (isSpoofDetected) {
+                            android.util.Log.w("ImageVectorUseCase", "🚫 SPOOF DETECTADO")
                             faceRecognitionResults.add(
                                 FaceRecognitionResult("SPOOF_DETECTED", boundingBox, spoofResult),
                             )
                         } else {
+                            android.util.Log.d("ImageVectorUseCase", "✅ Pessoa reconhecida: ${recognitionResult.personName} (${(distance * 100).toInt()}%)")
                             faceRecognitionResults.add(
                                 FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
                             )
                         }
                     } else {
+                        android.util.Log.w("ImageVectorUseCase", "⚠️ Similaridade muito baixa (${(distance * 100).toInt()}%) - não reconhecido")
                         faceRecognitionResults.add(
                             FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
                         )
