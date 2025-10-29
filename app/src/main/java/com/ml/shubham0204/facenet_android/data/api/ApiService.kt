@@ -88,7 +88,27 @@ interface ApiService {
         @Path("entidade") entidade: String,
         @Query("numero_cpf") numero_cpf: String,
     ): Response<MatriculaResponse>
+
+    @GET("/{entidade}/tablet/funcionarios/images-faces")
+    suspend fun obterImagesFaces(
+        @Path("entidade") entidade: String,
+        @Query("numero_cpf") numero_cpf: String,
+    ): Response<ImagesFacesResponse>
 }
+
+data class ImagesFacesResponse(
+    val status: String,
+    val fotos: ImagesFacesModel?
+)
+
+data class ImagesFacesModel(
+    val id: Int,
+    val funcionario_id: Int,
+    val face: String,
+    val image_1: String,
+    val image_2: String,
+    val image_3: String
+)
 
 data class MatriculaResponse(
     val is_open_modal: Boolean,

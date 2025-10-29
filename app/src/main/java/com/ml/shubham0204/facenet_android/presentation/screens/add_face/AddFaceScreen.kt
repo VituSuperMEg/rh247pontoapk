@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -83,13 +84,14 @@ import kotlinx.coroutines.withContext
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.graphics.graphicsLayer
 import com.ml.shubham0204.facenet_android.presentation.theme.customBlue
 import java.io.File
 import kotlinx.coroutines.isActive
 
 
 private val cameraPermissionStatus = mutableStateOf(false)
-private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT) // Câmera frontal por padrão
+private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT) 
 private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalGetImage::class)
@@ -223,6 +225,14 @@ private fun ScreenUI(
                 val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
                 isActive = funcionariosDao.isFuncionarioActive(funcionarioId)
                 android.util.Log.d("AddFaceScreen", "📊 Status do funcionário: ${if (isActive) "ATIVO" else "INATIVO"}")
+                
+                // ✅ NOVO: Carregar fotos capturadas do servidor (apenas para edição)
+                if (funcionarioId > 0 && funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
+                    android.util.Log.d("AddFaceScreen", "📸 Carregando fotos capturadas para edição...")
+                    viewModel.loadCapturedImages(funcionarioCpf, funcionarioEntidadeId)
+                } else {
+                    android.util.Log.d("AddFaceScreen", "📸 Modo cadastro - não carregando fotos do servidor")
+                }
             } catch (e: Exception) {
                 android.util.Log.e("AddFaceScreen", "❌ Erro ao verificar status: ${e.message}")
             }
@@ -608,7 +618,8 @@ private fun ScreenUI(
             }
             
             item {
-                // Informações sobre as fotos
+            // ✅ NOVO: Informações sobre as fotos (apenas para cadastro)
+            if (funcionarioId == 0L) {
                 Text(
                     text = "Fotos capturadas: ${viewModel.selectedImageURIs.value.size}/3",
                     style = MaterialTheme.typography.bodyMedium,
@@ -616,40 +627,152 @@ private fun ScreenUI(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
             }
+            }
             
-            // Última foto cadastrada
-            if (viewModel.selectedImageURIs.value.isNotEmpty()) {
+            // ✅ NOVO: Fotos capturadas do servidor (apenas para edição)
+            if (funcionarioId > 0L) {
                 item {
-                    Text(
-                        text = "Última foto cadastrada:",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
+                    val capturedImages by remember { viewModel.capturedImagesUrls }
+                    val isLoadingImages by remember { viewModel.isLoadingImages }
+                
+                if (isLoadingImages) {
                     Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(200.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        elevation = CardDefaults.cardElevation(
-                            defaultElevation = 2.dp
                         )
                     ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            AsyncImage(
-                                model = viewModel.selectedImageURIs.value.last(),
-                                contentDescription = "Última foto capturada",
-                                modifier = Modifier.fillMaxSize()
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Carregando fotos capturadas...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
+                } else if (capturedImages.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Fotos capturadas (${capturedImages.size}):",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                        IconButton(
+                            onClick = { 
+                                if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
+                                    viewModel.loadCapturedImages(funcionarioCpf, funcionarioEntidadeId)
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Recarregar fotos",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.height(200.dp)
+                    ) {
+                        items(capturedImages.size) { index ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(1f),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = 2.dp
+                                )
+                            ) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    RotatedAsyncImage(
+                                        imageUrl = capturedImages[index],
+                                        contentDescription = "Foto capturada ${index + 1}",
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    
+                                    // Número da foto
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .background(
+                                                color = Color.Black.copy(alpha = 0.7f),
+                                                shape = CircleShape
+                                            )
+                                            .padding(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "${index + 1}",
+                                            color = Color.White,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    // Nenhuma foto encontrada
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Camera,
+                                contentDescription = "Nenhuma foto",
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Nenhuma foto capturada encontrada",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Button(
+                                onClick = { 
+                                    if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
+                                        viewModel.loadCapturedImages(funcionarioCpf, funcionarioEntidadeId)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text("Recarregar Fotos")
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
                 }
             }
             
@@ -1980,6 +2103,61 @@ private fun formatCPF(cpf: String): String {
 
 private fun decodeUrlValue(value: String): String {
     return value.replace("_", " ")
+}
+
+@Composable
+private fun RotatedAsyncImage(
+    imageUrl: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier
+) {
+    var rotationAngle by remember { mutableStateOf(0f) }
+    var isLoaded by remember { mutableStateOf(false) }
+    
+    AsyncImage(
+        model = imageUrl,
+        contentDescription = contentDescription,
+        modifier = modifier
+            .graphicsLayer {
+                rotationZ = rotationAngle
+            },
+        contentScale = ContentScale.Crop,
+        onSuccess = { state ->
+            // ✅ NOVO: Detectar orientação da imagem e aplicar rotação
+            val image = state.result.drawable
+            if (image is android.graphics.drawable.BitmapDrawable) {
+                val bitmap = image.bitmap
+                val width = bitmap.width
+                val height = bitmap.height
+                
+                // Se a imagem está "deitada" (largura > altura), rotacionar 90 graus
+                if (width > height) {
+                    rotationAngle = 90f
+                    android.util.Log.d("RotatedAsyncImage", "🔄 Rotacionando imagem 90° - Dimensões: ${width}x${height}")
+                } else {
+                    rotationAngle = 0f
+                    android.util.Log.d("RotatedAsyncImage", "✅ Imagem já em pé - Dimensões: ${width}x${height}")
+                }
+                isLoaded = true
+            }
+        },
+        onError = { error ->
+            android.util.Log.e("RotatedAsyncImage", "❌ Erro ao carregar imagem: ${error.result.throwable?.message}")
+        }
+    )
+    
+    // ✅ NOVO: Mostrar indicador de carregamento
+    if (!isLoaded) {
+        Box(
+            modifier = modifier,
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
 }
 
 @Composable

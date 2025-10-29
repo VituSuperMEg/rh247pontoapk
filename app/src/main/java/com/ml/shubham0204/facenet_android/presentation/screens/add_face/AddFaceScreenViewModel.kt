@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
@@ -43,6 +44,10 @@ class AddFaceScreenViewModel(
     val showDeleteConfirmation: MutableState<Boolean> = mutableStateOf(false)
     val wasUserDeleted: MutableState<Boolean> = mutableStateOf(false) // ✅ NOVO: Controla se foi uma exclusão
     var onUserDeleted: (() -> Unit)? = null // ✅ NOVO: Callback para navegação
+    
+    // ✅ NOVO: Estados para fotos capturadas
+    val capturedImagesUrls: MutableState<List<String>> = mutableStateOf(emptyList())
+    val isLoadingImages: MutableState<Boolean> = mutableStateOf(false)
     
     val showDuplicateFaceDialog: MutableState<Boolean> = mutableStateOf(false)
     val duplicateFaceInfo: MutableState<DuplicateFaceInfo?> = mutableStateOf(null)
@@ -575,6 +580,63 @@ class AddFaceScreenViewModel(
         wasUserDeleted.value = false
         showSuccessScreen.value = false
         isDeletingUser.value = false
+    }
+    
+    // ✅ NOVO: Função para buscar fotos capturadas do servidor
+    fun loadCapturedImages(cpf: String, entidadeId: String) {
+        if (cpf.isEmpty() || entidadeId.isEmpty()) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ CPF ou EntidadeId vazio - não carregando fotos")
+            return
+        }
+        
+        isLoadingImages.value = true
+        capturedImagesUrls.value = emptyList()
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                android.util.Log.d("AddFaceScreenViewModel", "📸 Carregando fotos capturadas para CPF: $cpf")
+                
+                val response = apiService.obterImagesFaces(entidadeId, cpf)
+                
+                if (response.isSuccessful && response.body()?.fotos != null) {
+                    val imagesData = response.body()!!.fotos!!
+                    android.util.Log.d("AddFaceScreenViewModel", "📸 Dados de fotos recebidos - ID: ${imagesData.id}, Funcionário: ${imagesData.funcionario_id}")
+                    
+                    val imageUrls = mutableListOf<String>()
+                    
+                    // Adicionar as 3 fotos se existirem
+                    if (imagesData.image_1.isNotEmpty()) {
+                        imageUrls.add(imagesData.image_1)
+                        android.util.Log.d("AddFaceScreenViewModel", "📸 Foto 1: ${imagesData.image_1}")
+                    }
+                    if (imagesData.image_2.isNotEmpty()) {
+                        imageUrls.add(imagesData.image_2)
+                        android.util.Log.d("AddFaceScreenViewModel", "📸 Foto 2: ${imagesData.image_2}")
+                    }
+                    if (imagesData.image_3.isNotEmpty()) {
+                        imageUrls.add(imagesData.image_3)
+                        android.util.Log.d("AddFaceScreenViewModel", "📸 Foto 3: ${imagesData.image_3}")
+                    }
+                    
+                    withContext(Dispatchers.Main) {
+                        capturedImagesUrls.value = imageUrls
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ ${imageUrls.size} fotos carregadas com sucesso")
+                    }
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Resposta da API não foi bem-sucedida: ${response.code()}")
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Status: ${response.body()?.status}")
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Fotos: ${response.body()?.fotos}")
+                }
+                
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao carregar fotos: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isLoadingImages.value = false
+                }
+            }
+        }
     }
 }
 
