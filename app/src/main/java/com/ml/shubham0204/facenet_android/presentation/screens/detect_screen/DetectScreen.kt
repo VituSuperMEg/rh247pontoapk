@@ -626,9 +626,10 @@ private fun MatriculaSelectionDialog() {
     val funcionario by remember { viewModel.funcionarioForMatriculaSelection }
     
     if (showDialog && funcionario != null) {
-        val funcionarioAtual = funcionario // Criar variável local para evitar smart cast
+        val funcionarioAtual = funcionario 
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { viewModel.cancelMatriculaSelection() },
+            containerColor = Color(0xFFF9F9F9),
             title = {
                 Text(
                     text = "Selecionar Matrícula",
@@ -650,7 +651,6 @@ private fun MatriculaSelectionDialog() {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // Lista de matrículas com informações completas
                     availableMatriculas.forEach { matriculaCompleta ->
                         Button(
                             onClick = { viewModel.selectMatricula(matriculaCompleta) },
@@ -658,7 +658,7 @@ private fun MatriculaSelectionDialog() {
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (matriculaCompleta.isAtivo()) Color(0xFF264064) else Color(0xFF666666)
+                                containerColor = if (matriculaCompleta.isAtivo()) Color.White else Color(0xFF666666)
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
@@ -668,30 +668,30 @@ private fun MatriculaSelectionDialog() {
                             ) {
                                 Text(
                                     text = "Matrícula: ${matriculaCompleta.matricula}",
-                                    color = Color.White,
+                                    color = Color.Black,
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Cargo: ${matriculaCompleta.cargoDescricao}",
-                                    color = Color.White.copy(alpha = 0.9f),
+                                    color = Color.Black,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
                                     text = "Setor: ${matriculaCompleta.setorDescricao}",
-                                    color = Color.White.copy(alpha = 0.9f),
+                                    color = Color.Black,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Text(
                                     text = "Órgão: ${matriculaCompleta.orgaoDescricao}",
-                                    color = Color.White.copy(alpha = 0.9f),
+                                    color = Color.Black,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "Status: ${matriculaCompleta.getStatusText()}",
-                                    color = if (matriculaCompleta.isAtivo()) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                                    color = Color.Black,
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -704,10 +704,10 @@ private fun MatriculaSelectionDialog() {
                 Button(
                     onClick = { viewModel.cancelMatriculaSelection() },
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Gray
+                        containerColor = Color(0xFF264064)
                     )
                 ) {
-                    Text("Cancelar")
+                    Text("Cancelar", color = Color.White)
                 }
             },
             dismissButton = null

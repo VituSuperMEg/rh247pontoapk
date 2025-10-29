@@ -231,11 +231,32 @@ private fun ScreenUI(
         }
     }
     
-    // ✅ NOVO: LaunchedEffect para detectar mudanças no showSuccessScreen
+    LaunchedEffect(Unit) {
+        viewModel.onUserDeleted = {
+            
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                Toast.makeText(
+                    context,
+                    "✅ Funcionário excluído com sucesso!",
+                    Toast.LENGTH_LONG
+                ).show()
+                
+                kotlinx.coroutines.delay(1500)
+                
+                onNavigateBack()
+                
+                viewModel.resetDeletionState()
+            }
+        }
+    }
+    
+    // ✅ NOVO: LaunchedEffect para detectar mudanças no showSuccessScreen (apenas cadastro normal)
     LaunchedEffect(showSuccessScreen) {
-        if (showSuccessScreen) {
-            android.util.Log.d("AddFaceScreen", "🔘 showSuccessScreen mudou para true")
-            android.util.Log.d("AddFaceScreen", "🔘 Navegando de volta após exclusão...")
+        android.util.Log.d("AddFaceScreen", "🔘 LaunchedEffect executado - showSuccessScreen: $showSuccessScreen")
+        if (showSuccessScreen && !viewModel.wasUserDeleted.value) {
+            android.util.Log.d("AddFaceScreen", "🔘 Cadastro normal detectado - aguardando...")
+            android.util.Log.d("AddFaceScreen", "🔘 wasUserDeleted: ${viewModel.wasUserDeleted.value}")
+            
             // Aguardar um pouco para mostrar a mensagem de sucesso
             kotlinx.coroutines.delay(2000)
             onNavigateBack()
@@ -727,7 +748,6 @@ private fun ScreenUI(
                     
                     Spacer(modifier = Modifier.height(16.dp))
                     
-                    // ✅ BOTÃO DE EXCLUIR FUNCIONÁRIO (só aparece após 5 cliques)
                     if (isGapUnlocked) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),

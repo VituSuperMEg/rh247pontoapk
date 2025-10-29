@@ -41,6 +41,8 @@ class AddFaceScreenViewModel(
     
     val isDeletingUser: MutableState<Boolean> = mutableStateOf(false)
     val showDeleteConfirmation: MutableState<Boolean> = mutableStateOf(false)
+    val wasUserDeleted: MutableState<Boolean> = mutableStateOf(false) // ✅ NOVO: Controla se foi uma exclusão
+    var onUserDeleted: (() -> Unit)? = null // ✅ NOVO: Callback para navegação
     
     val showDuplicateFaceDialog: MutableState<Boolean> = mutableStateOf(false)
     val duplicateFaceInfo: MutableState<DuplicateFaceInfo?> = mutableStateOf(null)
@@ -382,6 +384,10 @@ class AddFaceScreenViewModel(
         isDeletingUser.value = true
 
         CoroutineScope(Dispatchers.Default).launch {
+            // ✅ NOVO: Marcar como exclusão desde o início
+            wasUserDeleted.value = true
+            android.util.Log.d("AddFaceScreenViewModel", "🔘 wasUserDeleted definido como true no início da exclusão")
+            
             try {
                 android.util.Log.d("AddFaceScreenViewModel", "🗑️ Iniciando exclusão COMPLETA do funcionário...")
 
@@ -463,12 +469,23 @@ class AddFaceScreenViewModel(
                 android.util.Log.d("AddFaceScreenViewModel", "🔘 Definindo showSuccessScreen = true")
                 showSuccessScreen.value = true
                 android.util.Log.d("AddFaceScreenViewModel", "🔘 showSuccessScreen.value = ${showSuccessScreen.value}")
+                android.util.Log.d("AddFaceScreenViewModel", "🔘 wasUserDeleted.value = ${wasUserDeleted.value}")
+                android.util.Log.d("AddFaceScreenViewModel", "🔘 === ESTADOS DEFINIDOS - CHAMANDO CALLBACK ===")
+                
+                // ✅ NOVO: Chamar callback para navegação imediata
+                onUserDeleted?.invoke()
 
             } catch (e: Exception) {
                 android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir funcionário: ${e.message}")
                 e.printStackTrace()
+                
+                // Mesmo com erro, marcar como exclusão para mostrar feedback
+                wasUserDeleted.value = true
+                showSuccessScreen.value = true
+                android.util.Log.d("AddFaceScreenViewModel", "🔘 Erro - mas definindo wasUserDeleted = true")
             } finally {
                 isDeletingUser.value = false
+                android.util.Log.d("AddFaceScreenViewModel", "🔘 Estado final - wasUserDeleted: ${wasUserDeleted.value}, showSuccessScreen: ${showSuccessScreen.value}")
             }
         }
     }
@@ -551,6 +568,13 @@ class AddFaceScreenViewModel(
 
     fun cancelDeleteUser() {
         showDeleteConfirmation.value = false
+    }
+    
+    // ✅ NOVO: Função para resetar o estado de exclusão
+    fun resetDeletionState() {
+        wasUserDeleted.value = false
+        showSuccessScreen.value = false
+        isDeletingUser.value = false
     }
 }
 
