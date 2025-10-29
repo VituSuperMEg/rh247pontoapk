@@ -10,6 +10,9 @@ import androidx.lifecycle.viewModelScope
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
+import com.ml.shubham0204.facenet_android.data.MatriculasDao
+import com.ml.shubham0204.facenet_android.data.MatriculasEntity
+import com.ml.shubham0204.facenet_android.data.MatriculaCompleta
 import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
 import com.ml.shubham0204.facenet_android.data.PontosGenericosEntity
 import com.ml.shubham0204.facenet_android.data.RecognitionMetrics
@@ -41,6 +44,7 @@ class DetectScreenViewModel(
     val imageVectorUseCase: ImageVectorUseCase,
     private val pontosGenericosDao: PontosGenericosDao,
     private val funcionariosDao: FuncionariosDao,
+    private val matriculasDao: MatriculasDao,
     private val pontoSincronizacaoService: PontoSincronizacaoService,
     private val pontoSincronizacaoPorBlocosService: PontoSincronizacaoPorBlocosService // ✅ NOVO: Serviço por blocos
 ) : ViewModel(), KoinComponent {
@@ -53,6 +57,12 @@ class DetectScreenViewModel(
     val showSuccessScreen = mutableStateOf(false)
     val savedPonto = mutableStateOf<PontosGenericosEntity?>(null)
     val lastRecognizedPersonName = mutableStateOf<String?>(null)
+    
+    // ✅ NOVO: Controle do modal de seleção de matrícula
+    val showMatriculaSelectionDialog = mutableStateOf(false)
+    val availableMatriculas = mutableStateOf<List<MatriculaCompleta>>(emptyList())
+    val selectedMatricula = mutableStateOf<MatriculaCompleta?>(null)
+    val funcionarioForMatriculaSelection = mutableStateOf<FuncionariosEntity?>(null)
     
     // ✅ NOVO: Job para controlar o reconhecimento
     private var recognitionJob: kotlinx.coroutines.Job? = null
@@ -235,18 +245,29 @@ class DetectScreenViewModel(
                             if (verificarPOOF(funcionario)) {
                                 Log.d("DetectScreenViewModel", "✅ POOF válido para: ${funcionario.nome}")
                                 
-                                // Registrar ponto
-                                val ponto = registerPonto(funcionario)
-                                if (ponto != null) {
-                                    savedPonto.value = ponto
-                                    showSuccessScreen.value = true
-                                    
-                                    // ✅ NOVO: Marcar que registrou ponto para esta pessoa
-                                    lastRegisteredPerson = funcionario.nome
-                                    lastRegistrationTime = System.currentTimeMillis()
-                                    
-                                    Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso para: ${funcionario.nome}")
-                                    break
+                                // ✅ NOVO: Verificar se funcionário tem múltiplas matrículas
+                                val matriculas = checkMultipleMatriculas(funcionario)
+                                if (matriculas.size > 1) {
+                                    Log.d("DetectScreenViewModel", "🔍 Funcionário tem ${matriculas.size} matrículas: $matriculas")
+                                    showMatriculaSelectionDialog.value = true
+                                    availableMatriculas.value = matriculas
+                                    funcionarioForMatriculaSelection.value = funcionario
+                                    return@launch // Aguardar seleção do usuário
+                                } else {
+                                    // Registrar ponto com matrícula única
+                                    val matriculaUnica = matriculas.firstOrNull()
+                                    val ponto = registerPonto(funcionario, matriculaUnica?.matricula)
+                                    if (ponto != null) {
+                                        savedPonto.value = ponto
+                                        showSuccessScreen.value = true
+                                        
+                                        // ✅ NOVO: Marcar que registrou ponto para esta pessoa
+                                        lastRegisteredPerson = funcionario.nome
+                                        lastRegistrationTime = System.currentTimeMillis()
+                                        
+                                        Log.d("DetectScreenViewModel", "✅ Ponto registrado com sucesso para: ${funcionario.nome}")
+                                        break
+                                    }
                                 }
                             } else {
                                 Log.w("DetectScreenViewModel", "❌ POOF inválido - Registro negado para: ${funcionario.nome}")
@@ -353,21 +374,92 @@ class DetectScreenViewModel(
     }
     
 
-    
-    private suspend fun registerPonto(funcionario: FuncionariosEntity): PontosGenericosEntity? {
+    // ✅ NOVO: Função para verificar se funcionário tem múltiplas matrículas
+    private fun checkMultipleMatriculas(funcionario: FuncionariosEntity): List<MatriculaCompleta> {
         return try {
-            Log.d("DetectScreenViewModel", "💾 Registrando ponto para: ${funcionario.nome}")
+            val matriculasCompletas = matriculasDao.getMatriculasCompletasByCpf(funcionario.cpf)
+            if (matriculasCompletas.isNotEmpty()) {
+                // Se tem matrículas salvas no banco, usar essas (com fallback para dados do funcionário se vazios)
+                Log.d("DetectScreenViewModel", "📋 Matrículas completas encontradas no banco para ${funcionario.nome}: ${matriculasCompletas.size}")
+                val matriculasComDados = matriculasCompletas.map { matricula ->
+                    MatriculaCompleta(
+                        matricula = matricula.matricula,
+                        cargoDescricao = matricula.cargoDescricao.ifEmpty { funcionario.cargo.ifEmpty { "N/A" } },
+                        ativo = matricula.ativo,
+                        setorDescricao = matricula.setorDescricao.ifEmpty { funcionario.lotacao.ifEmpty { "N/A" } },
+                        orgaoDescricao = matricula.orgaoDescricao.ifEmpty { funcionario.secretaria.ifEmpty { "N/A" } }
+                    )
+                }
+                matriculasComDados.forEach { matricula ->
+                    Log.d("DetectScreenViewModel", "   - ${matricula.matricula} (Cargo: ${matricula.cargoDescricao}, Setor: ${matricula.setorDescricao}, Órgão: ${matricula.orgaoDescricao}) - ${matricula.getStatusText()}")
+                }
+                matriculasComDados
+            } else {
+                // Se não tem matrículas salvas, criar uma matrícula única com dados do funcionário
+                val matriculaUnica = MatriculaCompleta(
+                    matricula = funcionario.matricula,
+                    cargoDescricao = funcionario.cargo.ifEmpty { "N/A" },
+                    ativo = funcionario.ativo,
+                    setorDescricao = funcionario.lotacao.ifEmpty { "N/A" },
+                    orgaoDescricao = funcionario.secretaria.ifEmpty { "N/A" }
+                )
+                Log.d("DetectScreenViewModel", "📋 Usando matrícula única para ${funcionario.nome}: ${matriculaUnica.matricula}")
+                listOf(matriculaUnica)
+            }
+        } catch (e: Exception) {
+            Log.e("DetectScreenViewModel", "❌ Erro ao verificar matrículas: ${e.message}")
+            listOf(MatriculaCompleta(
+                matricula = funcionario.matricula,
+                cargoDescricao = funcionario.cargo.ifEmpty { "N/A" },
+                ativo = funcionario.ativo,
+                setorDescricao = funcionario.lotacao.ifEmpty { "N/A" },
+                orgaoDescricao = funcionario.secretaria.ifEmpty { "N/A" }
+            ))
+        }
+    }
+
+    // ✅ NOVO: Função para processar seleção de matrícula
+    fun selectMatricula(matriculaCompleta: MatriculaCompleta) {
+        val funcionario = funcionarioForMatriculaSelection.value
+        if (funcionario != null) {
+            selectedMatricula.value = matriculaCompleta
+            showMatriculaSelectionDialog.value = false
+            
+            // Registrar ponto com a matrícula selecionada
+            viewModelScope.launch {
+                val ponto = registerPonto(funcionario, matriculaCompleta.matricula)
+                if (ponto != null) {
+                    savedPonto.value = ponto
+                    showSuccessScreen.value = true
+                    
+                    // Marcar que registrou ponto para esta pessoa
+                    lastRegisteredPerson = funcionario.nome
+                    lastRegistrationTime = System.currentTimeMillis()
+                    
+                    Log.d("DetectScreenViewModel", "✅ Ponto registrado com matrícula selecionada: ${matriculaCompleta.matricula} (${matriculaCompleta.cargoDescricao}) para: ${funcionario.nome}")
+                }
+            }
+        }
+    }
+
+    // ✅ NOVO: Função para cancelar seleção de matrícula
+    fun cancelMatriculaSelection() {
+        showMatriculaSelectionDialog.value = false
+        availableMatriculas.value = emptyList()
+        selectedMatricula.value = null
+        funcionarioForMatriculaSelection.value = null
+    }
+
+    // Meu amigo esse é o ponto que registra o ponto no banco de dados
+    private suspend fun registerPonto(funcionario: FuncionariosEntity, matriculaSelecionada: String? = null): PontosGenericosEntity? {
+        return try {
             
             val horarioAtual = System.currentTimeMillis()
             
-            // ✅ CORREÇÃO CRÍTICA: Validar que a foto pertence ao funcionário correto
             val photoAge = horarioAtual - lastPhotoTimestamp
-            
+        
+         
             if (currentPhotoBelongsTo != null && currentPhotoBelongsTo != funcionario.nome) {
-                Log.e("DetectScreenViewModel", "🚫 ERRO CRÍTICO: Foto pertence a '$currentPhotoBelongsTo' mas tentando registrar para '${funcionario.nome}'")
-                Log.e("DetectScreenViewModel", "🚫 BLOQUEANDO registro para evitar foto incorreta!")
-                
-                // Limpar foto antiga para forçar captura de nova foto
                 currentFaceBitmap.value = null
                 currentPhotoBelongsTo = null
                 lastPhotoHash = null
@@ -376,12 +468,7 @@ class DetectScreenViewModel(
                 return null
             }
             
-            // ✅ CORREÇÃO: Validar idade da foto (não deve ser muito antiga)
-            if (photoAge > 5000) { // Foto com mais de 5 segundos é considerada antiga
-                Log.w("DetectScreenViewModel", "⚠️ Foto muito antiga (${photoAge}ms) - pode não pertencer ao funcionário atual")
-                Log.w("DetectScreenViewModel", "⚠️ Limpando foto antiga e abortando registro")
-                
-                // Limpar foto antiga
+            if (photoAge > 5000) { 
                 currentFaceBitmap.value = null
                 currentPhotoBelongsTo = null
                 lastPhotoHash = null
@@ -390,7 +477,6 @@ class DetectScreenViewModel(
                 return null
             }
             
-            Log.d("DetectScreenViewModel", "✅ Validação de foto OK: pertence a '${currentPhotoBelongsTo}', idade: ${photoAge}ms")
             
             val locationResult = try {
                 val geolocEnabled = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes()?.geolocalizacaoHabilitada ?: true } catch (_: Exception) { true }
@@ -407,7 +493,6 @@ class DetectScreenViewModel(
             val latitude: Double?
             val longitude: Double?
             
-            // Preferir coordenadas fixas das configurações
             val configuracoes = try { com.ml.shubham0204.facenet_android.data.ConfiguracoesDao().getConfiguracoes() } catch (_: Exception) { null }
             if (configuracoes?.latitudeFixa != null && configuracoes.longitudeFixa != null) {
                 latitude = configuracoes.latitudeFixa
@@ -423,14 +508,11 @@ class DetectScreenViewModel(
             val fotoBase64 = currentFaceBitmap.value?.let { bitmap ->
                 if (BitmapUtils.isValidBitmap(bitmap)) {
                     val base64 = BitmapUtils.bitmapToBase64(bitmap, 80)
-                    Log.d("DetectScreenViewModel", "📸 Foto capturada e convertida para base64 (${base64.length} chars) para ${funcionario.nome}")
                     base64
                 } else {
-                    Log.w("DetectScreenViewModel", "⚠️ Bitmap inválido para conversão")
                     null
                 }
             } ?: run {
-                Log.w("DetectScreenViewModel", "⚠️ Nenhuma foto disponível para captura")
                 null
             }
             
@@ -441,13 +523,12 @@ class DetectScreenViewModel(
                 val configuracoes = configuracoesDao.getConfiguracoes()
                 configuracoes?.entidadeId ?: "ENTIDADE_PADRAO"
             }
-            
-            Log.d("DetectScreenViewModel", "🏢 Criando ponto para entidade: $entidadeId")
-            
+                        
             val ponto = PontosGenericosEntity(
                 funcionarioId = funcionario.id.toString(),
                 funcionarioNome = funcionario.nome,
-                funcionarioMatricula = funcionario.matricula,
+                funcionarioMatricula = matriculaSelecionada ?: funcionario.matricula,
+                matriculaOrigem = matriculaSelecionada, // ✅ NOVO: Salvar matrícula de origem
                 funcionarioCpf = funcionario.cpf,
                 funcionarioCargo = funcionario.cargo,
                 funcionarioSecretaria = funcionario.secretaria,
@@ -466,10 +547,7 @@ class DetectScreenViewModel(
                 Log.d("DetectScreenViewModel", "✅ Foto base64 salva com sucesso para ${funcionario.nome}")
             }
             
-            // ✅ CORREÇÃO CRÍTICA: Limpar foto imediatamente após salvar ponto
-            // Isso garante que a foto não será reutilizada para outro funcionário
-            Log.d("DetectScreenViewModel", "🧹 Limpando foto após salvar ponto para evitar reutilização")
-            currentFaceBitmap.value = null
+                       currentFaceBitmap.value = null
             currentPhotoBelongsTo = null
             lastPhotoHash = null
             lastPhotoTimestamp = 0
@@ -484,8 +562,6 @@ class DetectScreenViewModel(
             
             ponto
         } catch (e: Exception) {
-            Log.e("DetectScreenViewModel", "❌ Erro ao registrar ponto: ${e.message}")
-            // Log do erro para crash reporting
             CrashReporter.logException(context, e, "registerPonto")
             null
         }
@@ -503,10 +579,16 @@ class DetectScreenViewModel(
             savedPonto.value = null
             lastRecognizedPersonName.value = null
             
+            // ✅ NOVO: Limpar controles do modal de matrícula
+            showMatriculaSelectionDialog.value = false
+            availableMatriculas.value = emptyList()
+            selectedMatricula.value = null
+            funcionarioForMatriculaSelection.value = null
+            
             lastPhotoTimestamp = 0
             lastPhotoHash = null
             
-            Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso - controles de foto limpos")
+            Log.d("DetectScreenViewModel", "🔄 Reconhecimento resetado com sucesso - controles de foto e matrícula limpos")
         } catch (e: Exception) {
             Log.e("DetectScreenViewModel", "❌ Erro ao resetar reconhecimento: ${e.message}")
         }

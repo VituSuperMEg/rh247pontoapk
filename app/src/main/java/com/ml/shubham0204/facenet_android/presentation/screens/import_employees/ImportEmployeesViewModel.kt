@@ -8,6 +8,8 @@ import androidx.lifecycle.viewModelScope
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
+import com.ml.shubham0204.facenet_android.data.MatriculasEntity
+import com.ml.shubham0204.facenet_android.data.MatriculasDao
 import com.ml.shubham0204.facenet_android.data.api.FuncionariosModel
 import com.ml.shubham0204.facenet_android.data.api.LocalizacaoModel
 import com.ml.shubham0204.facenet_android.data.api.OrgaoModel
@@ -27,6 +29,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
     
     private val funcionariosDao = FuncionariosDao()
     private val configuracoesDao = ConfiguracoesDao()
+    private val matriculasDao = MatriculasDao()
     private val apiService = RetrofitClient.instance
     private val context: Context by inject()
     
@@ -182,6 +185,14 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             
             funcionariosParaImportar.forEach { funcionario ->
                 try {
+                    val entidadeId = getEntidadeId()
+                    
+                    // Verificar se entidadeId não é null
+                    if (entidadeId == null) {
+                        erros++
+                        return@forEach
+                    }
+
                     val funcionarioExistente = funcionariosDao.getByApiId(funcionario.id.toLong())
                     if (funcionarioExistente != null) {
                         erros++
@@ -189,6 +200,47 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     }
                     
                     val cpfLimpo = funcionario.numero_cpf.replace(Regex("[^0-9]"), "")
+
+                    // fazendo conexao com api
+                    val response = apiService.obterVariasMatriculas(entidadeId, cpfLimpo)
+
+                    if(response.isSuccessful) {
+                        if (response.body()?.is_open_modal == true) {
+                            val matriculasResponse = response.body()?.matriculas ?: emptyList()
+                            
+                            // ✅ CORRIGIDO: A API retorna dados específicos para cada matrícula
+                            val matriculasList = matriculasResponse.map { it.matricula }
+                            
+                            // ✅ CORRIGIDO: Usar dados específicos de cada matrícula da API (todos os campos são obrigatórios)
+                            val cargosList = matriculasResponse.map { it.cargo_descricao }
+                            val ativosList = matriculasResponse.map { it.ativo.toString() }
+                            val setoresList = matriculasResponse.map { it.setor_descricao }
+                            val orgaosList = matriculasResponse.map { it.orgao_descricao }
+                            
+                            android.util.Log.d("ImportEmployeesViewModel", "📋 Salvando ${matriculasList.size} matrículas para ${funcionario.nome}")
+                            matriculasResponse.forEachIndexed { index, matricula ->
+                                android.util.Log.d("ImportEmployeesViewModel", "   Matrícula ${index + 1}: ${matricula.matricula}")
+                                android.util.Log.d("ImportEmployeesViewModel", "     Cargo: ${cargosList[index]}")
+                                android.util.Log.d("ImportEmployeesViewModel", "     Setor: ${setoresList[index]}")
+                                android.util.Log.d("ImportEmployeesViewModel", "     Órgão: ${orgaosList[index]}")
+                                android.util.Log.d("ImportEmployeesViewModel", "     Ativo: ${ativosList[index]}")
+                            }
+                            
+                            val mEntity = MatriculasEntity(
+                                id = 0,
+                                funcionarioId = cpfLimpo,
+                                funcionarioCpf = cpfLimpo,
+                                matricula = matriculasList,
+                                cargoDescricao = cargosList,
+                                ativo = ativosList,
+                                setorDescricao = setoresList,
+                                orgaoDescricao = orgaosList
+                            )
+                            matriculasDao.insert(mEntity)
+                            android.util.Log.d("ImportEmployeesViewModel", "✅ Matrículas salvas com sucesso")
+                        }
+                    }
+
                     val funcionarioEntity = FuncionariosEntity(
                         id = 0,
                         codigo = cpfLimpo,
@@ -448,26 +500,22 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     return@launch
                 }
                 
-                Log.d("ImportEmployeesViewModel", "📡 Carregando funcionários para entidade: $entidadeId")
-                
-                // Usar o código do órgão selecionado como filtro
+            
                 val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
                 val localizacaoId = _uiState.value.selectedLocalizacao?.id
-                Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão: $orgaoCodigo")
-                Log.d("ImportEmployeesViewModel", "📍 Filtro de localização: $localizacaoId")
+                
                 
                 val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo, localizacaoId?.toString())
                 val funcionarios = response.data ?: emptyList()
                 
                 if (funcionarios.isNotEmpty()) {
-                    // ✅ NOVO: Ordenar funcionários alfabeticamente por nome
                     val funcionariosOrdenados = funcionarios.sortedBy { it.nome }
                     
                     _uiState.update { 
                         it.copy(
                             funcionarios = funcionariosOrdenados,
                             isLoading = false,
-                            hasMorePages = funcionarios.size >= 10 // Assumindo 10 por página
+                            hasMorePages = funcionarios.size >= 10 
                         )
                     }
                     currentPage++
@@ -485,8 +533,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             } catch (e: Exception) {
                 Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar funcionários", e)
                 _uiState.update { it.copy(isLoading = false) }
-                
-                // Mostrar erro amigável
                 val errorMessage = e.message ?: "Erro desconhecido ao carregar funcionários"
                 showError(errorMessage)
             } finally {
@@ -501,8 +547,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         isLoadingMore = true
         _uiState.update { it.copy(isLoadingMore = true) }
         
-        Log.d("ImportEmployeesViewModel", "🔄 loadMoreFuncionariosInternal - página $currentPage")
-        
         viewModelScope.launch {
             try {
                 val entidadeId = getEntidadeId()
@@ -515,31 +559,19 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 
                 Log.d("ImportEmployeesViewModel", "📡 Fazendo requisição para página $currentPage")
                 
-                // Usar o código do órgão selecionado como filtro
                 val orgaoCodigo = _uiState.value.selectedOrgao?.codigo
                 val localizacaoId = _uiState.value.selectedLocalizacao?.id
-                Log.d("ImportEmployeesViewModel", "🏢 Filtro de órgão (loadMore): $orgaoCodigo")
-                Log.d("ImportEmployeesViewModel", "📍 Filtro de localização (loadMore): $localizacaoId")
                 
                 val response = apiService.getFuncionarios(entidadeId, currentPage, null, orgaoCodigo, localizacaoId?.toString())
                 val funcionarios = response.data ?: emptyList()
-                
-                Log.d("ImportEmployeesViewModel", "📊 Funcionários recebidos: ${funcionarios.size}")
                 
                 if (funcionarios.isNotEmpty()) {
                     val currentList = _uiState.value.funcionarios.toMutableList()
                     currentList.addAll(funcionarios)
                     
-                    // ✅ NOVO: Ordenar a lista completa alfabeticamente por nome
                     val listaOrdenada = currentList.sortedBy { it.nome }
                     
-                    // ✅ NOVO: Verificar se há mais páginas baseado no tamanho da resposta
-                    // A API retorna 10 funcionários por página (per_page: 10)
-                    val hasMore = funcionarios.size >= 10 // Corrigido de 20 para 10
-                    
-                    Log.d("ImportEmployeesViewModel", "✅ Adicionando ${funcionarios.size} funcionários")
-                    Log.d("ImportEmployeesViewModel", "📊 Total agora: ${listaOrdenada.size}")
-                    Log.d("ImportEmployeesViewModel", "🔄 Há mais páginas: $hasMore")
+                    val hasMore = funcionarios.size >= 10 
                     
                     _uiState.update { 
                         it.copy(
@@ -551,9 +583,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                     currentPage++
                     hasMorePages = hasMore
                     
-                    Log.d("ImportEmployeesViewModel", "📄 Página incrementada para: $currentPage")
                 } else {
-                    Log.d("ImportEmployeesViewModel", "❌ Nenhum funcionário recebido - fim das páginas")
                     _uiState.update { 
                         it.copy(
                             isLoadingMore = false,
@@ -566,8 +596,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             } catch (e: Exception) {
                 Log.e("ImportEmployeesViewModel", "❌ Erro ao carregar mais funcionários", e)
                 _uiState.update { it.copy(isLoadingMore = false) }
-                
-                // Mostrar erro amigável
                 val errorMessage = e.message ?: "Erro desconhecido ao carregar mais funcionários"
                 showError(errorMessage)
             } finally {
@@ -584,7 +612,6 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
                 
                 _uiState.update { it.copy(importedIds = idsImportados) }
             } catch (e: Exception) {
-                // TODO: Tratar erro
             }
         }
     }
@@ -594,11 +621,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
         
         val descricao = query.trim()
         
-        Log.d("ImportEmployeesViewModel", "🔍 Filtrando funcionários: '$descricao'")
-        
         if (descricao.isEmpty()) {
-            // Resetar para lista completa
-            Log.d("ImportEmployeesViewModel", "🔄 Resetando para lista completa")
             currentPage = 1
             hasMorePages = true
             isLoadingMore = false
@@ -611,8 +634,7 @@ class ImportEmployeesViewModel : ViewModel(), KoinComponent {
             }
             loadFuncionarios()
         } else {
-            // Debounce: aguardar 500ms antes de fazer a busca
-            searchJob = viewModelScope.launch {
+                searchJob = viewModelScope.launch {
                 kotlinx.coroutines.delay(500)
                 
                 try {

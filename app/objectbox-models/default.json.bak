@@ -215,7 +215,7 @@
     },
     {
       "id": "5:87332699017499048",
-      "lastPropertyId": "18:1588206695007500998",
+      "lastPropertyId": "19:481789760295245189",
       "name": "PontosGenericosEntity",
       "properties": [
         {
@@ -303,12 +303,66 @@
           "id": "18:1588206695007500998",
           "name": "fusoHorario",
           "type": 9
+        },
+        {
+          "id": "19:481789760295245189",
+          "name": "matriculaOrigem",
+          "type": 9
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "6:5161026788030059335",
+      "lastPropertyId": "8:504897955377662433",
+      "name": "MatriculasEntity",
+      "properties": [
+        {
+          "id": "1:4479591098793471657",
+          "name": "id",
+          "type": 6,
+          "flags": 1
+        },
+        {
+          "id": "2:681332591361497181",
+          "name": "funcionarioId",
+          "type": 9
+        },
+        {
+          "id": "3:5370570378669050625",
+          "name": "funcionarioCpf",
+          "type": 9
+        },
+        {
+          "id": "4:4992218703038298508",
+          "name": "matricula",
+          "type": 9
+        },
+        {
+          "id": "5:5136945541159697321",
+          "name": "cargoDescricao",
+          "type": 9
+        },
+        {
+          "id": "6:1167034170634747783",
+          "name": "ativo",
+          "type": 9
+        },
+        {
+          "id": "7:4055615687087497610",
+          "name": "setorDescricao",
+          "type": 9
+        },
+        {
+          "id": "8:504897955377662433",
+          "name": "orgaoDescricao",
+          "type": 9
         }
       ],
       "relations": []
     }
   ],
-  "lastEntityId": "5:87332699017499048",
+  "lastEntityId": "6:5161026788030059335",
   "lastIndexId": "2:1210613089703466990",
   "lastRelationId": "0:0",
   "lastSequenceId": "0:0",

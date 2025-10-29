@@ -110,7 +110,8 @@ class PontoSincronizacaoService {
                                 latitude = ponto.latitude,
                                 longitude = ponto.longitude,
                                 fotoBase64 = ponto.fotoBase64,
-                                observacao = ponto.observacao
+                                observacao = ponto.observacao,
+                                matriculaOrigem = ponto.matriculaOrigem // ✅ NOVO: Incluir matrícula de origem
                             )
                         }
                         

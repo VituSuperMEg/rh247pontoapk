@@ -349,6 +349,9 @@ private fun ScreenUI(onPontoSuccess: (PontosGenericosEntity) -> Unit) {
         }
         AppAlertDialog()
 
+        // ✅ NOVO: Modal de seleção de matrícula
+        MatriculaSelectionDialog()
+
         // ✅ NOVO: Mostrar aviso quando spoofing for detectado
         val lastRecognizedPersonName by remember { viewModel.lastRecognizedPersonName }
         DelayedVisibility(lastRecognizedPersonName == "SPOOF_DETECTED") {
@@ -612,4 +615,102 @@ private fun camaraPermissionDialog() {
             //       close the app
         },
     )
+}
+
+@Composable
+private fun MatriculaSelectionDialog() {
+    val viewModel: DetectScreenViewModel = koinViewModel()
+    
+    val showDialog by remember { viewModel.showMatriculaSelectionDialog }
+    val availableMatriculas by remember { viewModel.availableMatriculas }
+    val funcionario by remember { viewModel.funcionarioForMatriculaSelection }
+    
+    if (showDialog && funcionario != null) {
+        val funcionarioAtual = funcionario // Criar variável local para evitar smart cast
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.cancelMatriculaSelection() },
+            title = {
+                Text(
+                    text = "Selecionar Matrícula",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Funcionário: ${funcionarioAtual?.nome ?: "N/A"}",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Selecione a matrícula para registrar o ponto:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Lista de matrículas com informações completas
+                    availableMatriculas.forEach { matriculaCompleta ->
+                        Button(
+                            onClick = { viewModel.selectMatricula(matriculaCompleta) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (matriculaCompleta.isAtivo()) Color(0xFF264064) else Color(0xFF666666)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = "Matrícula: ${matriculaCompleta.matricula}",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Cargo: ${matriculaCompleta.cargoDescricao}",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "Setor: ${matriculaCompleta.setorDescricao}",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Text(
+                                    text = "Órgão: ${matriculaCompleta.orgaoDescricao}",
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Status: ${matriculaCompleta.getStatusText()}",
+                                    color = if (matriculaCompleta.isAtivo()) Color(0xFF4CAF50) else Color(0xFFFF5722),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.cancelMatriculaSelection() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Gray
+                    )
+                ) {
+                    Text("Cancelar")
+                }
+            },
+            dismissButton = null
+        )
+    }
 }

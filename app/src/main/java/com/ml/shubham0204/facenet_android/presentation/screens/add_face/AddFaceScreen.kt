@@ -11,6 +11,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -173,6 +174,45 @@ private fun ScreenUI(
     
     var isActive by remember { mutableStateOf(true) }
     
+    var clickCount by remember { mutableStateOf(0) }
+    var isGapUnlocked by remember { mutableStateOf(false) }
+    var showGapProgress by remember { mutableStateOf(false) }
+    
+    fun handleNameClick() {
+        if (funcionarioId > 0) {
+            clickCount++
+            showGapProgress = true
+            
+            android.util.Log.d("AddFaceScreen", "🖱️ Clique no nome: $clickCount/5")
+            
+            if (clickCount >= 5) {
+                isGapUnlocked = true
+                showGapProgress = false
+                android.util.Log.d("AddFaceScreen", "🔓 GAP DESBLOQUEADO! Exclusão liberada")
+                
+                // Resetar após 10 segundos se não usar
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    kotlinx.coroutines.delay(10000) // 10 segundos
+                    if (isGapUnlocked) {
+                        isGapUnlocked = false
+                        clickCount = 0
+                        android.util.Log.d("AddFaceScreen", "🔒 GAP bloqueado novamente (timeout)")
+                    }
+                }
+            } else {
+                // Resetar contador após 3 segundos se não completar
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                    kotlinx.coroutines.delay(3000)
+                    if (clickCount < 5 && !isGapUnlocked) {
+                        clickCount = 0
+                        showGapProgress = false
+                        android.util.Log.d("AddFaceScreen", "🔄 Contador resetado (timeout)")
+                    }
+                }
+            }
+        }
+    }
+    
     LaunchedEffect(funcionarioId) {
         android.util.Log.d("AddFaceScreen", "🔍 LaunchedEffect - funcionarioId: $funcionarioId")
         if (funcionarioId > 0) {
@@ -188,6 +228,17 @@ private fun ScreenUI(
             }
         } else {
             android.util.Log.w("AddFaceScreen", "⚠️ funcionarioId inválido: $funcionarioId")
+        }
+    }
+    
+    // ✅ NOVO: LaunchedEffect para detectar mudanças no showSuccessScreen
+    LaunchedEffect(showSuccessScreen) {
+        if (showSuccessScreen) {
+            android.util.Log.d("AddFaceScreen", "🔘 showSuccessScreen mudou para true")
+            android.util.Log.d("AddFaceScreen", "🔘 Navegando de volta após exclusão...")
+            // Aguardar um pouco para mostrar a mensagem de sucesso
+            kotlinx.coroutines.delay(2000)
+            onNavigateBack()
         }
     }
     
@@ -249,14 +300,92 @@ private fun ScreenUI(
                         modifier = Modifier.padding(16.dp)
                     ) {
 
-                        TextField(
-                            modifier = Modifier.fillMaxWidth(),
-                            value = personNameState,
-                            onValueChange = { personNameState = it },
-                            label = { Text(text = "Nome da pessoa") },
-                            singleLine = true,
-                            enabled = false,
-                        )
+                        // ✅ NOVO: Campo de nome clicável para sistema de gap
+                        androidx.compose.material3.Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { 
+                                    if (funcionarioId > 0) {
+                                        handleNameClick()
+                                    }
+                                },
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = when {
+                                    isGapUnlocked -> Color(0xFFFFEBEE) // Vermelho claro quando desbloqueado
+                                    showGapProgress -> Color(0xFFFFF3E0) // Laranja claro durante progresso
+                                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                }
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = if (isGapUnlocked) 2.dp else 1.dp,
+                                color = when {
+                                    isGapUnlocked -> Color(0xFFD32F2F) // Vermelho quando desbloqueado
+                                    showGapProgress -> Color(0xFFFF9800) // Laranja durante progresso
+                                    else -> Color.Transparent
+                                }
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Text(
+                                    text = "Nome da pessoa",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = personNameState,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                
+                                // ✅ NOVO: Feedback visual do progresso do gap
+                                if (showGapProgress && !isGapUnlocked) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = "Progresso",
+                                            tint = Color(0xFFFF9800),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Clique $clickCount/5 para liberar exclusão",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFFE65100),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                }
+                                
+                                // ✅ NOVO: Indicador de desbloqueio
+                                if (isGapUnlocked) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = "Desbloqueado",
+                                            tint = Color(0xFF4CAF50),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "🔓 Exclusão liberada! (10s)",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color(0xFF2E7D32),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(16.dp))
 
 
@@ -565,7 +694,7 @@ private fun ScreenUI(
                     Spacer(modifier = Modifier.height(16.dp))
                 }
                 item {
-
+                    // ✅ BOTÃO DE EXCLUIR FACE (sempre visível)
                     Button(
                         enabled = !viewModel.isDeletingUser.value,
                         onClick = { 
@@ -593,6 +722,93 @@ private fun ScreenUI(
                                 text = "Excluir Facial",
                                 color = Color.White
                             )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // ✅ BOTÃO DE EXCLUIR FUNCIONÁRIO (só aparece após 5 cliques)
+                    if (isGapUnlocked) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = androidx.compose.material3.CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFEBEE)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(
+                                width = 2.dp,
+                                color = Color(0xFFD32F2F)
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(16.dp)
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Atenção",
+                                        tint = Color(0xFFD32F2F),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "⚠️ MODO DE EXCLUSÃO ATIVO",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = Color(0xFFD32F2F),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Text(
+                                    text = "Esta ação removerá permanentemente TODOS os dados do funcionário do banco de dados.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFD32F2F)
+                                )
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Button(
+                                    enabled = !viewModel.isDeletingUser.value,
+                                    onClick = { 
+                                        android.util.Log.d("AddFaceScreen", "🔘 Botão de exclusão de funcionário clicado!")
+                                        android.util.Log.d("AddFaceScreen", "🔘 isGapUnlocked: $isGapUnlocked")
+                                        android.util.Log.d("AddFaceScreen", "🔘 funcionarioId: $funcionarioId")
+                                        viewModel.showDeleteFuncionarioConfirmationDialog() 
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFD32F2F)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                                ) {
+                                    if (viewModel.isDeletingUser.value) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "Excluindo...",
+                                            color = Color.White
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Excluir",
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "🗑️ EXCLUIR FUNCIONÁRIO COMPLETO",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                     

@@ -81,7 +81,27 @@ interface ApiService {
         @Path("entidade") entidade: String,
         @Query("numero_cpf") numero_cpf: String
     ): Response<List<FaceOnlineResponse>>
+
+
+    @GET("/{entidade}/tablet/funcionarios/matricula")
+    suspend fun obterVariasMatriculas(
+        @Path("entidade") entidade: String,
+        @Query("numero_cpf") numero_cpf: String,
+    ): Response<MatriculaResponse>
 }
+
+data class MatriculaResponse(
+    val is_open_modal: Boolean,
+    val matriculas: List<MatriculaModel>?
+)
+
+data class MatriculaModel(
+    val matricula: String,
+    val ativo: Int,
+    val cargo_descricao: String,
+    val setor_descricao: String,
+    val orgao_descricao: String
+)
 
 
 data class FaceOnlineResponse (

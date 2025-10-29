@@ -55,15 +55,13 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         
-        // 🖥️ CONFIGURAR TELA CHEIA: Verificar preferência do usuário
         if (appPreferences.telaCheiaHabilitada) {
             setupFullscreenMode()
         }
         
-        // Atualizar entidade_id dos funcionários existentes automaticamente
+
         updateFuncionariosEntidadeId()
         
-        // ✅ NOVO: Limpeza automática de cache no startup
         performStartupCacheCleanup()
         
         // syncDataWithBackend()

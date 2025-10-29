@@ -9,6 +9,7 @@ data class PontosGenericosEntity(
     var funcionarioId: String = "",
     var funcionarioNome: String = "",
     var funcionarioMatricula: String = "",
+    var matriculaOrigem: String? = null,
     var funcionarioCpf: String = "",
     var funcionarioCargo: String = "",
     var funcionarioSecretaria: String = "",

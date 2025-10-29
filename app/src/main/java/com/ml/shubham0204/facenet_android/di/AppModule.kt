@@ -2,6 +2,7 @@ package com.ml.shubham0204.facenet_android.di
 
 import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FuncionariosDao
+import com.ml.shubham0204.facenet_android.data.MatriculasDao
 import com.ml.shubham0204.facenet_android.data.PontosGenericosDao
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
@@ -26,6 +27,11 @@ class AppModule {
     @Single
     fun provideConfiguracoesDao(): ConfiguracoesDao {
         return ConfiguracoesDao()
+    }
+    
+    @Single
+    fun provideMatriculasDao(): MatriculasDao {
+        return MatriculasDao()
     }
     
     @Single

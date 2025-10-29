@@ -364,34 +364,96 @@ class AddFaceScreenViewModel(
         android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteConfirmation.value = ${showDeleteConfirmation.value}")
     }
     
+    // ✅ NOVO: Função para mostrar diálogo de confirmação de exclusão de funcionário completo
+    fun showDeleteFuncionarioConfirmationDialog() {
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteFuncionarioConfirmationDialog() chamada")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 funcionarioId atual: $funcionarioId")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteConfirmation ANTES: ${showDeleteConfirmation.value}")
+        showDeleteConfirmation.value = true
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 showDeleteConfirmation DEPOIS: ${showDeleteConfirmation.value}")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 isDeletingUser: ${isDeletingUser.value}")
+    }
+    
     fun confirmDeleteUser() {
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 confirmDeleteUser() chamada")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 funcionarioId: $funcionarioId")
+
         showDeleteConfirmation.value = false
         isDeletingUser.value = true
-        
+
         CoroutineScope(Dispatchers.Default).launch {
             try {
-                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Iniciando exclusão do usuário...")
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Iniciando exclusão COMPLETA do funcionário...")
+
+                // ✅ NOVO: Excluir funcionário completo do banco
+                val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                val matriculasDao = com.ml.shubham0204.facenet_android.data.MatriculasDao()
+                val pontosDao = com.ml.shubham0204.facenet_android.data.PontosGenericosDao()
+
+                // 1. Buscar funcionário primeiro
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Buscando funcionário no banco...")
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ funcionarioId para busca: $funcionarioId (tipo: ${funcionarioId::class.simpleName})")
                 
-                val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
+                // Tentar buscar por ID primeiro
+                var funcionario = funcionariosDao.getById(funcionarioId)
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Busca por ID: ${if (funcionario != null) "ENCONTRADO" else "NÃO ENCONTRADO"}")
                 
-                if (existingPerson != null) {
-                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo faces do banco...")
-                    imageVectorUseCase.removeImages(existingPerson.personID)
-                    
-                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pessoa do banco...")
-                    personUseCase.removePerson(existingPerson.personID)
-                    
-                    android.util.Log.d("AddFaceScreenViewModel", "✅ Usuário excluído com sucesso!")
-                    
-                    clearSelectedImageURIs()
-                    
-                    showSuccessScreen.value = true
-                } else {
-                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma pessoa encontrada para exclusão")
+                // Se não encontrou por ID, tentar por API ID
+                if (funcionario == null) {
+                    funcionario = funcionariosDao.getByApiId(funcionarioId)
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Busca por API ID: ${if (funcionario != null) "ENCONTRADO" else "NÃO ENCONTRADO"}")
                 }
                 
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Resultado final: ${if (funcionario != null) "ENCONTRADO" else "NÃO ENCONTRADO"}")
+                if (funcionario != null) {
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Funcionário encontrado: ${funcionario.nome}")
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ ID do funcionário: ${funcionario.id}")
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ API ID do funcionário: ${funcionario.apiId}")
+                    
+                    // 2. Excluir faces e pessoa
+                    val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
+                    if (existingPerson != null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo faces do banco...")
+                        imageVectorUseCase.removeImages(existingPerson.personID)
+
+                        android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pessoa do banco...")
+                        personUseCase.removePerson(existingPerson.personID)
+                    }
+                    
+                    // 3. Excluir matrículas do funcionário
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo matrículas do banco...")
+                    try {
+                        val matriculas = matriculasDao.getAll().filter { it.funcionarioId == funcionario.id.toString() }
+                        android.util.Log.d("AddFaceScreenViewModel", "🗑️ Encontradas ${matriculas.size} matrículas para excluir")
+                        matriculas.forEach { matricula ->
+                            matriculasDao.delete(matricula)
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("AddFaceScreenViewModel", "⚠️ Erro ao acessar matrículas, limpando dados antigos: ${e.message}")
+                        matriculasDao.clearAll()
+                    }
+                    
+                    // 4. Excluir pontos do funcionário
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pontos do banco...")
+                    pontosDao.deleteByFuncionarioNome(funcionario.nome)
+                    
+                    // 5. Excluir funcionário do banco
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo funcionário do banco...")
+                    funcionariosDao.delete(funcionario)
+                    
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Funcionário COMPLETO excluído com sucesso!")
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Funcionário não encontrado no banco")
+                }
+
+                clearSelectedImageURIs()
+
+                android.util.Log.d("AddFaceScreenViewModel", "🔘 Definindo showSuccessScreen = true")
+                showSuccessScreen.value = true
+                android.util.Log.d("AddFaceScreenViewModel", "🔘 showSuccessScreen.value = ${showSuccessScreen.value}")
+
             } catch (e: Exception) {
-                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir usuário: ${e.message}")
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir funcionário: ${e.message}")
                 e.printStackTrace()
             } finally {
                 isDeletingUser.value = false
