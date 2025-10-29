@@ -763,10 +763,35 @@ private fun ScreenUI(
                                 Spacer(modifier = Modifier.height(8.dp))
                                 
                                 Text(
-                                    text = "Esta ação removerá permanentemente TODOS os dados do funcionário do banco de dados.",
+                                    text = "Esta ação removerá permanentemente TODOS os dados do funcionário do banco de dados, incluindo:",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color(0xFFD32F2F)
                                 )
+                                
+                                Spacer(modifier = Modifier.height(8.dp))
+                                
+                                Column {
+                                    Text(
+                                        text = "• Faces cadastradas",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFD32F2F)
+                                    )
+                                    Text(
+                                        text = "• Matrículas associadas",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFD32F2F)
+                                    )
+                                    Text(
+                                        text = "• Pontos registrados",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFD32F2F)
+                                    )
+                                    Text(
+                                        text = "• Dados pessoais",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFD32F2F)
+                                    )
+                                }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
                                 

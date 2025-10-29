@@ -423,14 +423,26 @@ class AddFaceScreenViewModel(
                     // 3. Excluir matrículas do funcionário
                     android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo matrículas do banco...")
                     try {
-                        val matriculas = matriculasDao.getAll().filter { it.funcionarioId == funcionario.id.toString() }
-                        android.util.Log.d("AddFaceScreenViewModel", "🗑️ Encontradas ${matriculas.size} matrículas para excluir")
-                        matriculas.forEach { matricula ->
-                            matriculasDao.delete(matricula)
-                        }
+                        // Excluir por ID do funcionário
+                        matriculasDao.deleteByFuncionarioId(funcionario.id.toString())
+                        
+                        // Excluir por CPF do funcionário (para garantir que todas sejam removidas)
+                        matriculasDao.deleteByCpf(funcionario.cpf)
+                        
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ Matrículas excluídas com sucesso!")
+                        
                     } catch (e: Exception) {
-                        android.util.Log.w("AddFaceScreenViewModel", "⚠️ Erro ao acessar matrículas, limpando dados antigos: ${e.message}")
-                        matriculasDao.clearAll()
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir matrículas: ${e.message}")
+                        e.printStackTrace()
+                        
+                        // Fallback: tentar limpar todas as matrículas se houver erro
+                        try {
+                            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Tentando limpar todas as matrículas como fallback...")
+                            matriculasDao.clearAll()
+                            android.util.Log.d("AddFaceScreenViewModel", "✅ Fallback: Todas as matrículas foram limpas")
+                        } catch (e2: Exception) {
+                            android.util.Log.e("AddFaceScreenViewModel", "❌ Erro no fallback de limpeza: ${e2.message}")
+                        }
                     }
                     
                     // 4. Excluir pontos do funcionário

@@ -68,4 +68,24 @@ class MatriculasDao {
     fun clearAll() {
         box.removeAll()
     }
+    
+    // ✅ NOVO: Método para excluir matrículas por CPF do funcionário
+    fun deleteByCpf(cpf: String) {
+        val matriculas = box.all.filter { it.funcionarioCpf == cpf }
+        android.util.Log.d("MatriculasDao", "🗑️ Excluindo ${matriculas.size} matrículas para CPF: $cpf")
+        matriculas.forEach { matricula ->
+            box.remove(matricula)
+            android.util.Log.d("MatriculasDao", "🗑️ Matrícula excluída: ID ${matricula.id}, Matrículas: ${matricula.matricula}")
+        }
+    }
+    
+    // ✅ NOVO: Método para excluir matrículas por ID do funcionário
+    fun deleteByFuncionarioId(funcionarioId: String) {
+        val matriculas = box.all.filter { it.funcionarioId == funcionarioId }
+        android.util.Log.d("MatriculasDao", "🗑️ Excluindo ${matriculas.size} matrículas para Funcionário ID: $funcionarioId")
+        matriculas.forEach { matricula ->
+            box.remove(matricula)
+            android.util.Log.d("MatriculasDao", "🗑️ Matrícula excluída: ID ${matricula.id}, Matrículas: ${matricula.matricula}")
+        }
+    }
 }
