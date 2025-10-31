@@ -934,6 +934,11 @@ private fun ScreenUI(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = Color(0xFFD32F2F)
                                     )
+                                    Text(
+                                        text = "• Fotos do servidor (se houver internet)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFD32F2F)
+                                    )
                                 }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))

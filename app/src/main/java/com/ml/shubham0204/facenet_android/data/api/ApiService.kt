@@ -94,6 +94,13 @@ interface ApiService {
         @Path("entidade") entidade: String,
         @Query("numero_cpf") numero_cpf: String,
     ): Response<ImagesFacesResponse>
+
+
+    @POST("/{entidade}/tablet/funcionarios/deletar-face")
+    suspend fun deletarFace(
+        @Path("entidade") entidade: String,
+        @Query("numero_cpf") numero_cpf: String,
+    ): Response<String>
 }
 
 data class ImagesFacesResponse(

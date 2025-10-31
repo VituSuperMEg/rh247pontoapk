@@ -431,6 +431,23 @@ class AddFaceScreenViewModel(
                         personUseCase.removePerson(existingPerson.personID)
                     }
                     
+                    // ✅ NOVO: Deletar fotos do servidor (se houver internet)
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Tentando deletar fotos do servidor...")
+                    try {
+                        // Buscar entidadeId das configurações
+                        val configuracoesDao = com.ml.shubham0204.facenet_android.data.ConfiguracoesDao()
+                        val entidadeId = configuracoesDao.getConfiguracoes()?.entidadeId ?: ""
+                        
+                        if (entidadeId.isNotEmpty()) {
+                            deleteFacesFromServer(funcionario.cpf, entidadeId)
+                            android.util.Log.d("AddFaceScreenViewModel", "✅ Chamada para deletar fotos do servidor enviada")
+                        } else {
+                            android.util.Log.w("AddFaceScreenViewModel", "⚠️ EntidadeId não encontrado - não deletando fotos do servidor")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao deletar fotos do servidor: ${e.message}")
+                    }
+                    
                     // 3. Excluir matrículas do funcionário
                     android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo matrículas do banco...")
                     try {
@@ -580,6 +597,54 @@ class AddFaceScreenViewModel(
         wasUserDeleted.value = false
         showSuccessScreen.value = false
         isDeletingUser.value = false
+    }
+    
+    // ✅ NOVO: Função para verificar conectividade
+    private fun isNetworkAvailable(): Boolean {
+        return try {
+            // Verificação simples: tentar fazer uma requisição HTTP
+            val url = java.net.URL("https://www.google.com")
+            val connection = url.openConnection()
+            connection.connectTimeout = 3000 // 3 segundos
+            connection.readTimeout = 3000
+            connection.connect()
+            android.util.Log.d("AddFaceScreenViewModel", "✅ Conectividade verificada com sucesso")
+            true
+        } catch (e: Exception) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Sem conectividade: ${e.message}")
+            false
+        }
+    }
+    
+    // ✅ NOVO: Função para deletar fotos do servidor
+    fun deleteFacesFromServer(cpf: String, entidadeId: String) {
+        if (cpf.isEmpty() || entidadeId.isEmpty()) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ CPF ou EntidadeId vazio - não deletando fotos do servidor")
+            return
+        }
+        
+        if (!isNetworkAvailable()) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Sem conexão com internet - não deletando fotos do servidor")
+            return
+        }
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Deletando fotos do servidor para CPF: $cpf")
+                
+                val response = apiService.deletarFace(entidadeId, cpf)
+                
+                if (response.isSuccessful) {
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Fotos deletadas do servidor com sucesso")
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Erro ao deletar fotos do servidor: ${response.code()}")
+                }
+                
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao deletar fotos do servidor: ${e.message}")
+                e.printStackTrace()
+            }
+        }
     }
     
     // ✅ NOVO: Função para buscar fotos capturadas do servidor
