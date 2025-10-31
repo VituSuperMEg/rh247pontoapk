@@ -11,10 +11,12 @@ import com.ml.shubham0204.facenet_android.data.FuncionariosEntity
 import com.ml.shubham0204.facenet_android.data.api.ApiService
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import com.ml.shubham0204.facenet_android.data.config.ServerConfig
+import android.content.Context
 import com.ml.shubham0204.facenet_android.domain.AppException
 import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import com.ml.shubham0204.facenet_android.domain.PersonUseCase
 import com.ml.shubham0204.facenet_android.presentation.components.setProgressDialogText
+import com.ml.shubham0204.facenet_android.utils.ConnectivityUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -23,6 +25,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.File
@@ -33,6 +36,8 @@ class AddFaceScreenViewModel(
     private val personUseCase: PersonUseCase,
     private val imageVectorUseCase: ImageVectorUseCase,
 ) : ViewModel(), KoinComponent {
+    private val context: Context by inject()
+    
     val personNameState: MutableState<String> = mutableStateOf("")
     val selectedImageURIs: MutableState<List<Uri>> = mutableStateOf(emptyList())
 
@@ -381,8 +386,69 @@ class AddFaceScreenViewModel(
         android.util.Log.d("AddFaceScreenViewModel", "🔘 isDeletingUser: ${isDeletingUser.value}")
     }
     
+    // ✅ NOVO: Função para excluir apenas a face (não o funcionário completo)
+    fun confirmDeleteFace() {
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 confirmDeleteFace() chamada - Excluir apenas facial")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 funcionarioId: $funcionarioId")
+
+        showDeleteConfirmation.value = false
+        isDeletingUser.value = true
+
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Iniciando exclusão de FACES apenas...")
+                
+                // Buscar funcionário para obter CPF
+                val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                var funcionario = funcionariosDao.getById(funcionarioId)
+                
+                if (funcionario == null) {
+                    funcionario = funcionariosDao.getByApiId(funcionarioId)
+                }
+                
+                if (funcionario != null) {
+                    // 1. Excluir faces do banco local
+                    val existingPerson = personUseCase.getPersonByFuncionarioId(funcionarioId)
+                    if (existingPerson != null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo faces do banco local...")
+                        imageVectorUseCase.removeImages(existingPerson.personID)
+                        android.util.Log.d("AddFaceScreenViewModel", "🗑️ Removendo pessoa do banco local...")
+                        personUseCase.removePerson(existingPerson.personID)
+                        android.util.Log.d("AddFaceScreenViewModel", "✅ Faces excluídas do banco local com sucesso!")
+                    } else {
+                        android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma face encontrada para excluir")
+                    }
+                    
+                    // 2. Excluir faces do servidor (se houver internet)
+                    val entidadeId = getEntidadeId()
+                    if (entidadeId != null && funcionario.cpf.isNotEmpty()) {
+                        android.util.Log.d("AddFaceScreenViewModel", "🌐 Tentando excluir faces do servidor...")
+                        deleteFacesFromServer(funcionario.cpf, entidadeId)
+                    } else {
+                        android.util.Log.w("AddFaceScreenViewModel", "⚠️ EntidadeId ou CPF vazio - não excluindo do servidor")
+                    }
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Funcionário não encontrado")
+                }
+
+                clearSelectedImageURIs()
+
+                android.util.Log.d("AddFaceScreenViewModel", "✅ Exclusão de faces concluída!")
+                withContext(Dispatchers.Main) {
+                    showSuccessScreen.value = true
+                }
+
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir faces: ${e.message}")
+                e.printStackTrace()
+            } finally {
+                isDeletingUser.value = false
+            }
+        }
+    }
+    
     fun confirmDeleteUser() {
-        android.util.Log.d("AddFaceScreenViewModel", "🔘 confirmDeleteUser() chamada")
+        android.util.Log.d("AddFaceScreenViewModel", "🔘 confirmDeleteUser() chamada - Excluir funcionário completo")
         android.util.Log.d("AddFaceScreenViewModel", "🔘 funcionarioId: $funcionarioId")
 
         showDeleteConfirmation.value = false
@@ -599,23 +665,6 @@ class AddFaceScreenViewModel(
         isDeletingUser.value = false
     }
     
-    // ✅ NOVO: Função para verificar conectividade
-    private fun isNetworkAvailable(): Boolean {
-        return try {
-            // Verificação simples: tentar fazer uma requisição HTTP
-            val url = java.net.URL("https://www.google.com")
-            val connection = url.openConnection()
-            connection.connectTimeout = 3000 // 3 segundos
-            connection.readTimeout = 3000
-            connection.connect()
-            android.util.Log.d("AddFaceScreenViewModel", "✅ Conectividade verificada com sucesso")
-            true
-        } catch (e: Exception) {
-            android.util.Log.w("AddFaceScreenViewModel", "⚠️ Sem conectividade: ${e.message}")
-            false
-        }
-    }
-    
     // ✅ NOVO: Função para deletar fotos do servidor
     fun deleteFacesFromServer(cpf: String, entidadeId: String) {
         if (cpf.isEmpty() || entidadeId.isEmpty()) {
@@ -623,7 +672,9 @@ class AddFaceScreenViewModel(
             return
         }
         
-        if (!isNetworkAvailable()) {
+        // Verificar se há internet antes de chamar a API
+        val hasInternet = ConnectivityUtils.isInternetAvailable(context)
+        if (!hasInternet) {
             android.util.Log.w("AddFaceScreenViewModel", "⚠️ Sem conexão com internet - não deletando fotos do servidor")
             return
         }
@@ -631,6 +682,7 @@ class AddFaceScreenViewModel(
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 android.util.Log.d("AddFaceScreenViewModel", "🗑️ Deletando fotos do servidor para CPF: $cpf")
+                android.util.Log.d("AddFaceScreenViewModel", "🌐 Chamando API: DELETE /$entidadeId/tablet/funcionarios/deletar-face?numero_cpf=$cpf")
                 
                 val response = apiService.deletarFace(entidadeId, cpf)
                 
@@ -638,6 +690,7 @@ class AddFaceScreenViewModel(
                     android.util.Log.d("AddFaceScreenViewModel", "✅ Fotos deletadas do servidor com sucesso")
                 } else {
                     android.util.Log.w("AddFaceScreenViewModel", "⚠️ Erro ao deletar fotos do servidor: ${response.code()}")
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Mensagem: ${response.message()}")
                 }
                 
             } catch (e: Exception) {

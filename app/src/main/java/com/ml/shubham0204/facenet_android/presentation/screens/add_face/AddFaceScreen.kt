@@ -6,7 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.annotation.OptIn
+import kotlin.OptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
 import androidx.compose.foundation.background
@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Camera
 import androidx.compose.material.icons.filled.Check
@@ -49,8 +50,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,7 +98,7 @@ private val cameraPermissionStatus = mutableStateOf(false)
 private val cameraFacing = mutableIntStateOf(CameraSelector.LENS_FACING_FRONT) 
 private lateinit var cameraPermissionLauncher: ManagedActivityResultLauncher<String, Boolean>
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalGetImage::class)
+@kotlin.OptIn(ExperimentalMaterial3Api::class, ExperimentalGetImage::class)
 @Composable
 fun AddFaceScreen(
     personName: String = "",
@@ -109,6 +113,24 @@ fun AddFaceScreen(
     FaceNetAndroidTheme {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = if (personName.isNotEmpty()) personName else "Cadastro de Funcionário",
+                            style = MaterialTheme.typography.headlineSmall
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Default.ArrowBack,
+                                contentDescription = "Voltar"
+                            )
+                        }
+                    }
+                )
+            }
         ) { innerPadding ->
             Column(modifier = Modifier.padding(innerPadding)) {
                 val viewModel: AddFaceScreenViewModel = koinViewModel()
@@ -303,385 +325,415 @@ private fun ScreenUI(
             onSuccess = { showSuccessScreen = true }
         )
     } else {
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 50.dp),
+        // ✅ NOVO: Sistema de tabs
+        var selectedTabIndex by remember { mutableIntStateOf(0) }
+        val tabs = listOf("Dados Funcionários", "Matrículas Ativas")
+        
+        Column(
+            modifier = Modifier.fillMaxSize()
         ) {
-            item {
-                Text(
-                    text = "Dados do Funcionário",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+            TabRow(selectedTabIndex = selectedTabIndex) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTabIndex == index,
+                        onClick = { selectedTabIndex = index },
+                        text = { Text(title) }
+                    )
+                }
+            }
+            
+            when (selectedTabIndex) {
+                0 -> DadosFuncionariosTab(
+                    viewModel = viewModel,
+                    personNameState = personNameState,
+                    funcionarioCpf = funcionarioCpf,
+                    funcionarioCargo = funcionarioCargo,
+                    funcionarioOrgao = funcionarioOrgao,
+                    funcionarioLotacao = funcionarioLotacao,
+                    funcionarioId = funcionarioId,
+                    funcionarioEntidadeId = funcionarioEntidadeId,
+                    isActive = isActive,
+                    onActiveChange = { isActive = it },
+                    isGapUnlocked = isGapUnlocked,
+                    showGapProgress = showGapProgress,
+                    clickCount = clickCount,
+                    handleNameClick = ::handleNameClick,
+                    isInCaptureMode = { isInCaptureMode = true },
+                    onNavigateBack = onNavigateBack
                 )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
+                1 -> MatriculasAtivasTab(
+                    funcionarioId = funcionarioId
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DadosFuncionariosTab(
+    viewModel: AddFaceScreenViewModel,
+    personNameState: String,
+    funcionarioCpf: String,
+    funcionarioCargo: String,
+    funcionarioOrgao: String,
+    funcionarioLotacao: String,
+    funcionarioId: Long,
+    funcionarioEntidadeId: String,
+    isActive: Boolean,
+    onActiveChange: (Boolean) -> Unit,
+    isGapUnlocked: Boolean,
+    showGapProgress: Boolean,
+    clickCount: Int,
+    handleNameClick: () -> Unit,
+    isInCaptureMode: () -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+    ) {
+        item {
+            Text(
+                text = "Dados do Funcionário",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 2.dp
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+
+                    // ✅ NOVO: Campo de nome clicável para sistema de gap
+                    androidx.compose.material3.Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (funcionarioId > 0) {
+                                    handleNameClick()
+                                }
+                            },
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = when {
+                                isGapUnlocked -> Color(0xFFFFEBEE) // Vermelho claro quando desbloqueado
+                                showGapProgress -> Color(0xFFFFF3E0) // Laranja claro durante progresso
+                                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            }
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = if (isGapUnlocked) 2.dp else 1.dp,
+                            color = when {
+                                isGapUnlocked -> Color(0xFFD32F2F) // Vermelho quando desbloqueado
+                                showGapProgress -> Color(0xFFFF9800) // Laranja durante progresso
+                                else -> Color.Transparent
+                            }
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Nome da pessoa",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = personNameState,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+
+                            // ✅ NOVO: Feedback visual do progresso do gap
+                            if (showGapProgress && !isGapUnlocked) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Progresso",
+                                        tint = Color(0xFFFF9800),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Clique $clickCount/5 para liberar exclusão",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFE65100),
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            // ✅ NOVO: Indicador de desbloqueio
+                            if (isGapUnlocked) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = "Desbloqueado",
+                                        tint = Color(0xFF4CAF50),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "🔓 Exclusão liberada! (10s)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFF2E7D32),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+
+
+                    TextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = if (funcionarioCpf.isNotEmpty()) formatCPF(funcionarioCpf) else "Não informado",
+                        onValueChange = { },
+                        label = { Text(text = "CPF") },
+                        singleLine = true,
+                        enabled = false,
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = if (funcionarioCargo.isNotEmpty()) funcionarioCargo else "Não informado",
+                        onValueChange = { },
+                        label = { Text(text = "Cargo") },
+                        singleLine = true,
+                        enabled = false,
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = if (funcionarioOrgao.isNotEmpty()) funcionarioOrgao else "Não informado",
+                        onValueChange = { },
+                        label = { Text(text = "Órgão") },
+                        singleLine = true,
+                        enabled = false,
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
+                        onValueChange = { },
+                        label = { Text(text = "Lotação") },
+                        singleLine = true,
+                        enabled = false,
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    TextField(
+                        modifier = Modifier.fillMaxWidth(),
+                        value = if (funcionarioEntidadeId.isNotEmpty()) funcionarioEntidadeId else "Não configurado",
+                        onValueChange = { },
+                        label = { Text(text = "Código da Entidade") },
+                        singleLine = true,
+                        enabled = false,
+                        colors = androidx.compose.material3.TextFieldDefaults.colors(
+                            disabledTextColor = MaterialTheme.colorScheme.onSurface,
+                            disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(
+                                alpha = 0.5f
+                            )
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        // ✅ NOVO: Botão de Desativação/Ativação do Funcionário
+        if (funcionarioId > 0) {
+            item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = Color.White
                     ),
                     elevation = CardDefaults.cardElevation(
-                            defaultElevation = 2.dp
+                        defaultElevation = 2.dp
                     )
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
+                        // ✅ NOVO: Botão de Ativação/Desativação
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Status atual
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Cancel,
+                                    contentDescription = if (isActive) "Ativo" else "Inativo",
+                                    tint = if (isActive) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Status: ${if (isActive) "ATIVO" else "INATIVO"}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isActive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                                )
+                            }
 
-                        // ✅ NOVO: Campo de nome clicável para sistema de gap
-                        androidx.compose.material3.Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { 
-                                    if (funcionarioId > 0) {
-                                        handleNameClick()
+                            // Botão de ação
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = {
+                                    // Toggle do status
+                                    try {
+                                        val funcionariosDao =
+                                            com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                                        if (isActive) {
+                                            funcionariosDao.deactivateFuncionario(funcionarioId)
+                                            onActiveChange(false)
+                                        } else {
+                                            funcionariosDao.activateFuncionario(funcionarioId)
+                                            onActiveChange(true)
+                                        }
+                                    } catch (e: Exception) {
+                                        android.util.Log.e(
+                                            "AddFaceScreen",
+                                            "❌ Erro ao alterar status: ${e.message}"
+                                        )
                                     }
                                 },
-                            colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = when {
-                                    isGapUnlocked -> Color(0xFFFFEBEE) // Vermelho claro quando desbloqueado
-                                    showGapProgress -> Color(0xFFFFF3E0) // Laranja claro durante progresso
-                                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                }
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                width = if (isGapUnlocked) 2.dp else 1.dp,
-                                color = when {
-                                    isGapUnlocked -> Color(0xFFD32F2F) // Vermelho quando desbloqueado
-                                    showGapProgress -> Color(0xFFFF9800) // Laranja durante progresso
-                                    else -> Color.Transparent
-                                }
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp)
+                                colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
+                                    contentColor = if (isActive) Color(0xFFD32F2F) else Color(
+                                        0xFF4CAF50
+                                    )
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    width = 1.dp,
+                                    color = if (isActive) Color(0xFFD32F2F) else Color(0xFF4CAF50)
+                                )
                             ) {
-                                Text(
-                                    text = "Nome da pessoa",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Icon(
+                                    imageVector = if (isActive) Icons.Default.Cancel else Icons.Default.CheckCircle,
+                                    contentDescription = if (isActive) "Desativar" else "Ativar",
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = personNameState,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    text = if (isActive) "Desativar" else "Ativar",
+                                    style = MaterialTheme.typography.labelSmall
                                 )
-                                
-                                // ✅ NOVO: Feedback visual do progresso do gap
-                                if (showGapProgress && !isGapUnlocked) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Warning,
-                                            contentDescription = "Progresso",
-                                            tint = Color(0xFFFF9800),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Clique $clickCount/5 para liberar exclusão",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color(0xFFE65100),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                }
-                                
-                                // ✅ NOVO: Indicador de desbloqueio
-                                if (isGapUnlocked) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = "Desbloqueado",
-                                            tint = Color(0xFF4CAF50),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "🔓 Exclusão liberada! (10s)",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color(0xFF2E7D32),
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
                             }
                         }
-                        Spacer(modifier = Modifier.height(16.dp))
 
-
-
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = if (funcionarioCpf.isNotEmpty()) formatCPF(funcionarioCpf) else "Não informado",
-                    onValueChange = { },
-                    label = { Text(text = "CPF") },
-                    singleLine = true,
-                    enabled = false,
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = if (funcionarioCargo.isNotEmpty()) funcionarioCargo else "Não informado",
-                    onValueChange = { },
-                    label = { Text(text = "Cargo") },
-                    singleLine = true,
-                    enabled = false,
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = if (funcionarioOrgao.isNotEmpty()) funcionarioOrgao else "Não informado",
-                    onValueChange = { },
-                    label = { Text(text = "Órgão") },
-                    singleLine = true,
-                    enabled = false,
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = if (funcionarioLotacao.isNotEmpty()) funcionarioLotacao else "Não informado",
-                    onValueChange = { },
-                    label = { Text(text = "Lotação") },
-                    singleLine = true,
-                    enabled = false,
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = if (funcionarioEntidadeId.isNotEmpty()) funcionarioEntidadeId else "Não configurado",
-                    onValueChange = { },
-                    label = { Text(text = "Código da Entidade") },
-                    singleLine = true,
-                    enabled = false,
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        disabledTextColor = MaterialTheme.colorScheme.onSurface,
-                        disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                    )
-                )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-            
-            // ✅ NOVO: Botão de Desativação/Ativação do Funcionário
-            if (funcionarioId > 0) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White
-                        ),
-                        elevation = CardDefaults.cardElevation(
-                            defaultElevation = 2.dp
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            // ✅ NOVO: Botão de Ativação/Desativação
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
+                        // ✅ NOVO: Aviso para funcionários inativos
+                        if (!isActive) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color(0xFFFFEBEE)
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    width = 1.dp,
+                                    color = Color(0xFFF44336)
+                                )
                             ) {
-                                // Status atual
                                 Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        imageVector = if (isActive) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                                        contentDescription = if (isActive) "Ativo" else "Inativo",
-                                        tint = if (isActive) Color(0xFF4CAF50) else Color(0xFFF44336),
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = "Aviso",
+                                        tint = Color(0xFFD32F2F),
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Status: ${if (isActive) "ATIVO" else "INATIVO"}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = if (isActive) Color(0xFF2E7D32) else Color(0xFFD32F2F)
+                                        text = "Funcionário inativo - operações de facial bloqueadas",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFD32F2F),
+                                        fontWeight = FontWeight.Medium
                                     )
-                                }
-                                
-                                // Botão de ação
-                                androidx.compose.material3.OutlinedButton(
-                                    onClick = {
-                                        // Toggle do status
-                                        try {
-                                            val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
-                                            if (isActive) {
-                                                funcionariosDao.deactivateFuncionario(funcionarioId)
-                                                isActive = false
-                                            } else {
-                                                funcionariosDao.activateFuncionario(funcionarioId)
-                                                isActive = true
-                                            }
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("AddFaceScreen", "❌ Erro ao alterar status: ${e.message}")
-                                        }
-                                    },
-                                    colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
-                                        contentColor = if (isActive) Color(0xFFD32F2F) else Color(0xFF4CAF50)
-                                    ),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        width = 1.dp,
-                                        color = if (isActive) Color(0xFFD32F2F) else Color(0xFF4CAF50)
-                                    )
-                                ) {
-                                    Icon(
-                                        imageVector = if (isActive) Icons.Default.Cancel else Icons.Default.CheckCircle,
-                                        contentDescription = if (isActive) "Desativar" else "Ativar",
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = if (isActive) "Desativar" else "Ativar",
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                }
-                            }
-                            
-                            // ✅ NOVO: Aviso para funcionários inativos
-                            if (!isActive) {
-                                Spacer(modifier = Modifier.height(12.dp))
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = Color(0xFFFFEBEE)
-                                    ),
-                                    border = androidx.compose.foundation.BorderStroke(
-                                        width = 1.dp,
-                                        color = Color(0xFFF44336)
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Warning,
-                                            contentDescription = "Aviso",
-                                            tint = Color(0xFFD32F2F),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Funcionário inativo - operações de facial bloqueadas",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = Color(0xFFD32F2F),
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
                                 }
                             }
                         }
                     }
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
                 }
+
+                Spacer(modifier = Modifier.height(24.dp))
             }
-            
+        }
+
+        // ✅ NOVO: Fotos capturadas localmente (apenas para cadastro)
+        if (funcionarioId == 0L) {
             item {
-            // ✅ NOVO: Informações sobre as fotos (apenas para cadastro)
-            if (funcionarioId == 0L) {
-                Text(
-                    text = "Fotos capturadas: ${viewModel.selectedImageURIs.value.size}/3",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-            }
-            
-            // ✅ NOVO: Fotos capturadas do servidor (apenas para edição)
-            if (funcionarioId > 0L) {
-                item {
-                    val capturedImages by remember { viewModel.capturedImagesUrls }
-                    val isLoadingImages by remember { viewModel.isLoadingImages }
+                val selectedImages = viewModel.selectedImageURIs.value
                 
-                if (isLoadingImages) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Carregando fotos capturadas...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                } else if (capturedImages.isNotEmpty()) {
+                if (selectedImages.isNotEmpty()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Fotos capturadas (${capturedImages.size}):",
+                            text = "Fotos capturadas (${selectedImages.size}/3):",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
-                        IconButton(
-                            onClick = { 
-                                if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
-                                    viewModel.loadCapturedImages(funcionarioCpf, funcionarioEntidadeId)
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Recarregar fotos",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -691,7 +743,7 @@ private fun ScreenUI(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.height(200.dp)
                     ) {
-                        items(capturedImages.size) { index ->
+                        items(selectedImages.size) { index ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -704,10 +756,11 @@ private fun ScreenUI(
                                     modifier = Modifier.fillMaxSize(),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    RotatedAsyncImage(
-                                        imageUrl = capturedImages[index],
+                                    AsyncImage(
+                                        model = selectedImages[index],
                                         contentDescription = "Foto capturada ${index + 1}",
-                                        modifier = Modifier.fillMaxSize()
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
                                     )
                                     
                                     // Número da foto
@@ -733,301 +786,533 @@ private fun ScreenUI(
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                 } else {
-                    // Nenhuma foto encontrada
+                    // No modo de cadastro, não mostrar "Nenhuma foto encontrada" se ainda não capturou
+                    Text(
+                        text = "Fotos capturadas: ${selectedImages.size}/3",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+        }
+
+        // ✅ NOVO: Fotos capturadas do servidor (apenas para edição)
+        if (funcionarioId > 0L) {
+            item {
+                val capturedImages by remember { viewModel.capturedImagesUrls }
+                val isLoadingImages by remember { viewModel.isLoadingImages }
+
+                if (isLoadingImages) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            containerColor = MaterialTheme.colorScheme.surface
                         )
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Camera,
-                                contentDescription = "Nenhuma foto",
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = MaterialTheme.colorScheme.primary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "Nenhuma foto capturada encontrada",
+                                text = "Carregando fotos capturadas...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = { 
-                                    if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
-                                        viewModel.loadCapturedImages(funcionarioCpf, funcionarioEntidadeId)
-                                    }
+                        }
+                    }
+                } else {
+                    // Verificar se há fotos capturadas localmente ou no servidor
+                    val selectedImages = viewModel.selectedImageURIs.value
+                    
+                    // Priorizar fotos do servidor se existirem, senão mostrar fotos capturadas localmente
+                    val imagesToShow = if (capturedImages.isNotEmpty()) {
+                        // Mostrar fotos do servidor
+                        Pair(capturedImages, true) // true = são fotos do servidor
+                    } else if (selectedImages.isNotEmpty()) {
+                        // Mostrar fotos capturadas localmente
+                        Pair(selectedImages.map { it.toString() }, false) // false = são fotos locais
+                    } else {
+                        // Não há fotos em nenhum lugar
+                        Pair(emptyList<String>(), false)
+                    }
+                    
+                    if (imagesToShow.first.isNotEmpty()) {
+                        // Há fotos para mostrar (servidor ou locais)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (imagesToShow.second) {
+                                    "Fotos capturadas (${imagesToShow.first.size}):"
+                                } else {
+                                    "Fotos capturadas localmente (${imagesToShow.first.size}/3):"
                                 },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Text("Recarregar Fotos")
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (imagesToShow.second) {
+                                // Só mostrar botão de recarregar se forem fotos do servidor
+                                IconButton(
+                                    onClick = {
+                                        if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
+                                            viewModel.loadCapturedImages(
+                                                funcionarioCpf,
+                                                funcionarioEntidadeId
+                                            )
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = "Recarregar fotos",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                }
-            }
-            
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Button(
-                        enabled = personNameState.isNotEmpty(),
-                        onClick = { isInCaptureMode = true },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF264064)
-                        ),
-                        modifier = Modifier.fillMaxWidth().height(50.dp)
-                    ) {
-                        Text(text = "Cadastrar Facial")
-                    }
-                    
-                    if (viewModel.selectedImageURIs.value.size >= 3) {
-                        Button(
-                            onClick = { 
-                                viewModel.updatePersonName(personNameState)
-                                viewModel.saveFaces() 
-                            },
-                            modifier = Modifier.fillMaxWidth().height(50.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF4CAF50)
-                            )
-                        ) {
-                            Text(text = "Adicionar ao banco") 
-                        }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-            }
+                        Spacer(modifier = Modifier.height(8.dp))
 
-            
-            
-            if (funcionarioId > 0) {
-                item {
-                    Button(
-                        onClick = { 
-                            viewModel.sincronizarFaceComServidor() 
-                        },
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.Transparent 
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFF264064)),
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        enabled = !viewModel.isDeletingUser.value,
-                    ) {
-                        
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Sincronizar Facial",
-                                color = Color(0xFF264064)
-                            )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-                item {
-                    // ✅ BOTÃO DE EXCLUIR FACE (sempre visível)
-                    Button(
-                        enabled = !viewModel.isDeletingUser.value,
-                        onClick = { 
-                            viewModel.showDeleteConfirmationDialog() 
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF264064)
-                        ),
-                        modifier = Modifier.fillMaxWidth().height(50.dp)
-                    ) {
-                        if (viewModel.isDeletingUser.value) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Excluindo...",
-                                color = Color.White
-                            )
-                        } else {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Excluir Facial",
-                                color = Color.White
-                            )
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(3),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.height(200.dp)
+                        ) {
+                            items(imagesToShow.first.size) { index ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f),
+                                    elevation = CardDefaults.cardElevation(
+                                        defaultElevation = 2.dp
+                                    )
+                                ) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (imagesToShow.second) {
+                                            // Fotos do servidor (URL)
+                                            RotatedAsyncImage(
+                                                imageUrl = imagesToShow.first[index],
+                                                contentDescription = "Foto capturada ${index + 1}",
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            // Fotos locais (URI)
+                                            AsyncImage(
+                                                model = android.net.Uri.parse(imagesToShow.first[index]),
+                                                contentDescription = "Foto capturada ${index + 1}",
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+
+                                        // Número da foto
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .background(
+                                                    color = Color.Black.copy(alpha = 0.7f),
+                                                    shape = CircleShape
+                                                )
+                                                .padding(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "${index + 1}",
+                                                color = Color.White,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    if (isGapUnlocked) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        // Nenhuma foto encontrada
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = androidx.compose.material3.CardDefaults.cardColors(
-                                containerColor = Color(0xFFFFEBEE)
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(
-                                width = 2.dp,
-                                color = Color(0xFFD32F2F)
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
                             )
                         ) {
                             Column(
-                                modifier = Modifier.padding(16.dp)
+                                modifier = Modifier.padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically
+                                Icon(
+                                    imageVector = Icons.Default.Camera,
+                                    contentDescription = "Nenhuma foto",
+                                    modifier = Modifier.size(48.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Nenhuma foto capturada encontrada",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = {
+                                        if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
+                                            viewModel.loadCapturedImages(
+                                                funcionarioCpf,
+                                                funcionarioEntidadeId
+                                            )
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
                                 ) {
+                                    Text("Recarregar Fotos")
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+                }
+            }
+        }
+
+        item {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Button(
+                    enabled = personNameState.isNotEmpty(),
+                    onClick = isInCaptureMode,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Text(text = "Cadastrar Facial")
+                }
+
+                if (viewModel.selectedImageURIs.value.size >= 3) {
+                    Button(
+                        onClick = {
+                            viewModel.updatePersonName(personNameState)
+                            viewModel.saveFaces()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF4CAF50)
+                        )
+                    ) {
+                        Text(text = "Adicionar ao banco")
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
+
+
+        if (funcionarioId > 0) {
+            item {
+                Button(
+                    onClick = {
+                        viewModel.sincronizarFaceComServidor()
+                    },
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFF264064)),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = !viewModel.isDeletingUser.value,
+                ) {
+
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Sincronizar Facial",
+                        color = Color(0xFF264064)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            item {
+                Button(
+                    enabled = !viewModel.isDeletingUser.value,
+                    onClick = {
+                        viewModel.showDeleteConfirmationDialog()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF264064)
+                    ),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    if (viewModel.isDeletingUser.value) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Excluindo...",
+                            color = Color.White
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Excluir Facial",
+                            color = Color.White
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (isGapUnlocked) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 2.dp,
+                            color = Color(0xFFD32F2F)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = "Atenção",
+                                    tint = Color(0xFFD32F2F),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "⚠️ MODO DE EXCLUSÃO ATIVO",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = Color(0xFFD32F2F),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Esta ação removerá permanentemente TODOS os dados do funcionário do banco de dados, incluindo:",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color(0xFFD32F2F)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Column {
+                                Text(
+                                    text = "• Faces cadastradas",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFD32F2F)
+                                )
+                                Text(
+                                    text = "• Matrículas associadas",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFD32F2F)
+                                )
+                                Text(
+                                    text = "• Pontos registrados",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFD32F2F)
+                                )
+                                Text(
+                                    text = "• Dados pessoais",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFD32F2F)
+                                )
+                                Text(
+                                    text = "• Fotos do servidor (se houver internet)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFD32F2F)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            Button(
+                                enabled = !viewModel.isDeletingUser.value,
+                                onClick = {
+                                    android.util.Log.d(
+                                        "AddFaceScreen",
+                                        "🔘 Botão de exclusão de funcionário clicado!"
+                                    )
+                                    android.util.Log.d(
+                                        "AddFaceScreen",
+                                        "🔘 isGapUnlocked: $isGapUnlocked"
+                                    )
+                                    android.util.Log.d(
+                                        "AddFaceScreen",
+                                        "🔘 funcionarioId: $funcionarioId"
+                                    )
+                                    viewModel.showDeleteFuncionarioConfirmationDialog()
+                                },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFD32F2F)
+                                ),
+                                modifier = Modifier.fillMaxWidth().height(50.dp)
+                            ) {
+                                if (viewModel.isDeletingUser.value) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Excluindo...",
+                                        color = Color.White
+                                    )
+                                } else {
                                     Icon(
-                                        imageVector = Icons.Default.Warning,
-                                        contentDescription = "Atenção",
-                                        tint = Color(0xFFD32F2F),
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Excluir",
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "⚠️ MODO DE EXCLUSÃO ATIVO",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        color = Color(0xFFD32F2F),
+                                        text = "🗑️ EXCLUIR FUNCIONÁRIO COMPLETO",
+                                        color = Color.White,
                                         fontWeight = FontWeight.Bold
                                     )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                Text(
-                                    text = "Esta ação removerá permanentemente TODOS os dados do funcionário do banco de dados, incluindo:",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFFD32F2F)
-                                )
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                Column {
-                                    Text(
-                                        text = "• Faces cadastradas",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFD32F2F)
-                                    )
-                                    Text(
-                                        text = "• Matrículas associadas",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFD32F2F)
-                                    )
-                                    Text(
-                                        text = "• Pontos registrados",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFD32F2F)
-                                    )
-                                    Text(
-                                        text = "• Dados pessoais",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFD32F2F)
-                                    )
-                                    Text(
-                                        text = "• Fotos do servidor (se houver internet)",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFD32F2F)
-                                    )
-                                }
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
-                                Button(
-                                    enabled = !viewModel.isDeletingUser.value,
-                                    onClick = { 
-                                        android.util.Log.d("AddFaceScreen", "🔘 Botão de exclusão de funcionário clicado!")
-                                        android.util.Log.d("AddFaceScreen", "🔘 isGapUnlocked: $isGapUnlocked")
-                                        android.util.Log.d("AddFaceScreen", "🔘 funcionarioId: $funcionarioId")
-                                        viewModel.showDeleteFuncionarioConfirmationDialog() 
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFD32F2F)
-                                    ),
-                                    modifier = Modifier.fillMaxWidth().height(50.dp)
-                                ) {
-                                    if (viewModel.isDeletingUser.value) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            color = Color.White,
-                                            strokeWidth = 2.dp
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "Excluindo...",
-                                            color = Color.White
-                                        )
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Excluir",
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = "🗑️ EXCLUIR FUNCIONÁRIO COMPLETO",
-                                            color = Color.White,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
                                 }
                             }
                         }
                     }
-                    
+                }
 
-                    // Button(
-                    //     onClick = { 
-                    //         viewModel.showDeleteConfirmationDialog() 
-                    //     },
-                    //     colors = ButtonDefaults.outlinedButtonColors(
-                    //         containerColor = Color.Transparent 
-                    //     ),
-                    //     border = BorderStroke(1.dp, Color(0xFF264064)),
-                    //     modifier = Modifier.fillMaxWidth().height(50.dp),
-                    //     enabled = !viewModel.isDeletingUser.value,
-                    // ) {
-                        
-                    // }
-                }
-                
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Button(
-                        onClick = onNavigateBack,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.Transparent 
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFF264064)),
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        enabled = !viewModel.isDeletingUser.value,
-                    ) {
-                        
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Voltar",
-                                color = Color(0xFF264064)
-                            )
-                        
-                    }
-                }
+
+                // Button(
+                //     onClick = {
+                //         viewModel.showDeleteConfirmationDialog()
+                //     },
+                //     colors = ButtonDefaults.outlinedButtonColors(
+                //         containerColor = Color.Transparent
+                //     ),
+                //     border = BorderStroke(1.dp, Color(0xFF264064)),
+                //     modifier = Modifier.fillMaxWidth().height(50.dp),
+                //     enabled = !viewModel.isDeletingUser.value,
+                // ) {
+
+                // }
             }
-            
+
             item {
                 Spacer(modifier = Modifier.height(16.dp))
 
-                ImagesGrid(viewModel)
+                Button(
+                    onClick = onNavigateBack,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.Transparent
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFF264064)),
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = !viewModel.isDeletingUser.value,
+                ) {
+
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Voltar",
+                        color = Color(0xFF264064)
+                    )
+
+                }
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            ImagesGrid(viewModel)
+        }
+    }
+}
+
+@Composable
+private fun MatriculasAtivasTab(
+    funcionarioId: Long
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+    ) {
+        item {
+            Text(
+                text = "Matrículas Ativas",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Face,
+                        contentDescription = "Matrículas",
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text(
+                        text = "Feature em desenvolvimento",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "A funcionalidade de gerenciamento de matrículas ativas será implementada em breve.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    
+                    if (funcionarioId > 0) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Funcionário ID: $funcionarioId",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
@@ -2354,7 +2639,7 @@ private fun DeleteConfirmationDialog(viewModel: AddFaceScreenViewModel) {
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(
-                    onClick = { viewModel.confirmDeleteUser() },
+                    onClick = { viewModel.confirmDeleteFace() },
                     colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
                         contentColor = Color(0xFFD32F2F)
                     )
