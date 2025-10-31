@@ -56,6 +56,11 @@ class AddFaceScreenViewModel(
     
     val showDuplicateFaceDialog: MutableState<Boolean> = mutableStateOf(false)
     val duplicateFaceInfo: MutableState<DuplicateFaceInfo?> = mutableStateOf(null)
+    
+    // ✅ NOVO: Estados para matrículas
+    val matriculasList: MutableState<List<com.ml.shubham0204.facenet_android.data.MatriculaCompleta>> = mutableStateOf(emptyList())
+    val isLoadingMatriculas: MutableState<Boolean> = mutableStateOf(false)
+    val syncMatriculasMessage: MutableState<String?> = mutableStateOf(null)
 
     private val funcionariosList: MutableState<List<FuncionariosEntity>> = mutableStateOf(emptyList())
     private val configuracoesDao = ConfiguracoesDao()
@@ -821,6 +826,173 @@ class AddFaceScreenViewModel(
             } catch (e: Exception) {
                 android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao recarregar imagens automaticamente: ${e.message}")
                 e.printStackTrace()
+            }
+        }
+    }
+    
+    // ✅ NOVO: Funções para gerenciar matrículas
+    fun loadMatriculasFromLocal(cpf: String) {
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                android.util.Log.d("AddFaceScreenViewModel", "📋 Carregando matrículas do banco local para CPF: $cpf")
+                
+                val matriculasDao = com.ml.shubham0204.facenet_android.data.MatriculasDao()
+                val matriculas = matriculasDao.getMatriculasCompletasByCpf(cpf)
+                
+                withContext(Dispatchers.Main) {
+                    matriculasList.value = matriculas
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ ${matriculas.size} matrículas carregadas do banco local")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao carregar matrículas do banco local: ${e.message}")
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    matriculasList.value = emptyList()
+                }
+            }
+        }
+    }
+    
+    fun syncMatriculas(cpf: String, entidadeId: String) {
+        if (cpf.isEmpty() || entidadeId.isEmpty()) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ CPF ou EntidadeId vazio - não sincronizando matrículas")
+            CoroutineScope(Dispatchers.Main).launch {
+                syncMatriculasMessage.value = "CPF ou Entidade inválida"
+            }
+            return
+        }
+        
+        isLoadingMatriculas.value = true
+        syncMatriculasMessage.value = null
+        
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                android.util.Log.d("AddFaceScreenViewModel", "🔄 Sincronizando matrículas para CPF: $cpf")
+                
+                // 1. Buscar matrículas do servidor
+                val response = apiService.obterVariasMatriculas(entidadeId, cpf)
+                
+                if (!response.isSuccessful) {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Resposta da API não foi bem-sucedida: ${response.code()}")
+                    withContext(Dispatchers.Main) {
+                        syncMatriculasMessage.value = "Erro ao buscar matrículas do servidor"
+                        isLoadingMatriculas.value = false
+                    }
+                    return@launch
+                }
+                
+                val matriculaResponse = response.body()
+                if (matriculaResponse == null || matriculaResponse.matriculas == null || matriculaResponse.matriculas.isEmpty()) {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma matrícula retornada do servidor")
+                    withContext(Dispatchers.Main) {
+                        syncMatriculasMessage.value = "Nenhuma matrícula encontrada no servidor"
+                        isLoadingMatriculas.value = false
+                    }
+                    return@launch
+                }
+                
+                // 2. Buscar matrículas do banco local
+                val matriculasDao = com.ml.shubham0204.facenet_android.data.MatriculasDao()
+                val matriculasLocal = matriculasDao.getByCpf(cpf)
+                
+                // 3. Preparar listas para comparação
+                val matriculasServidor = matriculaResponse.matriculas
+                val matriculasServidorSet = matriculasServidor.map { it.matricula }.toSet()
+                
+                val matriculasLocalSet = matriculasLocal?.matricula?.filter { it.isNotEmpty() }?.toSet() ?: emptySet()
+                
+                // 4. Verificar se há matrículas novas
+                val matriculasNovas = matriculasServidorSet - matriculasLocalSet
+                
+                if (matriculasNovas.isEmpty()) {
+                    android.util.Log.d("AddFaceScreenViewModel", "ℹ️ Nenhuma matrícula nova para sincronizar")
+                    withContext(Dispatchers.Main) {
+                        syncMatriculasMessage.value = "Não existem matrículas ativas para serem sincronizadas"
+                        isLoadingMatriculas.value = false
+                    }
+                    return@launch
+                }
+                
+                android.util.Log.d("AddFaceScreenViewModel", "✅ ${matriculasNovas.size} matrícula(s) nova(s) encontrada(s): $matriculasNovas")
+                
+                // 5. Preparar dados para salvar
+                val matriculasList = mutableListOf<String>()
+                val cargosList = mutableListOf<String>()
+                val ativosList = mutableListOf<String>()
+                val setoresList = mutableListOf<String>()
+                val orgaosList = mutableListOf<String>()
+                
+                // Mapear matrículas locais existentes para evitar duplicatas
+                val matriculasLocalMap = mutableMapOf<String, Int>()
+                if (matriculasLocal != null) {
+                    matriculasLocal.matricula.filter { it.isNotEmpty() }.forEachIndexed { index, matricula ->
+                        matriculasLocalMap[matricula] = index
+                    }
+                    
+                    // Adicionar matrículas antigas (já existentes)
+                    matriculasLocal.matricula.filter { it.isNotEmpty() }.forEach { matriculasList.add(it) }
+                    matriculasLocal.cargoDescricao?.filter { it.isNotEmpty() }?.forEach { cargosList.add(it) } ?: Unit
+                    matriculasLocal.ativo?.filter { it.isNotEmpty() }?.forEach { ativosList.add(it) } ?: Unit
+                    matriculasLocal.setorDescricao?.filter { it.isNotEmpty() }?.forEach { setoresList.add(it) } ?: Unit
+                    matriculasLocal.orgaoDescricao?.filter { it.isNotEmpty() }?.forEach { orgaosList.add(it) } ?: Unit
+                }
+                
+                // Adicionar apenas matrículas NOVAS do servidor (que não existem no banco local)
+                matriculasServidor.forEach { matriculaServidor ->
+                    if (!matriculasLocalMap.containsKey(matriculaServidor.matricula)) {
+                        // Esta é uma matrícula nova - adicionar
+                        matriculasList.add(matriculaServidor.matricula)
+                        cargosList.add(matriculaServidor.cargo_descricao)
+                        ativosList.add(matriculaServidor.ativo.toString())
+                        setoresList.add(matriculaServidor.setor_descricao)
+                        orgaosList.add(matriculaServidor.orgao_descricao)
+                        android.util.Log.d("AddFaceScreenViewModel", "➕ Adicionando nova matrícula: ${matriculaServidor.matricula}")
+                    } else {
+                        android.util.Log.d("AddFaceScreenViewModel", "⏭️ Matrícula já existe no banco local: ${matriculaServidor.matricula}")
+                    }
+                }
+                
+                // 6. Salvar no banco local
+                if (matriculasLocal != null) {
+                    // Atualizar matrícula existente
+                    matriculasLocal.matricula = matriculasList
+                    matriculasLocal.cargoDescricao = cargosList
+                    matriculasLocal.ativo = ativosList
+                    matriculasLocal.setorDescricao = setoresList
+                    matriculasLocal.orgaoDescricao = orgaosList
+                    matriculasDao.insert(matriculasLocal)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Matrículas atualizadas no banco local")
+                } else {
+                    // Criar nova entrada
+                    val novaEntidade = com.ml.shubham0204.facenet_android.data.MatriculasEntity(
+                        id = 0,
+                        funcionarioId = funcionarioId.toString(),
+                        funcionarioCpf = cpf,
+                        matricula = matriculasList,
+                        cargoDescricao = cargosList,
+                        ativo = ativosList,
+                        setorDescricao = setoresList,
+                        orgaoDescricao = orgaosList
+                    )
+                    matriculasDao.insert(novaEntidade)
+                    android.util.Log.d("AddFaceScreenViewModel", "✅ Novas matrículas salvas no banco local")
+                }
+                
+                // 7. Recarregar matrículas do banco local
+                loadMatriculasFromLocal(cpf)
+                
+                withContext(Dispatchers.Main) {
+                    syncMatriculasMessage.value = "${matriculasNovas.size} matrícula(s) sincronizada(s) com sucesso!"
+                    isLoadingMatriculas.value = false
+                }
+                
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao sincronizar matrículas: ${e.message}")
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    syncMatriculasMessage.value = "Erro ao sincronizar matrículas: ${e.message}"
+                    isLoadingMatriculas.value = false
+                }
             }
         }
     }

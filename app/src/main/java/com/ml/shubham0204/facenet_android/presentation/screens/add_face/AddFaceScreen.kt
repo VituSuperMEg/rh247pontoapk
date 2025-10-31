@@ -362,7 +362,9 @@ private fun ScreenUI(
                     onNavigateBack = onNavigateBack
                 )
                 1 -> MatriculasAtivasTab(
-                    funcionarioId = funcionarioId
+                    viewModel = viewModel,
+                    funcionarioCpf = funcionarioCpf,
+                    funcionarioEntidadeId = funcionarioEntidadeId
                 )
             }
         }
@@ -1252,8 +1254,29 @@ private fun DadosFuncionariosTab(
 
 @Composable
 private fun MatriculasAtivasTab(
-    funcionarioId: Long
+    viewModel: AddFaceScreenViewModel,
+    funcionarioCpf: String,
+    funcionarioEntidadeId: String
 ) {
+    val matriculas by remember { viewModel.matriculasList }
+    val isLoading by remember { viewModel.isLoadingMatriculas }
+    val syncMessage by remember { viewModel.syncMatriculasMessage }
+    
+    // Carregar matrículas ao entrar na aba
+    LaunchedEffect(funcionarioCpf) {
+        if (funcionarioCpf.isNotEmpty()) {
+            viewModel.loadMatriculasFromLocal(funcionarioCpf)
+        }
+    }
+    
+    // Limpar mensagem após alguns segundos
+    LaunchedEffect(syncMessage) {
+        if (syncMessage != null) {
+            kotlinx.coroutines.delay(3000)
+            viewModel.syncMatriculasMessage.value = null
+        }
+    }
+    
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -1267,49 +1290,175 @@ private fun MatriculasAtivasTab(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Card(
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Botão de sincronizar
+            Button(
+                onClick = {
+                    if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
+                        viewModel.syncMatriculas(funcionarioCpf, funcionarioEntidadeId)
+                    }
+                },
+                enabled = !isLoading && funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF264064)
                 )
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Sincronizando...")
+                } else {
                     Icon(
-                        imageVector = Icons.Default.Face,
-                        contentDescription = "Matrículas",
-                        modifier = Modifier.size(48.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = "Sincronizar",
+                        modifier = Modifier.size(20.dp)
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Text(
-                        text = "Feature em desenvolvimento",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Sincronizar Matrículas")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Mensagem de sincronização
+            if (syncMessage != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (syncMessage!!.contains("sucesso") || syncMessage!!.contains("sincronizada")) {
+                            Color(0xFFE8F5E9)
+                        } else {
+                            MaterialTheme.colorScheme.errorContainer
+                        }
                     )
-                    
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
+                ) {
                     Text(
-                        text = "A funcionalidade de gerenciamento de matrículas ativas será implementada em breve.",
+                        text = syncMessage!!,
+                        modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
+                        color = if (syncMessage!!.contains("sucesso") || syncMessage!!.contains("sincronizada")) {
+                            Color(0xFF2E7D32)
+                        } else {
+                            MaterialTheme.colorScheme.onErrorContainer
+                        }
                     )
-                    
-                    if (funcionarioId > 0) {
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+        
+        // Lista de matrículas
+        if (matriculas.isEmpty() && !isLoading) {
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Face,
+                            contentDescription = "Sem matrículas",
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "Funcionário ID: $funcionarioId",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "Nenhuma matrícula encontrada",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Clique em 'Sincronizar Matrículas' para buscar matrículas do servidor.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        } else {
+            items(matriculas.size) { index ->
+                val matricula = matriculas[index]
+                
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Matrícula: ${matricula.matricula}",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            
+                            // Badge de status
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (matricula.isAtivo()) {
+                                        Color(0xFF4CAF50)
+                                    } else {
+                                        Color(0xFF757575)
+                                    }
+                                ),
+                                modifier = Modifier.padding(start = 8.dp)
+                            ) {
+                                Text(
+                                    text = matricula.getStatusText(),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        Text(
+                            text = "Cargo: ${matricula.cargoDescricao}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Text(
+                            text = "Setor: ${matricula.setorDescricao}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        
+                        Spacer(modifier = Modifier.height(4.dp))
+                        
+                        Text(
+                            text = "Órgão: ${matricula.orgaoDescricao}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
