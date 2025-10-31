@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -1401,69 +1402,166 @@ private fun MatriculasAtivasTab(
                     ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+                    Box {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
                         ) {
-                            Text(
-                                text = "Matrícula: ${matricula.matricula}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            
-                            // Badge de status
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (matricula.isAtivo()) {
-                                        Color(0xFF4CAF50)
-                                    } else {
-                                        Color(0xFF757575)
-                                    }
-                                ),
-                                modifier = Modifier.padding(start = 8.dp)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = matricula.getStatusText(),
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold
+                                    text = "Matrícula: ${matricula.matricula}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
+                                
+                                // Badge de status
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (matricula.isAtivo()) {
+                                            Color(0xFF4CAF50)
+                                        } else {
+                                            Color(0xFF757575)
+                                        }
+                                    ),
+                                    modifier = Modifier.padding(start = 8.dp)
+                                ) {
+                                    Text(
+                                        text = matricula.getStatusText(),
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Text(
+                                text = "Cargo: ${matricula.cargoDescricao}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Text(
+                                text = "Setor: ${matricula.setorDescricao}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+                            
+                            Text(
+                                text = "Órgão: ${matricula.orgaoDescricao}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                         
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        Text(
-                            text = "Cargo: ${matricula.cargoDescricao}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        Text(
-                            text = "Setor: ${matricula.setorDescricao}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        
-                        Spacer(modifier = Modifier.height(4.dp))
-                        
-                        Text(
-                            text = "Órgão: ${matricula.orgaoDescricao}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        // Ícone de lixeira no canto inferior direito
+                        IconButton(
+                            onClick = {
+                                viewModel.showDeleteMatriculaDialog(matricula.matricula)
+                            },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Excluir matrícula",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+    
+    // Diálogo de confirmação de exclusão de matrícula
+    DeleteMatriculaConfirmationDialog(
+        viewModel = viewModel,
+        funcionarioCpf = funcionarioCpf
+    )
+}
+
+@Composable
+private fun DeleteMatriculaConfirmationDialog(
+    viewModel: AddFaceScreenViewModel,
+    funcionarioCpf: String
+) {
+    val showDialog by remember { viewModel.showDeleteMatriculaConfirmation }
+    val matriculaToDelete by remember { viewModel.matriculaToDelete }
+    
+    if (showDialog && matriculaToDelete != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.cancelDeleteMatricula() },
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Aviso",
+                        tint = Color(0xFFD32F2F),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Confirmar Exclusão",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        text = "Tem certeza que deseja excluir a matrícula $matriculaToDelete?",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Text(
+                        text = "Esta ação não pode ser desfeita.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.confirmDeleteMatricula(funcionarioCpf) },
+                    colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                        contentColor = Color(0xFFD32F2F)
+                    )
+                ) {
+                    Text(
+                        text = "Excluir",
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { viewModel.cancelDeleteMatricula() }
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        )
     }
 }
 

@@ -61,6 +61,8 @@ class AddFaceScreenViewModel(
     val matriculasList: MutableState<List<com.ml.shubham0204.facenet_android.data.MatriculaCompleta>> = mutableStateOf(emptyList())
     val isLoadingMatriculas: MutableState<Boolean> = mutableStateOf(false)
     val syncMatriculasMessage: MutableState<String?> = mutableStateOf(null)
+    val showDeleteMatriculaConfirmation: MutableState<Boolean> = mutableStateOf(false)
+    val matriculaToDelete: MutableState<String?> = mutableStateOf(null)
 
     private val funcionariosList: MutableState<List<FuncionariosEntity>> = mutableStateOf(emptyList())
     private val configuracoesDao = ConfiguracoesDao()
@@ -993,6 +995,89 @@ class AddFaceScreenViewModel(
                     syncMatriculasMessage.value = "Erro ao sincronizar matrículas: ${e.message}"
                     isLoadingMatriculas.value = false
                 }
+            }
+        }
+    }
+    
+    // ✅ NOVO: Funções para controlar diálogo de confirmação de exclusão de matrícula
+    fun showDeleteMatriculaDialog(matriculaNumero: String) {
+        matriculaToDelete.value = matriculaNumero
+        showDeleteMatriculaConfirmation.value = true
+    }
+    
+    fun cancelDeleteMatricula() {
+        showDeleteMatriculaConfirmation.value = false
+        matriculaToDelete.value = null
+    }
+    
+    fun confirmDeleteMatricula(cpf: String) {
+        val matriculaNumero = matriculaToDelete.value
+        if (matriculaNumero != null) {
+            showDeleteMatriculaConfirmation.value = false
+            matriculaToDelete.value = null
+            deleteMatricula(cpf, matriculaNumero)
+        }
+    }
+    
+    // ✅ NOVO: Função para excluir uma matrícula específica do banco local
+    private fun deleteMatricula(cpf: String, matriculaNumero: String) {
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                android.util.Log.d("AddFaceScreenViewModel", "🗑️ Excluindo matrícula $matriculaNumero do CPF: $cpf")
+                
+                val matriculasDao = com.ml.shubham0204.facenet_android.data.MatriculasDao()
+                val entity = matriculasDao.getByCpf(cpf)
+                
+                if (entity == null) {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Nenhuma entidade encontrada para CPF: $cpf")
+                    return@launch
+                }
+                
+                // Encontrar o índice da matrícula a ser removida
+                val indexToRemove = entity.matricula.indexOfFirst { it == matriculaNumero }
+                
+                if (indexToRemove == -1) {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Matrícula $matriculaNumero não encontrada")
+                    return@launch
+                }
+                
+                // Criar novas listas sem o item removido
+                val novasMatriculas = entity.matricula.toMutableList().apply { removeAt(indexToRemove) }
+                val novosCargos = entity.cargoDescricao?.toMutableList()?.apply { 
+                    if (indexToRemove < size) removeAt(indexToRemove) 
+                } ?: mutableListOf()
+                val novosAtivos = entity.ativo?.toMutableList()?.apply { 
+                    if (indexToRemove < size) removeAt(indexToRemove) 
+                } ?: mutableListOf()
+                val novosSetores = entity.setorDescricao?.toMutableList()?.apply { 
+                    if (indexToRemove < size) removeAt(indexToRemove) 
+                } ?: mutableListOf()
+                val novosOrgaos = entity.orgaoDescricao?.toMutableList()?.apply { 
+                    if (indexToRemove < size) removeAt(indexToRemove) 
+                } ?: mutableListOf()
+                
+                // Se não sobrar nenhuma matrícula, excluir a entidade inteira
+                if (novasMatriculas.isEmpty() || novasMatriculas.all { it.isEmpty() }) {
+                    android.util.Log.d("AddFaceScreenViewModel", "🗑️ Nenhuma matrícula restante - excluindo entidade completa")
+                    matriculasDao.delete(entity)
+                } else {
+                    // Atualizar a entidade com as novas listas
+                    entity.matricula = novasMatriculas
+                    entity.cargoDescricao = novosCargos
+                    entity.ativo = novosAtivos
+                    entity.setorDescricao = novosSetores
+                    entity.orgaoDescricao = novosOrgaos
+                    matriculasDao.insert(entity)
+                }
+                
+                android.util.Log.d("AddFaceScreenViewModel", "✅ Matrícula $matriculaNumero excluída com sucesso")
+                
+                // Recarregar a lista de matrículas
+                loadMatriculasFromLocal(cpf)
+                
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao excluir matrícula: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
