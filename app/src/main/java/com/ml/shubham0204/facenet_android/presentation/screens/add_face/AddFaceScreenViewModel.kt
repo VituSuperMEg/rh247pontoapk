@@ -161,9 +161,16 @@ class AddFaceScreenViewModel(
                     }
                 }
                 
+                // ✅ NOVO: Recarregar imagens automaticamente após sincronização
+                android.util.Log.d("AddFaceScreenViewModel", "🔄 Recarregando imagens após sincronização...")
+                reloadCapturedImagesAutomatically()
+                
             } catch (e: Exception) {
                 android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao sincronizar: ${e.message}")
                 e.printStackTrace()
+                
+                // Mesmo em caso de erro, tentar recarregar as imagens
+                reloadCapturedImagesAutomatically()
             }
         }
     }
@@ -295,6 +302,10 @@ class AddFaceScreenViewModel(
                         
                         // ✅ NOVO: Limpar URIs após salvamento bem-sucedido
                         clearSelectedImageURIs()
+                        
+                        // ✅ NOVO: Recarregar imagens automaticamente após recadastro
+                        android.util.Log.d("AddFaceScreenViewModel", "🔄 Recarregando imagens após recadastro...")
+                        reloadCapturedImagesAutomatically()
                         
                         showSuccessScreen.value = true
                     } else {
@@ -434,6 +445,17 @@ class AddFaceScreenViewModel(
                 clearSelectedImageURIs()
 
                 android.util.Log.d("AddFaceScreenViewModel", "✅ Exclusão de faces concluída!")
+                
+                // ✅ NOVO: Recarregar imagens automaticamente após exclusão
+                if (funcionario != null && funcionario.cpf.isNotEmpty()) {
+                    val entidadeId = getEntidadeId()
+                    if (entidadeId != null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "🔄 Recarregando imagens após exclusão...")
+                        delay(1000) // Delay para garantir que a exclusão no servidor terminou
+                        loadCapturedImages(funcionario.cpf, entidadeId)
+                    }
+                }
+                
                 withContext(Dispatchers.Main) {
                     showSuccessScreen.value = true
                 }
@@ -744,15 +766,61 @@ class AddFaceScreenViewModel(
                     android.util.Log.w("AddFaceScreenViewModel", "⚠️ Resposta da API não foi bem-sucedida: ${response.code()}")
                     android.util.Log.w("AddFaceScreenViewModel", "⚠️ Status: ${response.body()?.status}")
                     android.util.Log.w("AddFaceScreenViewModel", "⚠️ Fotos: ${response.body()?.fotos}")
+                    
+                    // Se não houver fotos no servidor, limpar a lista
+                    withContext(Dispatchers.Main) {
+                        capturedImagesUrls.value = emptyList()
+                    }
                 }
                 
             } catch (e: Exception) {
                 android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao carregar fotos: ${e.message}")
                 e.printStackTrace()
+                
+                // Em caso de erro, limpar a lista
+                withContext(Dispatchers.Main) {
+                    capturedImagesUrls.value = emptyList()
+                }
             } finally {
                 withContext(Dispatchers.Main) {
                     isLoadingImages.value = false
                 }
+            }
+        }
+    }
+    
+    // ✅ NOVO: Função auxiliar para recarregar imagens automaticamente
+    private fun reloadCapturedImagesAutomatically() {
+        if (funcionarioId <= 0) {
+            android.util.Log.w("AddFaceScreenViewModel", "⚠️ FuncionarioId inválido - não recarregando imagens")
+            return
+        }
+        
+        CoroutineScope(Dispatchers.Default).launch {
+            try {
+                // Buscar funcionário para obter CPF
+                val funcionariosDao = com.ml.shubham0204.facenet_android.data.FuncionariosDao()
+                var funcionario = funcionariosDao.getById(funcionarioId)
+                
+                if (funcionario == null) {
+                    funcionario = funcionariosDao.getByApiId(funcionarioId)
+                }
+                
+                if (funcionario != null && funcionario.cpf.isNotEmpty()) {
+                    val entidadeId = getEntidadeId()
+                    if (entidadeId != null) {
+                        android.util.Log.d("AddFaceScreenViewModel", "🔄 Recarregando imagens automaticamente após ação...")
+                        delay(500) // Pequeno delay para garantir que a sincronização tenha terminado
+                        loadCapturedImages(funcionario.cpf, entidadeId)
+                    } else {
+                        android.util.Log.w("AddFaceScreenViewModel", "⚠️ EntidadeId vazio - não recarregando imagens")
+                    }
+                } else {
+                    android.util.Log.w("AddFaceScreenViewModel", "⚠️ Funcionário não encontrado ou CPF vazio - não recarregando imagens")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AddFaceScreenViewModel", "❌ Erro ao recarregar imagens automaticamente: ${e.message}")
+                e.printStackTrace()
             }
         }
     }
