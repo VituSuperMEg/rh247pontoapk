@@ -336,27 +336,27 @@
         {
           "id": "4:4992218703038298508",
           "name": "matricula",
-          "type": 9
+          "type": 30
         },
         {
           "id": "5:5136945541159697321",
           "name": "cargoDescricao",
-          "type": 9
+          "type": 30
         },
         {
           "id": "6:1167034170634747783",
           "name": "ativo",
-          "type": 9
+          "type": 30
         },
         {
           "id": "7:4055615687087497610",
           "name": "setorDescricao",
-          "type": 9
+          "type": 30
         },
         {
           "id": "8:504897955377662433",
           "name": "orgaoDescricao",
-          "type": 9
+          "type": 30
         }
       ],
       "relations": []

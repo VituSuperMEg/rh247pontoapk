@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.fadeIn
@@ -68,9 +69,13 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val navHostController = rememberNavController()
-            
+
+
+
+
             SetupFullscreenSystem()
-            
+
+
             NavHost(
                 navController = navHostController,
                 startDestination = "detect",
@@ -284,6 +289,12 @@ class MainActivity : ComponentActivity() {
                     LogsScreen(
                         onNavigateBack = { navHostController.navigateUp() }
                     )
+                }
+            }
+
+            BackHandler {
+                navHostController.navigate("login") {
+                    popUpTo(0)
                 }
             }
         }
