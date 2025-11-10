@@ -23,6 +23,10 @@ class ImageVectorUseCase(
     private val imagesVectorDB: ImagesVectorDB,
     private val faceNet: FaceNet,
 ) {
+    // ✅ NOVO: Constante pública para o threshold de similaridade usado no reconhecimento facial
+    companion object {
+        const val SIMILARITY_THRESHOLD: Float = 0.76f // 76% de similaridade
+    }
     data class FaceRecognitionResult(
         val personName: String,
         val boundingBox: Rect,
@@ -170,7 +174,7 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    val similarityThreshold = 0.76f // 80% de similaridade
+                    val similarityThreshold = SIMILARITY_THRESHOLD
                     
                     
                     if (distance > similarityThreshold) {
@@ -248,7 +252,7 @@ class ImageVectorUseCase(
     suspend fun checkIfFaceAlreadyExists(
         imageUri: Uri,
         currentPersonID: Long? = null, // ID da pessoa atual (para permitir atualização da própria face)
-        similarityThreshold: Float = 0.76f // Limiar de similaridade (mais restritivo que reconhecimento)
+        similarityThreshold: Float = SIMILARITY_THRESHOLD // Limiar de similaridade usado no reconhecimento
     ): Result<FaceAlreadyExistsResult> {
         return try {
 

@@ -31,6 +31,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import com.ml.shubham0204.facenet_android.utils.LocationUtils
 import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
+import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -1000,6 +1001,18 @@ class SettingsViewModel : ViewModel(), KoinComponent {
         } catch (e: Exception) {
             "0.1.0 (10)" // Versão padrão em caso de erro
         }
+    }
+    
+    // ✅ NOVO: Função para obter o threshold de similaridade usado no reconhecimento facial
+    fun getSimilarityThreshold(): Float {
+        return ImageVectorUseCase.SIMILARITY_THRESHOLD
+    }
+    
+    // ✅ NOVO: Função para obter o threshold de similaridade como porcentagem formatada
+    fun getSimilarityThresholdPercent(): String {
+        val threshold = ImageVectorUseCase.SIMILARITY_THRESHOLD
+        val percentage = (threshold * 100).toInt()
+        return "$percentage%"
     }
 
     fun updateGeolocalizacaoHabilitada(value: Boolean) {
