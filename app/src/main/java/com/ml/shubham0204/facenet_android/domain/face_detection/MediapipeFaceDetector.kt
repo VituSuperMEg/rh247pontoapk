@@ -3,10 +3,13 @@ package com.ml.shubham0204.facenet_android.domain.face_detection
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.net.Uri
 import androidx.core.graphics.toRect
+import kotlin.math.pow
+import kotlin.math.sqrt
 import androidx.exifinterface.media.ExifInterface
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
@@ -132,25 +135,43 @@ class MediapipeFaceDetector(
                     if (aspectRatio < 0.5f || aspectRatio > 2.0f) {
                         return@filter false
                     }
-                    
-                    val minSize = 40 
+
+                    // ✅ OTIMIZADO: Aumentado de 40px para 80px para melhor qualidade
+                    val minSize = 80
                     if (rect.width() < minSize || rect.height() < minSize) {
+                        android.util.Log.w("MediapipeFaceDetector", "⚠️ Face muito pequena: ${rect.width()}x${rect.height()}px (mínimo: ${minSize}px)")
                         return@filter false
                     }
-                    
+
                     true
                 }
                 .map { detection -> detection.boundingBox().toRect() }
-                .map { rect ->
-                    val croppedBitmap =
-                        Bitmap.createBitmap(
-                            frameBitmap,
-                            rect.left,
-                            rect.top,
-                            rect.width(),
-                            rect.height(),
-                        )
-                    Pair(croppedBitmap, rect)
+                .mapNotNull { rect ->
+                    try {
+                        val croppedBitmap =
+                            Bitmap.createBitmap(
+                                frameBitmap,
+                                rect.left,
+                                rect.top,
+                                rect.width(),
+                                rect.height(),
+                            )
+
+                        // ✅ NOVO: Verificar qualidade da imagem (nitidez)
+                        val sharpness = calculateImageSharpness(croppedBitmap)
+                        val minSharpness = 30.0 // Threshold ajustável
+
+                        if (sharpness < minSharpness) {
+                            android.util.Log.w("MediapipeFaceDetector", "⚠️ Imagem desfocada rejeitada (nitidez: $sharpness < $minSharpness)")
+                            return@mapNotNull null
+                        }
+
+                        android.util.Log.d("MediapipeFaceDetector", "✅ Face aceita (nitidez: $sharpness)")
+                        Pair(croppedBitmap, rect)
+                    } catch (e: Exception) {
+                        android.util.Log.e("MediapipeFaceDetector", "Erro ao processar face: ${e.message}")
+                        null
+                    }
                 }
         }
 
@@ -183,4 +204,57 @@ class MediapipeFaceDetector(
             boundingBox.top >= 0 &&
             (boundingBox.left + boundingBox.width()) < cameraFrameBitmap.width &&
             (boundingBox.top + boundingBox.height()) < cameraFrameBitmap.height
+
+    // ✅ NOVO: Calcula variância de Laplaciano para detectar blur (desfoque)
+    // Valores baixos indicam imagem desfocada
+    private fun calculateImageSharpness(bitmap: Bitmap): Double {
+        try {
+            // Converter para escala de cinza e calcular Laplaciano
+            val width = bitmap.width
+            val height = bitmap.height
+            var variance = 0.0
+            var mean = 0.0
+            var count = 0
+
+            // Amostragem: processar apenas parte da imagem para performance
+            val step = 4
+            for (y in 1 until height - 1 step step) {
+                for (x in 1 until width - 1 step step) {
+                    // Obter valores de cinza dos pixels vizinhos
+                    val center = Color.red(bitmap.getPixel(x, y))
+                    val top = Color.red(bitmap.getPixel(x, y - 1))
+                    val bottom = Color.red(bitmap.getPixel(x, y + 1))
+                    val left = Color.red(bitmap.getPixel(x - 1, y))
+                    val right = Color.red(bitmap.getPixel(x + 1, y))
+
+                    // Operador Laplaciano simplificado
+                    val laplacian = kotlin.math.abs(4 * center - top - bottom - left - right).toDouble()
+                    mean += laplacian
+                    count++
+                }
+            }
+
+            mean /= count
+
+            // Calcular variância
+            for (y in 1 until height - 1 step step) {
+                for (x in 1 until width - 1 step step) {
+                    val center = Color.red(bitmap.getPixel(x, y))
+                    val top = Color.red(bitmap.getPixel(x, y - 1))
+                    val bottom = Color.red(bitmap.getPixel(x, y + 1))
+                    val left = Color.red(bitmap.getPixel(x - 1, y))
+                    val right = Color.red(bitmap.getPixel(x + 1, y))
+
+                    val laplacian = kotlin.math.abs(4 * center - top - bottom - left - right).toDouble()
+                    variance += (laplacian - mean).pow(2)
+                }
+            }
+
+            variance /= count
+            return variance
+        } catch (e: Exception) {
+            android.util.Log.e("MediapipeFaceDetector", "Erro ao calcular nitidez: ${e.message}")
+            return 100.0 // Valor padrão para permitir processamento
+        }
+    }
 }

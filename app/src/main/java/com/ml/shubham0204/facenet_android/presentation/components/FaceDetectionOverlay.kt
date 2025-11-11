@@ -159,14 +159,18 @@ class FaceDetectionOverlay(
                     }
                     
                     android.util.Log.d("FaceDetectionOverlay", "📷 CameraSelector criado com sucesso")
-                    
+
+                    // ✅ OTIMIZADO: Configuração melhorada para câmeras ruins
                     val frameAnalyzer =
                         ImageAnalysis
                             .Builder()
-                            .setTargetAspectRatio(AspectRatio.RATIO_16_9)
-                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER) // ✅ CORRIGIDO: Estratégia mais agressiva
+                            .setTargetResolution(android.util.Size(1280, 720)) // 720p para melhor qualidade
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
                             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                             .build()
+
+                    android.util.Log.d("FaceDetectionOverlay", "📷 Resolução da câmera: 1280x720 (720p)")
+
                     // ✅ CORRIGIDO: Usar executor com thread pool limitado para evitar sobrecarga
                     frameAnalyzer.setAnalyzer(Executors.newFixedThreadPool(PerformanceConfig.CAMERA_THREAD_POOL_SIZE), analyzer)
                     

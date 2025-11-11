@@ -18,6 +18,7 @@ import org.tensorflow.lite.support.tensorbuffer.TensorBuffer
 import org.tensorflow.lite.support.tensorbuffer.TensorBufferFloat
 import java.nio.ByteBuffer
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sqrt
 
@@ -37,10 +38,13 @@ class FaceNet(
     private val embeddingDim = 512
 
     private var interpreter: Interpreter
+
+    // ✅ OTIMIZADO: Pipeline de processamento melhorado para câmeras ruins
     private val imageTensorProcessor =
         ImageProcessor
             .Builder()
             .add(ResizeOp(imgSize, imgSize, ResizeOp.ResizeMethod.BILINEAR))
+            .add(ContrastEnhanceOp()) // ✅ NOVO: Melhora contraste
             .add(StandardizeOp())
             .build()
 
@@ -140,17 +144,54 @@ class FaceNet(
                 val mean = pixels.average().toFloat()
                 var std = sqrt(pixels.map { pi -> (pi - mean).pow(2) }.sum() / pixels.size.toFloat())
                 std = max(std, 1f / sqrt(pixels.size.toFloat()))
-                
+
                 for (i in pixels.indices) {
                     pixels[i] = (pixels[i] - mean) / std
                 }
-                
+
                 val output = TensorBufferFloat.createFixedSize(p0.shape, DataType.FLOAT32)
                 output.loadArray(pixels)
                 output
             } catch (e: Exception) {
                 android.util.Log.e("FaceNet", "❌ Erro na padronização: ${e.message}")
                 throw e
+            }
+        }
+    }
+
+    // ✅ NOVO: Operador para melhorar contraste (equalização de histograma adaptativa)
+    class ContrastEnhanceOp : TensorOperator {
+        override fun apply(p0: TensorBuffer?): TensorBuffer {
+            return try {
+                val pixels = p0!!.floatArray
+
+                // Normalizar para 0-255 se necessário
+                val minVal = pixels.minOrNull() ?: 0f
+                val maxVal = pixels.maxOrNull() ?: 255f
+
+                // Equalização de histograma simplificada
+                if (maxVal > minVal) {
+                    val range = maxVal - minVal
+                    for (i in pixels.indices) {
+                        // Normaliza para 0-1
+                        var normalized = (pixels[i] - minVal) / range
+
+                        // Aplica função de realce de contraste (gamma correction)
+                        // Gamma < 1 aumenta brilho, Gamma > 1 aumenta contraste
+                        val gamma = 1.2f
+                        normalized = normalized.pow(gamma)
+
+                        // Retorna para escala original
+                        pixels[i] = normalized * range + minVal
+                    }
+                }
+
+                val output = TensorBufferFloat.createFixedSize(p0.shape, DataType.FLOAT32)
+                output.loadArray(pixels)
+                output
+            } catch (e: Exception) {
+                android.util.Log.e("FaceNet", "❌ Erro no realce de contraste: ${e.message}")
+                p0!! // Retorna original se falhar
             }
         }
     }

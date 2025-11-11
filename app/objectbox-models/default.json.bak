@@ -151,7 +151,7 @@
     },
     {
       "id": "4:6070835639547591035",
-      "lastPropertyId": "11:2009397831074551829",
+      "lastPropertyId": "12:3927362437481351260",
       "name": "ConfiguracoesEntity",
       "properties": [
         {
@@ -209,6 +209,11 @@
           "id": "11:2009397831074551829",
           "name": "longitudeFixa",
           "type": 8
+        },
+        {
+          "id": "12:3927362437481351260",
+          "name": "similaridade",
+          "type": 7
         }
       ],
       "relations": []
