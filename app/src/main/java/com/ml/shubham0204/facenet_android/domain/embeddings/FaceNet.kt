@@ -43,9 +43,11 @@ class FaceNet(
     private val imageTensorProcessor =
         ImageProcessor
             .Builder()
-            .add(ResizeOp(imgSize, imgSize, ResizeOp.ResizeMethod.BILINEAR))
+            .add(ResizeOp(imgSize, imgSize, ResizeOp.ResizeMethod.BILINEAR)) // BILINEAR é o melhor disponível
+            .add(IlluminationNormalizationOp()) // ✅ NOVO: Normaliza iluminação
             .add(ContrastEnhanceOp()) // ✅ NOVO: Melhora contraste
             .add(StandardizeOp())
+            .add(L2NormalizationOp()) // ✅ NOVO: Normalização L2
             .build()
 
     init {
@@ -159,6 +161,59 @@ class FaceNet(
         }
     }
 
+    // ✅ NOVO: Normalização de iluminação para lidar com condições ruins de luz
+    class IlluminationNormalizationOp : TensorOperator {
+        override fun apply(p0: TensorBuffer?): TensorBuffer {
+            return try {
+                val pixels = p0!!.floatArray
+                val shape = p0.shape
+
+                // Assume formato [height, width, channels] ou [height * width * channels]
+                val totalPixels = pixels.size / 3 // RGB channels
+
+                // Calcula média e desvio padrão para cada canal
+                val means = FloatArray(3) { 0f }
+                val stds = FloatArray(3) { 0f }
+
+                // Calcula médias
+                for (i in 0 until totalPixels) {
+                    means[0] += pixels[i * 3] // R
+                    means[1] += pixels[i * 3 + 1] // G
+                    means[2] += pixels[i * 3 + 2] // B
+                }
+                for (c in 0..2) {
+                    means[c] /= totalPixels
+                }
+
+                // Calcula desvios padrão
+                for (i in 0 until totalPixels) {
+                    stds[0] += (pixels[i * 3] - means[0]).pow(2)
+                    stds[1] += (pixels[i * 3 + 1] - means[1]).pow(2)
+                    stds[2] += (pixels[i * 3 + 2] - means[2]).pow(2)
+                }
+                for (c in 0..2) {
+                    stds[c] = sqrt(stds[c] / totalPixels)
+                    // Evita divisão por zero
+                    stds[c] = max(stds[c], 1f)
+                }
+
+                // Normaliza cada canal
+                for (i in 0 until totalPixels) {
+                    pixels[i * 3] = (pixels[i * 3] - means[0]) / stds[0]
+                    pixels[i * 3 + 1] = (pixels[i * 3 + 1] - means[1]) / stds[1]
+                    pixels[i * 3 + 2] = (pixels[i * 3 + 2] - means[2]) / stds[2]
+                }
+
+                val output = TensorBufferFloat.createFixedSize(shape, DataType.FLOAT32)
+                output.loadArray(pixels)
+                output
+            } catch (e: Exception) {
+                android.util.Log.e("FaceNet", "❌ Erro na normalização de iluminação: ${e.message}")
+                p0!! // Retorna original se falhar
+            }
+        }
+    }
+
     // ✅ NOVO: Operador para melhorar contraste (equalização de histograma adaptativa)
     class ContrastEnhanceOp : TensorOperator {
         override fun apply(p0: TensorBuffer?): TensorBuffer {
@@ -191,6 +246,36 @@ class FaceNet(
                 output
             } catch (e: Exception) {
                 android.util.Log.e("FaceNet", "❌ Erro no realce de contraste: ${e.message}")
+                p0!! // Retorna original se falhar
+            }
+        }
+    }
+
+    // ✅ NOVO: Normalização L2 para embeddings mais estáveis
+    class L2NormalizationOp : TensorOperator {
+        override fun apply(p0: TensorBuffer?): TensorBuffer {
+            return try {
+                val pixels = p0!!.floatArray
+
+                // Calcula a norma L2 (magnitude euclidiana)
+                var normL2 = 0.0f
+                for (i in pixels.indices) {
+                    normL2 += pixels[i].pow(2)
+                }
+                normL2 = sqrt(normL2)
+
+                // Evita divisão por zero
+                if (normL2 > 0.0f) {
+                    for (i in pixels.indices) {
+                        pixels[i] /= normL2
+                    }
+                }
+
+                val output = TensorBufferFloat.createFixedSize(p0.shape, DataType.FLOAT32)
+                output.loadArray(pixels)
+                output
+            } catch (e: Exception) {
+                android.util.Log.e("FaceNet", "❌ Erro na normalização L2: ${e.message}")
                 p0!! // Retorna original se falhar
             }
         }

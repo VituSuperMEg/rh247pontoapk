@@ -83,16 +83,19 @@ class MediapipeFaceDetector(
                 return@withContext Result.failure<Bitmap>(AppException(ErrorCode.NO_FACE))
             } else {
                 // Validate the bounding box and
-                // return the cropped face
+                // return the cropped face with padding
                 val rect = faces[0].boundingBox().toRect()
                 if (validateRect(imageBitmap, rect)) {
+                    // ✅ NOVO: Adiciona padding adaptativo (15% do tamanho da face)
+                    val paddedRect = addPaddingToRect(imageBitmap, rect, 0.15f)
+
                     val croppedBitmap =
                         Bitmap.createBitmap(
                             imageBitmap,
-                            rect.left,
-                            rect.top,
-                            rect.width(),
-                            rect.height(),
+                            paddedRect.left,
+                            paddedRect.top,
+                            paddedRect.width(),
+                            paddedRect.height(),
                         )
                     return@withContext Result.success(croppedBitmap)
                 } else {
@@ -148,13 +151,16 @@ class MediapipeFaceDetector(
                 .map { detection -> detection.boundingBox().toRect() }
                 .mapNotNull { rect ->
                     try {
+                        // ✅ NOVO: Adiciona padding adaptativo (15% do tamanho da face)
+                        val paddedRect = addPaddingToRect(frameBitmap, rect, 0.15f)
+
                         val croppedBitmap =
                             Bitmap.createBitmap(
                                 frameBitmap,
-                                rect.left,
-                                rect.top,
-                                rect.width(),
-                                rect.height(),
+                                paddedRect.left,
+                                paddedRect.top,
+                                paddedRect.width(),
+                                paddedRect.height(),
                             )
 
                         // ✅ NOVO: Verificar qualidade da imagem (nitidez)
@@ -204,6 +210,24 @@ class MediapipeFaceDetector(
             boundingBox.top >= 0 &&
             (boundingBox.left + boundingBox.width()) < cameraFrameBitmap.width &&
             (boundingBox.top + boundingBox.height()) < cameraFrameBitmap.height
+
+    // ✅ NOVO: Adiciona padding adaptativo ao redor da face detectada
+    // Captura mais contexto ao redor da face para melhor reconhecimento
+    private fun addPaddingToRect(
+        image: Bitmap,
+        rect: Rect,
+        paddingPercent: Float = 0.15f
+    ): Rect {
+        val paddingX = (rect.width() * paddingPercent).toInt()
+        val paddingY = (rect.height() * paddingPercent).toInt()
+
+        val left = kotlin.math.max(0, rect.left - paddingX)
+        val top = kotlin.math.max(0, rect.top - paddingY)
+        val right = kotlin.math.min(image.width, rect.right + paddingX)
+        val bottom = kotlin.math.min(image.height, rect.bottom + paddingY)
+
+        return Rect(left, top, right, bottom)
+    }
 
     // ✅ NOVO: Calcula variância de Laplaciano para detectar blur (desfoque)
     // Valores baixos indicam imagem desfocada
