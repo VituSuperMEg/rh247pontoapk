@@ -122,6 +122,18 @@ class PontosGenericosDao {
             emptyList()
         }
     }
+
+    // ✅ NOVO: Buscar pontos sincronizados
+    fun getSincronizados(): List<PontosGenericosEntity> {
+        return try {
+            val pontos = box.all.filter { it.synced }
+            Log.d("PontosGenericosDao", "📋 Pontos sincronizados: ${pontos.size}")
+            pontos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao buscar pontos sincronizados: ${e.message}")
+            emptyList()
+        }
+    }
     
     fun marcarComoSincronizado(id: Long) {
         try {

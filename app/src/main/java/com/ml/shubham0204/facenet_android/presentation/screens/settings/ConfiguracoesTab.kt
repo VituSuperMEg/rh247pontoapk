@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -24,6 +25,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import com.ml.shubham0204.facenet_android.utils.CrashReporter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import android.Manifest
@@ -71,6 +77,8 @@ fun ConfiguracoesTab(
     var horaDropdownExpanded by remember { mutableStateOf(false) }
     var minutoDropdownExpanded by remember { mutableStateOf(false) }
     var intervaloDropdownExpanded by remember { mutableStateOf(false) }
+    var showClearLogsDialog by remember { mutableStateOf(false) }
+    var showClearCrashesDialog by remember { mutableStateOf(false) }
     
     Column(
         modifier = Modifier
@@ -469,7 +477,65 @@ fun ConfiguracoesTab(
                     style = MaterialTheme.typography.bodySmall,
                     color = Color.Gray
                 )
-                
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Botões de ação com ícones
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Botão para limpar logs
+                    OutlinedButton(
+                        onClick = { showClearLogsDialog = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFD32F2F))
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Limpar Logs",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Limpar Logs", color = Color(0xFFD32F2F))
+                        }
+                    }
+
+                    // Botão para limpar crashes
+                    OutlinedButton(
+                        onClick = { showClearCrashesDialog = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFD32F2F))
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Limpar Crashes",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Limpar Crashes", color = Color(0xFFD32F2F))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 OutlinedButton(
                     onClick = onNavigateToLogs,
                     modifier = Modifier.fillMaxWidth(),
@@ -527,5 +593,85 @@ fun ConfiguracoesTab(
         ) {
             Text("Sincronizar Agora", color = Color(0xFF264064))
         }
+    }
+
+    // Dialog de confirmação para limpar logs
+    if (showClearLogsDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearLogsDialog = false },
+            title = {
+                Text(
+                    text = "Limpar Logs",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Tem certeza que deseja limpar todos os logs do sistema?\n\nEsta ação não pode ser desfeita e pode remover informações importantes para diagnóstico de problemas.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        CrashReporter.clearLogs(context)
+                        showClearLogsDialog = false
+                        android.widget.Toast.makeText(
+                            context,
+                            "Logs limpos com sucesso!",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFD32F2F)
+                    )
+                ) {
+                    Text("Confirmar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearLogsDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Dialog de confirmação para limpar crashes
+    if (showClearCrashesDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearCrashesDialog = false },
+            title = {
+                Text(
+                    text = "Limpar Crashes",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text("Tem certeza que deseja limpar todos os registros de crashes?\n\nEsta ação não pode ser desfeita e pode remover informações importantes para diagnóstico de problemas.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        CrashReporter.clearCrashes(context)
+                        showClearCrashesDialog = false
+                        android.widget.Toast.makeText(
+                            context,
+                            "Crashes limpos com sucesso!",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFD32F2F)
+                    )
+                ) {
+                    Text("Confirmar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearCrashesDialog = false }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 } 

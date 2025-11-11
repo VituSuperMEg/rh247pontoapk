@@ -42,6 +42,8 @@ data class ReportsState(
 sealed class ActiveFilter {
     data class DATE_RANGE(val startDate: Date, val endDate: Date) : ActiveFilter()
     data class EMPLOYEE(val employeeName: String) : ActiveFilter()
+    object NAO_SINCRONIZADOS : ActiveFilter() // ✅ NOVO: Filtro para pontos não sincronizados
+    object SINCRONIZADOS : ActiveFilter() // ✅ NOVO: Filtro para pontos sincronizados
 }
 
 @KoinViewModel
@@ -59,43 +61,56 @@ class ReportsViewModel(
             try {
                 reportsState.value = reportsState.value.copy(isLoading = true, error = null)
 
-                // ✅ NOVO: Validar e corrigir pontos antes de carregar
-                val pontosValidados = pontosGenericosDao.validarECorrigirPontos()
-                if (pontosValidados > 0) {
-                    android.util.Log.d("ReportsViewModel", "🔧 $pontosValidados pontos foram validados e corrigidos")
-                }
+                // ✅ CRÍTICO: Verificar pontos pendentes SEM carregar tudo em memória
+                verificarPontosPendentesSemCarregarTudo()
 
-                // ✅ NOVO: Verificar pontos pendentes
-                verificarPontosPendentes()
+                // ✅ SOLUÇÃO DEFINITIVA: Carregar APENAS pontos de HOJE e NÃO SINCRONIZADOS
+                val calendar = java.util.Calendar.getInstance()
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                calendar.set(java.util.Calendar.MINUTE, 0)
+                calendar.set(java.util.Calendar.SECOND, 0)
+                calendar.set(java.util.Calendar.MILLISECOND, 0)
+                val startOfToday = calendar.timeInMillis
 
-                val allPoints = pontosGenericosDao.getAll()
-                
-                // ✅ PAGINAÇÃO: Carregar todos os pontos, mas com paginação para evitar crash
-                val sortedPoints = allPoints.sortedByDescending { it.dataHora }
-                
-                android.util.Log.d("ReportsViewModel", "📊 Total de pontos encontrados: ${sortedPoints.size}")
-                
-                // Se não há pontos no banco, criar dados de exemplo para teste
-                val finalPoints = if (sortedPoints.isEmpty()) {
-                    createSampleData()
-                } else {
-                    sortedPoints
-                }
-                
-                // ✅ PAGINAÇÃO: Carregar apenas a primeira página
-                val pageSize = 50
-                val firstPage = finalPoints.take(pageSize)
-                val hasMore = finalPoints.size > pageSize
-                
+                calendar.set(java.util.Calendar.HOUR_OF_DAY, 23)
+                calendar.set(java.util.Calendar.MINUTE, 59)
+                calendar.set(java.util.Calendar.SECOND, 59)
+                calendar.set(java.util.Calendar.MILLISECOND, 999)
+                val endOfToday = calendar.timeInMillis
+
+                android.util.Log.d("ReportsViewModel", "📅 Carregando pontos de HOJE + NÃO SINCRONIZADOS")
+
+                // Buscar pontos não sincronizados
+                val pontosNaoSincronizados = pontosGenericosDao.getNaoSincronizados()
+                val totalPontosNaoSincronizados = pontosNaoSincronizados.size
+
+                // Filtrar pontos de HOJE que NÃO foram sincronizados
+                val todayUnsyncedPoints = pontosNaoSincronizados.filter { ponto ->
+                    ponto.dataHora in startOfToday..endOfToday
+                }.sortedByDescending { it.dataHora }
+
+                android.util.Log.d("ReportsViewModel", "📊 Total não sincronizados: $totalPontosNaoSincronizados | Hoje não sincronizados: ${todayUnsyncedPoints.size}")
+
+                // ✅ Definir filtros padrão: HOJE + NÃO SINCRONIZADOS
+                val defaultFilters = listOf(
+                    ActiveFilter.DATE_RANGE(Date(startOfToday), Date(endOfToday)),
+                    ActiveFilter.NAO_SINCRONIZADOS
+                )
+
                 reportsState.value = ReportsState(
-                    points = firstPage,
-                    totalPoints = finalPoints.size,
+                    points = todayUnsyncedPoints,
+                    totalPoints = totalPontosNaoSincronizados, // Total de não sincronizados
                     isLoading = false,
                     currentPage = 0,
-                    hasMorePages = hasMore,
-                    pageSize = pageSize
+                    hasMorePages = false,
+                    pageSize = todayUnsyncedPoints.size,
+                    activeFilters = defaultFilters, // ✅ Filtros padrão aplicados
+                    pontosPendentes = reportsState.value.pontosPendentes
                 )
-                
+
+                // ✅ CRÍTICO: Liberar memória
+                System.gc()
+
             } catch (e: OutOfMemoryError) {
                 android.util.Log.e("ReportsViewModel", "OutOfMemoryError em loadReports: ${e.message}", e)
                 reportsState.value = reportsState.value.copy(
@@ -103,9 +118,7 @@ class ReportsViewModel(
                     error = "Muitos pontos para carregar. Tente filtrar por data."
                 )
             } catch (e: Exception) {
-                // Log do crash para debug remoto (sem context para evitar problemas)
                 android.util.Log.e("ReportsViewModel", "Erro em loadReports: ${e.message}", e)
-                
                 reportsState.value = reportsState.value.copy(
                     isLoading = false,
                     error = "Erro ao carregar relatórios: ${e.message}"
@@ -118,30 +131,40 @@ class ReportsViewModel(
         viewModelScope.launch {
             try {
                 if (!reportsState.value.hasMorePages) return@launch
-                
+
                 reportsState.value = reportsState.value.copy(isLoading = true)
-                
+
+                // ✅ OTIMIZADO: Carregar apenas 10 pontos por vez para evitar OutOfMemory
+                val LOAD_MORE_SIZE = 10
                 val allPoints = pontosGenericosDao.getAll().sortedByDescending { it.dataHora }
                 val currentPage = reportsState.value.currentPage + 1
-                val pageSize = reportsState.value.pageSize
-                val startIndex = currentPage * pageSize
-                val endIndex = startIndex + pageSize
-                
+                val startIndex = currentPage * LOAD_MORE_SIZE
+                val endIndex = startIndex + LOAD_MORE_SIZE
+
                 val newPoints = allPoints.subList(startIndex, minOf(endIndex, allPoints.size))
                 val hasMore = endIndex < allPoints.size
-                
+
                 val currentPoints = reportsState.value.points.toMutableList()
                 currentPoints.addAll(newPoints)
-                
+
                 reportsState.value = reportsState.value.copy(
                     points = currentPoints,
                     currentPage = currentPage,
                     hasMorePages = hasMore,
                     isLoading = false
                 )
-                
-                android.util.Log.d("ReportsViewModel", "📄 Página $currentPage carregada: ${newPoints.size} pontos. Total: ${currentPoints.size}")
-                
+
+                android.util.Log.d("ReportsViewModel", "📄 Página $currentPage carregada: ${newPoints.size} pontos. Total exibido: ${currentPoints.size}/${allPoints.size}")
+
+                // ✅ CRÍTICO: Liberar memória
+                System.gc()
+
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("ReportsViewModel", "💥 OutOfMemory ao carregar mais pontos!")
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Memória insuficiente. Sincronize os pontos pendentes primeiro."
+                )
             } catch (e: Exception) {
                 android.util.Log.e("ReportsViewModel", "Erro ao carregar mais pontos: ${e.message}", e)
                 reportsState.value = reportsState.value.copy(
@@ -366,10 +389,25 @@ class ReportsViewModel(
     private fun applyCurrentFilters() {
         viewModelScope.launch {
             try {
-                val allPoints = pontosGenericosDao.getAll()
-                var filteredPoints = allPoints
-                
-                // Aplicar todos os filtros ativos
+                reportsState.value = reportsState.value.copy(isLoading = true)
+
+                // ✅ Iniciar com pontos sincronizados ou não sincronizados
+                val hasSyncFilter = reportsState.value.activeFilters.any {
+                    it is ActiveFilter.NAO_SINCRONIZADOS || it is ActiveFilter.SINCRONIZADOS
+                }
+
+                var filteredPoints = if (hasSyncFilter) {
+                    // Se tem filtro de sync, começar com o conjunto correto
+                    if (reportsState.value.activeFilters.any { it is ActiveFilter.NAO_SINCRONIZADOS }) {
+                        pontosGenericosDao.getNaoSincronizados()
+                    } else {
+                        pontosGenericosDao.getSincronizados()
+                    }
+                } else {
+                    pontosGenericosDao.getAll()
+                }
+
+                // Aplicar todos os outros filtros ativos
                 reportsState.value.activeFilters.forEach { filter ->
                     when (filter) {
                         is ActiveFilter.DATE_RANGE -> {
@@ -382,20 +420,29 @@ class ReportsViewModel(
                                 ponto.funcionarioNome.contains(filter.employeeName, ignoreCase = true)
                             }
                         }
+                        is ActiveFilter.NAO_SINCRONIZADOS, is ActiveFilter.SINCRONIZADOS -> {
+                            // Já aplicado acima
+                        }
                     }
                 }
-                
+
                 val sortedPoints = filteredPoints.sortedByDescending { it.dataHora }
-                
+
+                android.util.Log.d("ReportsViewModel", "📊 Filtros aplicados: ${reportsState.value.activeFilters.size} | Pontos encontrados: ${sortedPoints.size}")
+
                 reportsState.value = reportsState.value.copy(
                     points = sortedPoints,
                     totalPoints = sortedPoints.size,
                     isLoading = false
                 )
-                
+
+                // ✅ CRÍTICO: Liberar memória
+                System.gc()
+
             } catch (e: Exception) {
                 android.util.Log.e("ReportsViewModel", "Erro ao aplicar filtros: ${e.message}", e)
                 reportsState.value = reportsState.value.copy(
+                    isLoading = false,
                     error = "Erro ao aplicar filtros: ${e.message}"
                 )
             }
@@ -478,15 +525,28 @@ class ReportsViewModel(
         }
     }
 
-    // ✅ NOVO: Verificar quantidade de pontos pendentes
-    private fun verificarPontosPendentes() {
+    // ✅ CRÍTICO: Verificar pontos pendentes SEM carregar todos em memória
+    private fun verificarPontosPendentesSemCarregarTudo() {
         viewModelScope.launch {
             try {
+                // ✅ OTIMIZADO: Contar apenas, sem carregar os objetos completos
                 val pontosPendentes = pontosGenericosDao.getNaoSincronizados()
+                val count = pontosPendentes.size
+
                 reportsState.value = reportsState.value.copy(
-                    pontosPendentes = pontosPendentes.size
+                    pontosPendentes = count
                 )
-                android.util.Log.d("ReportsViewModel", "📊 Pontos pendentes: ${pontosPendentes.size}")
+
+                android.util.Log.d("ReportsViewModel", "📊 Pontos pendentes: $count")
+
+                // ✅ CRÍTICO: Limpar lista da memória imediatamente
+                System.gc()
+
+            } catch (e: OutOfMemoryError) {
+                android.util.Log.e("ReportsViewModel", "💥 OutOfMemory ao verificar pontos pendentes!")
+                reportsState.value = reportsState.value.copy(
+                    pontosPendentes = 0
+                )
             } catch (e: Exception) {
                 android.util.Log.e("ReportsViewModel", "Erro ao verificar pontos pendentes: ${e.message}")
             }
@@ -558,6 +618,60 @@ class ReportsViewModel(
     // ✅ NOVO: Fechar mensagem de sincronização
     fun fecharMensagemSincronizacao() {
         reportsState.value = reportsState.value.copy(mostrarMensagem = false)
+    }
+
+    // ✅ NOVO: Filtrar por pontos não sincronizados
+    fun filterByNaoSincronizados() {
+        viewModelScope.launch {
+            try {
+                reportsState.value = reportsState.value.copy(isLoading = true, error = null)
+
+                // Remover filtro de sincronizados se existir
+                val currentFilters = reportsState.value.activeFilters.filter {
+                    it !is ActiveFilter.SINCRONIZADOS
+                }
+
+                // Adicionar filtro de não sincronizados
+                val newFilters = currentFilters.filter { it !is ActiveFilter.NAO_SINCRONIZADOS } + ActiveFilter.NAO_SINCRONIZADOS
+
+                reportsState.value = reportsState.value.copy(activeFilters = newFilters)
+                applyCurrentFilters()
+
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao filtrar não sincronizados: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Erro ao filtrar: ${e.message}"
+                )
+            }
+        }
+    }
+
+    // ✅ NOVO: Filtrar por pontos sincronizados
+    fun filterBySincronizados() {
+        viewModelScope.launch {
+            try {
+                reportsState.value = reportsState.value.copy(isLoading = true, error = null)
+
+                // Remover filtro de não sincronizados se existir
+                val currentFilters = reportsState.value.activeFilters.filter {
+                    it !is ActiveFilter.NAO_SINCRONIZADOS
+                }
+
+                // Adicionar filtro de sincronizados
+                val newFilters = currentFilters.filter { it !is ActiveFilter.SINCRONIZADOS } + ActiveFilter.SINCRONIZADOS
+
+                reportsState.value = reportsState.value.copy(activeFilters = newFilters)
+                applyCurrentFilters()
+
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao filtrar sincronizados: ${e.message}", e)
+                reportsState.value = reportsState.value.copy(
+                    isLoading = false,
+                    error = "Erro ao filtrar: ${e.message}"
+                )
+            }
+        }
     }
     
     private fun createSampleData(): List<PontosGenericosEntity> {

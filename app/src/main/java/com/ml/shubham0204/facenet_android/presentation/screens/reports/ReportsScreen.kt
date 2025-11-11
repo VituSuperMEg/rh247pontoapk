@@ -204,7 +204,7 @@ fun ReportsScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                // ✅ Card de Pontos Pendentes (novo - mostra sempre que houver pontos)
+                // ✅ Card de Pontos Pendentes (mostra sempre que houver pontos)
                 if (reportsState.pontosPendentes > 0) {
                     item {
                         Card(
@@ -467,7 +467,7 @@ fun ReportsScreen(
             onFilterByPeriod = { period ->
                 selectedPeriod = period
                 showFilterDialog = false
-                
+
                 when (period) {
                     PeriodFilter.TODAY, PeriodFilter.THIS_WEEK, PeriodFilter.THIS_MONTH, PeriodFilter.THIS_YEAR -> {
                         val periodFilter = applyPeriodFilter(viewModel, period)
@@ -478,6 +478,9 @@ fun ReportsScreen(
                             is ActiveFilter.EMPLOYEE -> {
                                 // Não esperado aqui, mas necessário para when exaustivo
                             }
+                            is ActiveFilter.NAO_SINCRONIZADOS, is ActiveFilter.SINCRONIZADOS -> {
+                                // Não esperado aqui
+                            }
                         }
                     }
                     PeriodFilter.CUSTOM -> {
@@ -485,9 +488,17 @@ fun ReportsScreen(
                     }
                 }
             },
-            onFilterByEmployee = { 
+            onFilterByEmployee = {
                 showFilterDialog = false
-                showEmployeePicker = true 
+                showEmployeePicker = true
+            },
+            onFilterBySyncStatus = { isUnsync ->
+                showFilterDialog = false
+                if (isUnsync) {
+                    viewModel.filterByNaoSincronizados()
+                } else {
+                    viewModel.filterBySincronizados()
+                }
             },
             onClearFilters = {
                 selectedStartDate = null
@@ -618,6 +629,7 @@ private fun FilterDialog(
     onDismiss: () -> Unit,
     onFilterByPeriod: (PeriodFilter) -> Unit,
     onFilterByEmployee: () -> Unit,
+    onFilterBySyncStatus: (Boolean) -> Unit, // ✅ NOVO: true = não sincronizados, false = sincronizados
     onClearFilters: () -> Unit,
     hasActiveFilters: Boolean
 ) {
@@ -740,7 +752,85 @@ private fun FilterDialog(
                         )
                     }
                 }
-                
+
+                Divider()
+
+                // ✅ NOVO: Filtro por status de sincronização
+                Text(
+                    text = "Filtrar por Status de Sincronização",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF264064)
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Botão: Não Sincronizados
+                    Card(
+                        onClick = { onFilterBySyncStatus(true) },
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFFFEBEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudOff,
+                                contentDescription = "Não Sincronizados",
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Não Sincronizados",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                    }
+
+                    // Botão: Sincronizados
+                    Card(
+                        onClick = { onFilterBySyncStatus(false) },
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFE8F5E9)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudDone,
+                                contentDescription = "Sincronizados",
+                                tint = Color(0xFF388E3C),
+                                modifier = Modifier.size(28.dp)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Sincronizados",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                textAlign = TextAlign.Center,
+                                color = Color(0xFF388E3C)
+                            )
+                        }
+                    }
+                }
+
                 // Limpar filtros (só aparece se há filtros ativos)
                 if (hasActiveFilters) {
                     Divider()
@@ -1417,6 +1507,84 @@ private fun ActiveFiltersSection(
                                 Icon(
                                     imageVector = Icons.Default.Label,
                                     contentDescription = "Funcionário",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = { onRemoveFilter(filter) },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover filtro",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        )
+                    }
+                    ActiveFilter.NAO_SINCRONIZADOS -> {
+                        FilterChip(
+                            label = {
+                                Text(
+                                    text = "Não Sincronizados",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            },
+                            selected = true,
+                            onClick = { },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFFD32F2F),
+                                selectedLabelColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CloudOff,
+                                    contentDescription = "Não Sincronizados",
+                                    modifier = Modifier.size(16.dp),
+                                    tint = Color.White
+                                )
+                            },
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = { onRemoveFilter(filter) },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remover filtro",
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        )
+                    }
+                    ActiveFilter.SINCRONIZADOS -> {
+                        FilterChip(
+                            label = {
+                                Text(
+                                    text = "Sincronizados",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White
+                                )
+                            },
+                            selected = true,
+                            onClick = { },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF388E3C),
+                                selectedLabelColor = Color.White
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.CloudDone,
+                                    contentDescription = "Sincronizados",
                                     modifier = Modifier.size(16.dp),
                                     tint = Color.White
                                 )

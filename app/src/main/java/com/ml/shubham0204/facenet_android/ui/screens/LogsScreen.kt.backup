@@ -6,7 +6,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,33 +24,24 @@ fun LogsScreen(
     val context = LocalContext.current
     var logs by remember { mutableStateOf("Carregando logs...") }
     var isLoading by remember { mutableStateOf(false) }
-    var showClearLogsDialog by remember { mutableStateOf(false) }
-    var showClearCrashesDialog by remember { mutableStateOf(false) }
-
-    // Função para carregar logs (limitando para evitar crashes)
+    
+    // Função para carregar logs
     fun loadLogs() {
         isLoading = true
         try {
-            val allLogs = CrashReporter.getLogs(context)
-            val lines = allLogs.lines()
-
-            if (lines.size > 500) {
-                val recentLines = lines.takeLast(500)
-                logs = "Exibindo apenas as 500 linhas mais recentes (total: ${lines.size} linhas)\n\n" + recentLines.joinToString("\n")
-            } else {
-                logs = allLogs
-            }
+            logs = CrashReporter.getLogs(context)
         } catch (e: Exception) {
             logs = "Erro ao carregar logs: ${e.message}"
         } finally {
             isLoading = false
         }
     }
-
+    
+    // Carrega logs na primeira vez
     LaunchedEffect(Unit) {
         loadLogs()
     }
-
+    
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
@@ -71,6 +61,7 @@ fun LogsScreen(
                     }
                 },
                 actions = {
+                    // Botão para atualizar
                     IconButton(
                         onClick = { loadLogs() },
                         enabled = !isLoading
@@ -80,22 +71,17 @@ fun LogsScreen(
                             contentDescription = "Atualizar logs"
                         )
                     }
-
+                    
+                    // Botão para limpar logs
                     IconButton(
-                        onClick = { showClearLogsDialog = true }
+                        onClick = {
+                            CrashReporter.clearLogs(context)
+                            loadLogs()
+                        }
                     ) {
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Limpar logs"
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { showClearCrashesDialog = true }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Limpar crashes"
                         )
                     }
                 }
@@ -108,9 +94,10 @@ fun LogsScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
-
+        
         Spacer(modifier = Modifier.height(16.dp))
-
+        
+        // Área de logs
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -133,9 +120,9 @@ fun LogsScreen(
                         text = "Logs Capturados:",
                         style = MaterialTheme.typography.titleMedium
                     )
-
+                    
                     Spacer(modifier = Modifier.height(8.dp))
-
+                    
                     Text(
                         text = logs,
                         style = MaterialTheme.typography.bodyMedium,
@@ -147,9 +134,10 @@ fun LogsScreen(
                 }
             }
         }
-
+        
         Spacer(modifier = Modifier.height(16.dp))
-
+        
+        // Informações sobre o crash reporting
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer
@@ -162,63 +150,18 @@ fun LogsScreen(
                     text = "Sobre o Sistema de Logs",
                     style = MaterialTheme.typography.titleMedium
                 )
-
+                
                 Spacer(modifier = Modifier.height(8.dp))
-
+                
                 Text(
-                    text = "• Os logs são salvos automaticamente quando ocorrem erros\n• Use o botão de atualizar para ver novos logs\n• Se houver muitos logs, apenas as 500 linhas mais recentes serão exibidas\n• Use o botão de limpar para remover logs antigos\n• Logs locais são mantidos no dispositivo",
+                    text = "• Os logs são salvos automaticamente quando ocorrem erros\n" +
+                           "• Use o botão de atualizar para ver novos logs\n" +
+                           "• Os logs são enviados para o Firebase Crashlytics\n" +
+                           "• Logs locais são mantidos no dispositivo",
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
         }
         }
-    }
-
-    if (showClearLogsDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearLogsDialog = false },
-            title = { Text("Limpar Logs") },
-            text = { Text("Tem certeza que deseja limpar todos os logs do sistema? Esta ação não pode ser desfeita.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        CrashReporter.clearLogs(context)
-                        showClearLogsDialog = false
-                        loadLogs()
-                    }
-                ) {
-                    Text("Confirmar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearLogsDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
-    }
-
-    if (showClearCrashesDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearCrashesDialog = false },
-            title = { Text("Limpar Crashes") },
-            text = { Text("Tem certeza que deseja limpar todos os registros de crashes? Esta ação não pode ser desfeita.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        CrashReporter.clearCrashes(context)
-                        showClearCrashesDialog = false
-                        loadLogs()
-                    }
-                ) {
-                    Text("Confirmar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearCrashesDialog = false }) {
-                    Text("Cancelar")
-                }
-            }
-        )
     }
 }

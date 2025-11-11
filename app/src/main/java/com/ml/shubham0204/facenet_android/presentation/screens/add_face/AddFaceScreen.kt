@@ -171,19 +171,7 @@ private fun ScreenUI(
     val context = LocalContext.current
     
     LaunchedEffect(Unit) {
-        android.util.Log.d("AddFaceScreen", "📋 === DADOS RECEBIDOS NA TELA ===")
-        android.util.Log.d("AddFaceScreen", "📋 Nome: '$personName'")
-        android.util.Log.d("AddFaceScreen", "📋 CPF: '$funcionarioCpf'")
-        android.util.Log.d("AddFaceScreen", "📋 Cargo: '$funcionarioCargo'")
-        android.util.Log.d("AddFaceScreen", "📋 Órgão: '$funcionarioOrgao'")
-        android.util.Log.d("AddFaceScreen", "📋 Lotação: '$funcionarioLotacao'")
-        android.util.Log.d("AddFaceScreen", "📋 ID da Entidade: '$funcionarioEntidadeId'")
-        
-        android.util.Log.d("AddFaceScreen", "📋 === VERIFICAÇÃO DE CAMPOS VAZIOS ===")
-        android.util.Log.d("AddFaceScreen", "📋 CPF vazio: ${funcionarioCpf.isEmpty()}")
-        android.util.Log.d("AddFaceScreen", "📋 Cargo vazio: ${funcionarioCargo.isEmpty()}")
-        android.util.Log.d("AddFaceScreen", "📋 Órgão vazio: ${funcionarioOrgao.isEmpty()}")
-        android.util.Log.d("AddFaceScreen", "📋 Lotação vazio: ${funcionarioLotacao.isEmpty()}")
+
     }
     
     var personNameState by remember { 
@@ -207,25 +195,19 @@ private fun ScreenUI(
         if (funcionarioId > 0) {
             clickCount++
             showGapProgress = true
-            
-            android.util.Log.d("AddFaceScreen", "🖱️ Clique no nome: $clickCount/5")
-            
+
             if (clickCount >= 5) {
                 isGapUnlocked = true
                 showGapProgress = false
-                android.util.Log.d("AddFaceScreen", "🔓 GAP DESBLOQUEADO! Exclusão liberada")
-                
-                // Resetar após 10 segundos se não usar
+
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
-                    kotlinx.coroutines.delay(10000) // 10 segundos
+                    kotlinx.coroutines.delay(10000)
                     if (isGapUnlocked) {
                         isGapUnlocked = false
                         clickCount = 0
-                        android.util.Log.d("AddFaceScreen", "🔒 GAP bloqueado novamente (timeout)")
                     }
                 }
             } else {
-                // Resetar contador após 3 segundos se não completar
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
                     kotlinx.coroutines.delay(3000)
                     if (clickCount < 5 && !isGapUnlocked) {
@@ -249,7 +231,6 @@ private fun ScreenUI(
                 isActive = funcionariosDao.isFuncionarioActive(funcionarioId)
                 android.util.Log.d("AddFaceScreen", "📊 Status do funcionário: ${if (isActive) "ATIVO" else "INATIVO"}")
                 
-                // ✅ NOVO: Carregar fotos capturadas do servidor (apenas para edição)
                 if (funcionarioId > 0 && funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
                     android.util.Log.d("AddFaceScreen", "📸 Carregando fotos capturadas para edição...")
                     viewModel.loadCapturedImages(funcionarioCpf, funcionarioEntidadeId)
@@ -283,22 +264,16 @@ private fun ScreenUI(
         }
     }
     
-    // ✅ NOVO: LaunchedEffect para detectar mudanças no showSuccessScreen (apenas cadastro normal)
     LaunchedEffect(showSuccessScreen) {
-        android.util.Log.d("AddFaceScreen", "🔘 LaunchedEffect executado - showSuccessScreen: $showSuccessScreen")
         if (showSuccessScreen && !viewModel.wasUserDeleted.value) {
-            android.util.Log.d("AddFaceScreen", "🔘 Cadastro normal detectado - aguardando...")
-            android.util.Log.d("AddFaceScreen", "🔘 wasUserDeleted: ${viewModel.wasUserDeleted.value}")
-            
-            // Aguardar um pouco para mostrar a mensagem de sucesso
+
             kotlinx.coroutines.delay(2000)
             onNavigateBack()
         }
     }
     
     if (showSuccessScreen) {
-        android.util.Log.d("AddFaceScreen", "📸 === TELA DE SUCESSO ===")
-        android.util.Log.d("AddFaceScreen", "📸 Total de fotos: ${viewModel.selectedImageURIs.value.size}")
+
         viewModel.selectedImageURIs.value.forEachIndexed { index, uri ->
             android.util.Log.d("AddFaceScreen", "📸 Foto $index: $uri")
         }
@@ -326,7 +301,6 @@ private fun ScreenUI(
             onSuccess = { showSuccessScreen = true }
         )
     } else {
-        // ✅ NOVO: Sistema de tabs
         var selectedTabIndex by remember { mutableIntStateOf(0) }
         val tabs = listOf("Dados Funcionários", "Matrículas Ativas")
         
@@ -397,12 +371,12 @@ private fun DadosFuncionariosTab(
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         item {
-            Text(
-                text = "Dados do Funcionário",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+//            Text(
+//                text = "Dados do Funcionário",
+//                style = MaterialTheme.typography.headlineMedium,
+//                fontWeight = FontWeight.Bold,
+//                color = MaterialTheme.colorScheme.primary
+//            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -419,7 +393,6 @@ private fun DadosFuncionariosTab(
                     modifier = Modifier.padding(16.dp)
                 ) {
 
-                    // ✅ NOVO: Campo de nome clicável para sistema de gap
                     androidx.compose.material3.Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -430,16 +403,16 @@ private fun DadosFuncionariosTab(
                             },
                         colors = androidx.compose.material3.CardDefaults.cardColors(
                             containerColor = when {
-                                isGapUnlocked -> Color(0xFFFFEBEE) // Vermelho claro quando desbloqueado
-                                showGapProgress -> Color(0xFFFFF3E0) // Laranja claro durante progresso
+                                isGapUnlocked -> Color(0xFFFFEBEE)
+                                showGapProgress -> Color(0xFFFFF3E0)
                                 else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             }
                         ),
                         border = androidx.compose.foundation.BorderStroke(
                             width = if (isGapUnlocked) 2.dp else 1.dp,
                             color = when {
-                                isGapUnlocked -> Color(0xFFD32F2F) // Vermelho quando desbloqueado
-                                showGapProgress -> Color(0xFFFF9800) // Laranja durante progresso
+                                isGapUnlocked -> Color(0xFFD32F2F)
+                                showGapProgress -> Color(0xFFFF9800)
                                 else -> Color.Transparent
                             }
                         )
@@ -460,7 +433,6 @@ private fun DadosFuncionariosTab(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
 
-                            // ✅ NOVO: Feedback visual do progresso do gap
                             if (showGapProgress && !isGapUnlocked) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
@@ -482,7 +454,6 @@ private fun DadosFuncionariosTab(
                                 }
                             }
 
-                            // ✅ NOVO: Indicador de desbloqueio
                             if (isGapUnlocked) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
@@ -598,7 +569,6 @@ private fun DadosFuncionariosTab(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // ✅ NOVO: Botão de Desativação/Ativação do Funcionário
         if (funcionarioId > 0) {
             item {
                 Card(
@@ -613,12 +583,10 @@ private fun DadosFuncionariosTab(
                     Column(
                         modifier = Modifier.padding(16.dp)
                     ) {
-                        // ✅ NOVO: Botão de Ativação/Desativação
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Status atual
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
@@ -638,7 +606,6 @@ private fun DadosFuncionariosTab(
                                 )
                             }
 
-                            // Botão de ação
                             androidx.compose.material3.OutlinedButton(
                                 onClick = {
                                     // Toggle do status
@@ -682,7 +649,6 @@ private fun DadosFuncionariosTab(
                             }
                         }
 
-                        // ✅ NOVO: Aviso para funcionários inativos
                         if (!isActive) {
                             Spacer(modifier = Modifier.height(12.dp))
                             Card(
@@ -721,7 +687,6 @@ private fun DadosFuncionariosTab(
             }
         }
 
-        // ✅ NOVO: Fotos capturadas localmente (apenas para cadastro)
         if (funcionarioId == 0L) {
             item {
                 val selectedImages = viewModel.selectedImageURIs.value
@@ -766,7 +731,6 @@ private fun DadosFuncionariosTab(
                                         contentScale = ContentScale.Crop
                                     )
                                     
-                                    // Número da foto
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopStart)
@@ -789,7 +753,6 @@ private fun DadosFuncionariosTab(
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                 } else {
-                    // No modo de cadastro, não mostrar "Nenhuma foto encontrada" se ainda não capturou
                     Text(
                         text = "Fotos capturadas: ${selectedImages.size}/3",
                         style = MaterialTheme.typography.bodyMedium,
@@ -800,7 +763,6 @@ private fun DadosFuncionariosTab(
             }
         }
 
-        // ✅ NOVO: Fotos capturadas do servidor (apenas para edição)
         if (funcionarioId > 0L) {
             item {
                 val capturedImages by remember { viewModel.capturedImagesUrls }
@@ -830,23 +792,17 @@ private fun DadosFuncionariosTab(
                         }
                     }
                 } else {
-                    // Verificar se há fotos capturadas localmente ou no servidor
                     val selectedImages = viewModel.selectedImageURIs.value
                     
-                    // Priorizar fotos do servidor se existirem, senão mostrar fotos capturadas localmente
                     val imagesToShow = if (capturedImages.isNotEmpty()) {
-                        // Mostrar fotos do servidor
-                        Pair(capturedImages, true) // true = são fotos do servidor
+                        Pair(capturedImages, true)
                     } else if (selectedImages.isNotEmpty()) {
-                        // Mostrar fotos capturadas localmente
-                        Pair(selectedImages.map { it.toString() }, false) // false = são fotos locais
+                        Pair(selectedImages.map { it.toString() }, false)
                     } else {
-                        // Não há fotos em nenhum lugar
                         Pair(emptyList<String>(), false)
                     }
                     
                     if (imagesToShow.first.isNotEmpty()) {
-                        // Há fotos para mostrar (servidor ou locais)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -862,7 +818,6 @@ private fun DadosFuncionariosTab(
                                 fontWeight = FontWeight.Medium
                             )
                             if (imagesToShow.second) {
-                                // Só mostrar botão de recarregar se forem fotos do servidor
                                 IconButton(
                                     onClick = {
                                         if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
@@ -1263,14 +1218,12 @@ private fun MatriculasAtivasTab(
     val isLoading by remember { viewModel.isLoadingMatriculas }
     val syncMessage by remember { viewModel.syncMatriculasMessage }
     
-    // Carregar matrículas ao entrar na aba
     LaunchedEffect(funcionarioCpf) {
         if (funcionarioCpf.isNotEmpty()) {
             viewModel.loadMatriculasFromLocal(funcionarioCpf)
         }
     }
     
-    // Limpar mensagem após alguns segundos
     LaunchedEffect(syncMessage) {
         if (syncMessage != null) {
             kotlinx.coroutines.delay(3000)
@@ -1284,16 +1237,15 @@ private fun MatriculasAtivasTab(
             .padding(horizontal = 24.dp, vertical = 16.dp),
     ) {
         item {
-            Text(
-                text = "Matrículas Ativas",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
+//            Text(
+//                text = "Matrículas Ativas",
+//                style = MaterialTheme.typography.headlineMedium,
+//                fontWeight = FontWeight.Bold,
+//                color = MaterialTheme.colorScheme.primary
+//            )
 
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Botão de sincronizar
             Button(
                 onClick = {
                     if (funcionarioCpf.isNotEmpty() && funcionarioEntidadeId.isNotEmpty()) {
@@ -1326,7 +1278,6 @@ private fun MatriculasAtivasTab(
             
             Spacer(modifier = Modifier.height(8.dp))
             
-            // Mensagem de sincronização
             if (syncMessage != null) {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -1363,7 +1314,7 @@ private fun MatriculasAtivasTab(
                     )
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
