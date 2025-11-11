@@ -85,11 +85,11 @@ class PontoSincronizacaoService {
                 
                 Log.d(TAG, "📊 Total de pontos para sincronizar: ${pontosPendentes.size}")
                 
-                // ✅ NOVO: Processar em lotes para evitar OutOfMemory
-                val BATCH_SIZE = 50 // Processar no máximo 50 pontos por vez
+                // ✅ OTIMIZADO: Lotes menores para evitar OutOfMemory (20 pontos por vez)
+                val BATCH_SIZE = 20
                 val totalPontos = pontosPendentes.size
                 var pontosSincronizados = 0
-                
+
                 if (totalPontos > BATCH_SIZE) {
                     Log.w(TAG, "⚠️ Muitos pontos ($totalPontos). Processando em lotes de $BATCH_SIZE")
                 }
@@ -155,11 +155,11 @@ class PontoSincronizacaoService {
                             // Continuar com próximo lote
                         }
                         
-                        // ✅ CRÍTICO: Liberar memória entre lotes
+                        // ✅ CRÍTICO: Liberar memória entre lotes e dar tempo para GC
                         if (loteIndex < lotes.size - 1) {
                             System.gc()
-                            kotlinx.coroutines.delay(500) // Pequena pausa para GC
-                            Log.d(TAG, "🧹 Memória liberada antes do próximo lote")
+                            kotlinx.coroutines.delay(800) // Aumentado de 500ms para 800ms
+                            Log.d(TAG, "🧹 Memória liberada e aguardando GC antes do próximo lote")
                         }
                         
                     } catch (e: Exception) {

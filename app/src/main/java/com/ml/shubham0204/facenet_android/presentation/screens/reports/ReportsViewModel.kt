@@ -32,7 +32,11 @@ data class ReportsState(
     val currentPage: Int = 0,
     val hasMorePages: Boolean = true,
     val pageSize: Int = 50,
-    val activeFilters: List<ActiveFilter> = emptyList() // ✅ NOVO: Rastrear filtros ativos
+    val activeFilters: List<ActiveFilter> = emptyList(), // ✅ NOVO: Rastrear filtros ativos
+    val pontosPendentes: Int = 0, // ✅ NOVO: Contador de pontos pendentes
+    val sincronizando: Boolean = false, // ✅ NOVO: Flag de sincronização em andamento
+    val mensagemSincronizacao: String? = null, // ✅ NOVO: Mensagem da última sincronização
+    val mostrarMensagem: Boolean = false // ✅ NOVO: Flag para mostrar mensagem
 )
 
 sealed class ActiveFilter {
@@ -54,13 +58,16 @@ class ReportsViewModel(
         viewModelScope.launch {
             try {
                 reportsState.value = reportsState.value.copy(isLoading = true, error = null)
-                
+
                 // ✅ NOVO: Validar e corrigir pontos antes de carregar
                 val pontosValidados = pontosGenericosDao.validarECorrigirPontos()
                 if (pontosValidados > 0) {
                     android.util.Log.d("ReportsViewModel", "🔧 $pontosValidados pontos foram validados e corrigidos")
                 }
-                
+
+                // ✅ NOVO: Verificar pontos pendentes
+                verificarPontosPendentes()
+
                 val allPoints = pontosGenericosDao.getAll()
                 
                 // ✅ PAGINAÇÃO: Carregar todos os pontos, mas com paginação para evitar crash
@@ -432,35 +439,35 @@ class ReportsViewModel(
         viewModelScope.launch {
             try {
                 if (!reportsState.value.hasMorePages) return@launch
-                
+
                 reportsState.value = reportsState.value.copy(isLoading = true)
-                
+
                 // Recarregar todos os pontos e aplicar filtro novamente
                 val allPoints = pontosGenericosDao.getAll()
                 val currentPoints = reportsState.value.points
                 val currentPage = reportsState.value.currentPage + 1
                 val pageSize = reportsState.value.pageSize
-                
+
                 // Aplicar o mesmo filtro que foi usado anteriormente
                 val filteredPoints = allPoints.sortedByDescending { it.dataHora }
                 val startIndex = currentPage * pageSize
                 val endIndex = startIndex + pageSize
-                
+
                 val newPoints = filteredPoints.subList(startIndex, minOf(endIndex, filteredPoints.size))
                 val hasMore = endIndex < filteredPoints.size
-                
+
                 val updatedPoints = currentPoints.toMutableList()
                 updatedPoints.addAll(newPoints)
-                
+
                 reportsState.value = reportsState.value.copy(
                     points = updatedPoints,
                     currentPage = currentPage,
                     hasMorePages = hasMore,
                     isLoading = false
                 )
-                
+
                 android.util.Log.d("ReportsViewModel", "📄 Página filtrada $currentPage carregada: ${newPoints.size} pontos. Total: ${updatedPoints.size}")
-                
+
             } catch (e: Exception) {
                 android.util.Log.e("ReportsViewModel", "Erro ao carregar mais pontos filtrados: ${e.message}", e)
                 reportsState.value = reportsState.value.copy(
@@ -469,6 +476,88 @@ class ReportsViewModel(
                 )
             }
         }
+    }
+
+    // ✅ NOVO: Verificar quantidade de pontos pendentes
+    private fun verificarPontosPendentes() {
+        viewModelScope.launch {
+            try {
+                val pontosPendentes = pontosGenericosDao.getNaoSincronizados()
+                reportsState.value = reportsState.value.copy(
+                    pontosPendentes = pontosPendentes.size
+                )
+                android.util.Log.d("ReportsViewModel", "📊 Pontos pendentes: ${pontosPendentes.size}")
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro ao verificar pontos pendentes: ${e.message}")
+            }
+        }
+    }
+
+    // ✅ NOVO: Sincronizar com feedback visual
+    fun sincronizarComFeedback(context: Context) {
+        viewModelScope.launch {
+            try {
+                reportsState.value = reportsState.value.copy(
+                    sincronizando = true,
+                    mensagemSincronizacao = "Preparando sincronização...",
+                    mostrarMensagem = true
+                )
+
+                val pontosPorEntidade = pontoSincronizacaoPorBlocosService.getQuantidadePontosPendentesPorEntidade(context)
+                val totalPontos = pontosPorEntidade.values.sum()
+
+                if (totalPontos == 0) {
+                    reportsState.value = reportsState.value.copy(
+                        sincronizando = false,
+                        mensagemSincronizacao = "Nenhum ponto pendente para sincronizar",
+                        mostrarMensagem = true,
+                        pontosPendentes = 0
+                    )
+                    delay(3000)
+                    reportsState.value = reportsState.value.copy(mostrarMensagem = false)
+                    return@launch
+                }
+
+                reportsState.value = reportsState.value.copy(
+                    mensagemSincronizacao = "Sincronizando $totalPontos pontos..."
+                )
+
+                val resultado = pontoSincronizacaoPorBlocosService.sincronizarPontosPorBlocos(context)
+
+                reportsState.value = reportsState.value.copy(
+                    sincronizando = false,
+                    mensagemSincronizacao = resultado.mensagem,
+                    mostrarMensagem = true,
+                    pontosPendentes = if (resultado.sucesso) 0 else totalPontos - resultado.pontosSincronizados
+                )
+
+                // Recarregar a lista após sincronização
+                if (resultado.sucesso || resultado.pontosSincronizados > 0) {
+                    delay(1000)
+                    reloadCurrentView()
+                }
+
+                // Esconder mensagem após 5 segundos
+                delay(5000)
+                reportsState.value = reportsState.value.copy(mostrarMensagem = false)
+
+            } catch (e: Exception) {
+                android.util.Log.e("ReportsViewModel", "Erro na sincronização: ${e.message}")
+                reportsState.value = reportsState.value.copy(
+                    sincronizando = false,
+                    mensagemSincronizacao = "Erro: ${e.message}",
+                    mostrarMensagem = true
+                )
+
+                delay(5000)
+                reportsState.value = reportsState.value.copy(mostrarMensagem = false)
+            }
+        }
+    }
+
+    // ✅ NOVO: Fechar mensagem de sincronização
+    fun fecharMensagemSincronizacao() {
+        reportsState.value = reportsState.value.copy(mostrarMensagem = false)
     }
     
     private fun createSampleData(): List<PontosGenericosEntity> {

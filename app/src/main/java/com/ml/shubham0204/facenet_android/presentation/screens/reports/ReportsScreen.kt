@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -169,16 +171,24 @@ fun ReportsScreen(
                 
                 // Floating Action Button para Sincronizar
                 FloatingActionButton(
-                    onClick = { viewModel.syncPoints(context) },
-                    containerColor = Color(0xFF264064),
+                    onClick = { viewModel.sincronizarComFeedback(context) },
+                    containerColor = if (reportsState.pontosPendentes > 100) Color(0xFFFF9800) else Color(0xFF264064),
                     contentColor = Color.White,
                     modifier = Modifier.size(56.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Sync,
-                        contentDescription = "Sincronizar",
-                        modifier = Modifier.size(24.dp)
-                    )
+                    if (reportsState.sincronizando) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = "Sincronizar",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
@@ -194,6 +204,163 @@ fun ReportsScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                // ✅ Card de Pontos Pendentes (novo - mostra sempre que houver pontos)
+                if (reportsState.pontosPendentes > 0) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (reportsState.pontosPendentes > 100)
+                                    Color(0xFFFFF3E0)
+                                else
+                                    Color(0xFFE3F2FD)
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(
+                                        imageVector = if (reportsState.pontosPendentes > 100)
+                                            Icons.Default.Warning
+                                        else
+                                            Icons.Default.CloudUpload,
+                                        contentDescription = "Pontos Pendentes",
+                                        tint = if (reportsState.pontosPendentes > 100)
+                                            Color(0xFFFF9800)
+                                        else
+                                            Color(0xFF1976D2),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column {
+                                        Text(
+                                            text = "${reportsState.pontosPendentes} ponto${if (reportsState.pontosPendentes > 1) "s" else ""} pendente${if (reportsState.pontosPendentes > 1) "s" else ""}",
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (reportsState.pontosPendentes > 100)
+                                                Color(0xFFFF9800)
+                                            else
+                                                Color(0xFF1976D2)
+                                        )
+
+                                        Text(
+                                            text = if (reportsState.pontosPendentes > 100)
+                                                "Muitos pontos acumulados. Clique no botão abaixo para sincronizar."
+                                            else
+                                                "Clique no botão de sincronização para enviar",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+
+                                if (reportsState.sincronizando) {
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    LinearProgressIndicator(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = if (reportsState.pontosPendentes > 100)
+                                            Color(0xFFFF9800)
+                                        else
+                                            Color(0xFF1976D2)
+                                    )
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Text(
+                                        text = reportsState.mensagemSincronizacao ?: "Sincronizando...",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ✅ Mensagem de Resultado da Sincronização
+                if (reportsState.mostrarMensagem && reportsState.mensagemSincronizacao != null && !reportsState.sincronizando) {
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = if (reportsState.mensagemSincronizacao!!.contains("sucesso", ignoreCase = true))
+                                    Color(0xFFE8F5E9)
+                                else if (reportsState.mensagemSincronizacao!!.contains("Nenhum", ignoreCase = true))
+                                    Color(0xFFFFF9C4)
+                                else
+                                    Color(0xFFFFEBEE)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (reportsState.mensagemSincronizacao!!.contains("sucesso", ignoreCase = true))
+                                        Icons.Default.Check
+                                    else if (reportsState.mensagemSincronizacao!!.contains("Nenhum", ignoreCase = true))
+                                        Icons.Default.Info
+                                    else
+                                        Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = if (reportsState.mensagemSincronizacao!!.contains("sucesso", ignoreCase = true))
+                                        Color(0xFF4CAF50)
+                                    else if (reportsState.mensagemSincronizacao!!.contains("Nenhum", ignoreCase = true))
+                                        Color(0xFFFBC02D)
+                                    else
+                                        Color(0xFFF44336),
+                                    modifier = Modifier.size(24.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Text(
+                                    text = reportsState.mensagemSincronizacao!!,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (reportsState.mensagemSincronizacao!!.contains("sucesso", ignoreCase = true))
+                                        Color(0xFF2E7D32)
+                                    else if (reportsState.mensagemSincronizacao!!.contains("Nenhum", ignoreCase = true))
+                                        Color(0xFFF57F17)
+                                    else
+                                        Color(0xFFC62828),
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                IconButton(
+                                    onClick = { viewModel.fecharMensagemSincronizacao() },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Fechar",
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Seção de Filtros Ativos
                 if (activeFilters.isNotEmpty()) {
                     item {

@@ -15,5 +15,6 @@ data class ConfiguracoesEntity(
     val intervaloSincronizacao: Int = 24,
     val geolocalizacaoHabilitada: Boolean = true,
     val latitudeFixa: Double? = null,
-    val longitudeFixa: Double? = null
+    val longitudeFixa: Double? = null,
+    val similaridade: Float? =  0.76f
 ) 

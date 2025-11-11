@@ -29,13 +29,29 @@ import java.util.Calendar
 
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Slider
 
+@Composable
+fun SimilaritySlider(
+    value: Float,
+    onValueChange: (Float) -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(text = "Similaridade: ${"%.2f".format(value)}")
 
+        Slider(
+            value = value,
+            onValueChange = { onValueChange(it) },
+            valueRange = 0f..1f,
+            steps = 99
+        )
+    }
+}
 @Composable
 fun SobreTab() {
     val viewModel: SettingsViewModel = koinViewModel()
     val uiState by viewModel.uiState.collectAsState()
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -102,8 +118,8 @@ fun SobreTab() {
                 )
             }
         }
-        
-        // ✅ NOVO: Card com informações sobre o reconhecimento facial
+
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(
@@ -120,9 +136,14 @@ fun SobreTab() {
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+
+                SimilaritySlider(
+                    value = uiState.similaridade,
+                    onValueChange = { value -> viewModel.updateSimilaridade(value)}
+                )
                 
                 Text(
-                    text = "Similaridade:  ${viewModel.getSimilarityThreshold()}",
+                    text = "Similaridade:  ${uiState.similaridade}",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Medium
@@ -153,7 +174,6 @@ fun SobreTab() {
                     fontWeight = FontWeight.Bold
                 )
                 
-                // ProgressBar para download (só aparece quando isUpdating = true)
                 if (uiState.isUpdating) {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp)

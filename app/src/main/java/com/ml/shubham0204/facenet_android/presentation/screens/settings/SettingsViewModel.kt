@@ -14,10 +14,8 @@ import com.ml.shubham0204.facenet_android.data.ConfiguracoesEntity
 import com.ml.shubham0204.facenet_android.data.api.RetrofitClient
 import com.ml.shubham0204.facenet_android.data.config.AppPreferences
 import com.ml.shubham0204.facenet_android.data.config.ServerConfig
-import com.ml.shubham0204.facenet_android.data.model.EntidadeInfo
 import com.ml.shubham0204.facenet_android.data.model.TabletVersionData
 import com.ml.shubham0204.facenet_android.data.repository.TabletUpdateRepository
-import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoService
 import com.ml.shubham0204.facenet_android.service.PontoSincronizacaoPorBlocosService
 import com.ml.shubham0204.facenet_android.worker.SincronizacaoAutomaticaWorker
 import com.ml.shubham0204.facenet_android.utils.ErrorMessageHelper
@@ -27,21 +25,18 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import com.ml.shubham0204.facenet_android.utils.LocationUtils
 import com.ml.shubham0204.facenet_android.utils.PerformanceConfig
-import com.ml.shubham0204.facenet_android.domain.ImageVectorUseCase
 import org.koin.android.annotation.KoinViewModel
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import java.io.File
 import java.text.SimpleDateFormat
 import java.time.Duration
 import java.time.LocalTime
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
 
 @KoinViewModel
 class SettingsViewModel : ViewModel(), KoinComponent {
@@ -51,7 +46,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     private val tabletUpdateRepository: TabletUpdateRepository by inject()
     private val appPreferences: AppPreferences by inject()
     private val cacheManager: CacheManager by inject()
-    
+
+
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
     
@@ -59,7 +55,24 @@ class SettingsViewModel : ViewModel(), KoinComponent {
         carregarConfiguracoes()
         carregarHistorico()
     }
-    
+
+
+    fun updateSimilaridade(value: Float) {
+        _uiState.value = _uiState.value.copy(similaridade = value)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val atual = configuracoesDao.getConfiguracoes()
+                if (atual != null) {
+                    configuracoesDao.atualizarConfiguracoes(atual.copy(similaridade = value))
+                    Log.d("SettingsViewModel", "✅ Similaridade atualizada: $value")
+                }
+            } catch (e: Exception) {
+                Log.e("SettingsViewModel", "❌ Erro ao atualizar similaridade: ${e.message}")
+            }
+        }
+    }
+
+
     fun updateLocalizacaoId(value: String) {
         _uiState.update { it.copy(localizacaoId = value, localizacaoIdError = null) }
     }
@@ -99,9 +112,7 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun sincronizarAgora() {
         viewModelScope.launch {
             try {
-                Toast.makeText(context, "🔄 Iniciando sincronização...", Toast.LENGTH_SHORT).show()
-                
-                // ✅ NOVO: Usar sincronização por blocos de entidade
+
                 val pontoSincronizacaoPorBlocosService = PontoSincronizacaoPorBlocosService()
                 val resultado = pontoSincronizacaoPorBlocosService.sincronizarPontosPorBlocos(context)
                 
@@ -159,16 +170,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     }
     
     fun salvarConfiguracoes() {
-        Log.d("SettingsViewModel", "🔄 Iniciando salvamento de configurações")
         val currentState = _uiState.value
         
-        Log.d("SettingsViewModel", "📊 Dados para salvar:")
-        Log.d("SettingsViewModel", "   - Localização ID: '${currentState.localizacaoId}'")
-        Log.d("SettingsViewModel", "   - Código Sincronização: '${currentState.codigoSincronizacao}'")
-        Log.d("SettingsViewModel", "   - Entidade ID: '${currentState.entidadeId}'")
-        Log.d("SettingsViewModel", "   - Sincronização Ativa: ${currentState.sincronizacaoAtiva}")
-        
-        // Validações
         if (currentState.localizacaoId.isEmpty()) {
             Log.e("SettingsViewModel", "❌ Validação falhou: ID da Localização vazio")
             _uiState.update { it.copy(localizacaoIdError = "ID da Localização é obrigatório") }
@@ -291,7 +294,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                     horaSincronizacao = currentState.horaSincronizacao,
                     minutoSincronizacao = currentState.minutoSincronizacao,
                     sincronizacaoAtiva = currentState.sincronizacaoAtiva,
-                    intervaloSincronizacao = currentState.intervaloSincronizacao
+                    intervaloSincronizacao = currentState.intervaloSincronizacao,
+                    similaridade = currentState.similaridade
                 )
                 
                 // ✅ NOVO: Limpar cache do servidor antes de salvar
@@ -823,7 +827,8 @@ class SettingsViewModel : ViewModel(), KoinComponent {
                             intervaloSincronizacao = configuracoes.intervaloSincronizacao,
                             geolocalizacaoHabilitada = configuracoes.geolocalizacaoHabilitada,
                             latitudeFixa = configuracoes.latitudeFixa?.toString() ?: "",
-                            longitudeFixa = configuracoes.longitudeFixa?.toString() ?: ""
+                            longitudeFixa = configuracoes.longitudeFixa?.toString() ?: "",
+                            similaridade = configuracoes.similaridade ?: 0.76f
                         )
                     }
                     
@@ -999,26 +1004,18 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
             "${packageInfo.versionName} (${packageInfo.versionCode})"
         } catch (e: Exception) {
-            "0.1.0 (10)" // Versão padrão em caso de erro
+            "0.1.0 (10)"
         }
     }
-    
-    // ✅ NOVO: Função para obter o threshold de similaridade usado no reconhecimento facial
+
     fun getSimilarityThreshold(): Float {
-        return ImageVectorUseCase.SIMILARITY_THRESHOLD
-    }
-    
-    // ✅ NOVO: Função para obter o threshold de similaridade como porcentagem formatada
-    fun getSimilarityThresholdPercent(): String {
-        val threshold = ImageVectorUseCase.SIMILARITY_THRESHOLD
-        val percentage = (threshold * 100).toInt()
-        return "$percentage%"
+        val configuracoes = configuracoesDao.getConfiguracoes()
+        return configuracoes?.similaridade ?: 0.76f
     }
 
     fun updateGeolocalizacaoHabilitada(value: Boolean) {
         _uiState.update { it.copy(geolocalizacaoHabilitada = value) }
         try {
-            // ✅ NOVO: Limpar cache da entidade antes de atualizar
             appPreferences.clearEntidadeCache()
             
             val atual = configuracoesDao.getConfiguracoes()
@@ -1050,7 +1047,6 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun updateLatitudeFixa(value: String) {
         _uiState.update { it.copy(latitudeFixa = value) }
         try {
-            // ✅ NOVO: Limpar cache da entidade antes de atualizar
             appPreferences.clearEntidadeCache()
             
             val atual = configuracoesDao.getConfiguracoes()
@@ -1061,7 +1057,6 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun updateLongitudeFixa(value: String) {
         _uiState.update { it.copy(longitudeFixa = value) }
         try {
-            // ✅ NOVO: Limpar cache da entidade antes de atualizar
             appPreferences.clearEntidadeCache()
             
             val atual = configuracoesDao.getConfiguracoes()
@@ -1072,7 +1067,6 @@ class SettingsViewModel : ViewModel(), KoinComponent {
     fun fetchAndSetCurrentLocation() {
         viewModelScope.launch {
             try {
-                // Executa na Main (Location APIs precisam de Looper)
                 val location = LocationUtils(context).getCurrentLocation(PerformanceConfig.LOCATION_TIMEOUT_MS)
                 if (location != null) {
                     updateLatitudeFixa(location.latitude.toString())
@@ -1084,159 +1078,6 @@ class SettingsViewModel : ViewModel(), KoinComponent {
             } catch (e: Exception) {
                 Log.e("SettingsViewModel", "Erro ao obter localização: ${e.message}")
                 Toast.makeText(context, "Erro ao obter localização", Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
-    
-    /**
-     * 🧹 LIMPEZA DE CACHE: Limpa versões antigas e arquivos temporários
-     * Resolve o problema de acúmulo de 4GB de cache
-     */
-    fun performCacheCleanup() {
-        viewModelScope.launch {
-            try {
-                _uiState.update { 
-                    it.copy(
-                        isUpdating = true, 
-                        updateMessage = "🧹 Limpando cache e versões antigas...",
-                        downloadProgress = 0
-                    ) 
-                }
-                
-                // ✅ NOVO: Limpeza agressiva de cache
-                val cacheCleanupResult = cacheManager.performCompleteCacheCleanup()
-                
-                cacheCleanupResult.fold(
-                    onSuccess = { cacheMessage ->
-                        Log.d("SettingsViewModel", "✅ Limpeza de cache: $cacheMessage")
-                        
-                        // Continuar com limpeza de versões antigas
-                        val cleanupResult = tabletUpdateRepository.performManualCleanup()
-                        
-                        cleanupResult.fold(
-                            onSuccess = { message ->
-                                val finalMessage = "$cacheMessage\n$message"
-                                _uiState.update { 
-                                    it.copy(
-                                        isUpdating = false,
-                                        updateMessage = finalMessage,
-                                        downloadProgress = 100
-                                    ) 
-                                }
-                                Log.d("SettingsViewModel", "✅ Limpeza completa concluída: $finalMessage")
-                            },
-                            onFailure = { error ->
-                                val errorMessage = "$cacheMessage\n❌ Erro na limpeza de versões: ${error.message}"
-                                _uiState.update { 
-                                    it.copy(
-                                        isUpdating = false,
-                                        updateMessage = errorMessage,
-                                        downloadProgress = 0
-                                    ) 
-                                }
-                                Log.e("SettingsViewModel", "❌ Erro na limpeza de versões", error)
-                            }
-                        )
-                    },
-                    onFailure = { error ->
-                        val errorMessage = "❌ Erro na limpeza de cache: ${error.message}"
-                        _uiState.update { 
-                            it.copy(
-                                isUpdating = false,
-                                updateMessage = errorMessage,
-                                downloadProgress = 0
-                            ) 
-                        }
-                        Log.e("SettingsViewModel", "❌ Erro na limpeza de cache", error)
-                    }
-                )
-                
-            } catch (e: Exception) {
-                val errorMessage = "❌ Erro inesperado na limpeza: ${e.message}"
-                _uiState.update { 
-                    it.copy(
-                        isUpdating = false,
-                        updateMessage = errorMessage,
-                        downloadProgress = 0
-                    ) 
-                }
-                Log.e("SettingsViewModel", "❌ Erro inesperado na limpeza", e)
-            }
-        }
-    }
-    
-    /**
-     * 🖥️ ALTERNAR MODO DE TELA CHEIA
-     * Ativa/desativa o modo de tela cheia para esconder botões de navegação
-     */
-    fun toggleFullscreenMode(isEnabled: Boolean) {
-        viewModelScope.launch {
-            try {
-                _uiState.update { 
-                    it.copy(telaCheiaHabilitada = isEnabled) 
-                }
-                
-                // Salvar preferência
-                appPreferences.telaCheiaHabilitada = isEnabled
-                
-                Log.d("SettingsViewModel", "🖥️ Modo de tela cheia ${if (isEnabled) "ativado" else "desativado"}")
-                
-            } catch (e: Exception) {
-                Log.e("SettingsViewModel", "❌ Erro ao alternar modo de tela cheia", e)
-            }
-        }
-    }
-    
-    /**
-     * Limpeza rápida de cache (apenas cache essencial)
-     */
-    fun performQuickCacheCleanup() {
-        viewModelScope.launch {
-            try {
-                _uiState.update { 
-                    it.copy(
-                        isUpdating = true, 
-                        updateMessage = "⚡ Limpeza rápida de cache...",
-                        downloadProgress = 0
-                    ) 
-                }
-                
-                val result = cacheManager.performQuickCacheCleanup()
-                
-                result.fold(
-                    onSuccess = { message ->
-                        _uiState.update { 
-                            it.copy(
-                                isUpdating = false,
-                                updateMessage = message,
-                                downloadProgress = 100
-                            ) 
-                        }
-                        Log.d("SettingsViewModel", "✅ Limpeza rápida concluída: $message")
-                    },
-                    onFailure = { error ->
-                        val errorMessage = "❌ Erro na limpeza rápida: ${error.message}"
-                        _uiState.update { 
-                            it.copy(
-                                isUpdating = false,
-                                updateMessage = errorMessage,
-                                downloadProgress = 0
-                            ) 
-                        }
-                        Log.e("SettingsViewModel", "❌ Erro na limpeza rápida", error)
-                    }
-                )
-                
-            } catch (e: Exception) {
-                val errorMessage = "❌ Erro inesperado na limpeza rápida: ${e.message}"
-                _uiState.update { 
-                    it.copy(
-                        isUpdating = false,
-                        updateMessage = errorMessage,
-                        downloadProgress = 0
-                    ) 
-                }
-                Log.e("SettingsViewModel", "❌ Erro inesperado na limpeza rápida", e)
             }
         }
     }
@@ -1265,7 +1106,9 @@ data class SettingsUiState(
     val geolocalizacaoHabilitada: Boolean = true,
     val latitudeFixa: String = "",
     val longitudeFixa: String = "",
-    val telaCheiaHabilitada: Boolean = true
+    val telaCheiaHabilitada: Boolean = true,
+    val similaridade: Float = 0.76f,
+    val similaridadeError: Float = 0.76f
 )
 
 data class HistoricoSincronizacao(

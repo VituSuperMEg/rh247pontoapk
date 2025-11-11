@@ -3,12 +3,14 @@ package com.ml.shubham0204.facenet_android.domain
 import android.graphics.Bitmap
 import android.graphics.Rect
 import android.net.Uri
+import com.ml.shubham0204.facenet_android.data.ConfiguracoesDao
 import com.ml.shubham0204.facenet_android.data.FaceImageRecord
 import com.ml.shubham0204.facenet_android.data.ImagesVectorDB
 import com.ml.shubham0204.facenet_android.data.RecognitionMetrics
 import com.ml.shubham0204.facenet_android.domain.embeddings.FaceNet
 import com.ml.shubham0204.facenet_android.domain.face_detection.FaceSpoofDetector
 import com.ml.shubham0204.facenet_android.domain.face_detection.MediapipeFaceDetector
+import com.ml.shubham0204.facenet_android.presentation.screens.settings.SettingsViewModel
 import com.ml.shubham0204.facenet_android.utils.CrashReporter
 import org.koin.core.annotation.Single
 import kotlin.math.pow
@@ -22,11 +24,16 @@ class ImageVectorUseCase(
     private val faceSpoofDetector: FaceSpoofDetector,
     private val imagesVectorDB: ImagesVectorDB,
     private val faceNet: FaceNet,
+    private val viewModel: SettingsViewModel
 ) {
-    // ✅ NOVO: Constante pública para o threshold de similaridade usado no reconhecimento facial
-    companion object {
-        const val SIMILARITY_THRESHOLD: Float = 0.76f // 76% de similaridade
-    }
+    private val configuracoesDao = ConfiguracoesDao()
+
+    private val threshold: Float
+        get() = configuracoesDao.getConfiguracoes()?.similaridade ?: 0.76f
+
+//    companion object {
+//        const val SIMILARITY_THRESHOLD: Float = threshold
+//    }
     data class FaceRecognitionResult(
         val personName: String,
         val boundingBox: Rect,
@@ -46,7 +53,6 @@ class ImageVectorUseCase(
             // in the database, along with `personId` and `personName`
             val embedding = faceNet.getFaceEmbedding(faceDetectionResult.getOrNull()!!)
             
-            // ✅ NOVO: Salvar o caminho da imagem original
             val originalImagePath = imageUri.path
             
             imagesVectorDB.addFaceImageRecord(
@@ -54,7 +60,7 @@ class ImageVectorUseCase(
                     personID = personID,
                     personName = personName,
                     faceEmbedding = embedding,
-                    originalImagePath = originalImagePath, // ✅ NOVO: Salvar caminho da imagem
+                    originalImagePath = originalImagePath,
                 ),
             )
             
@@ -66,30 +72,24 @@ class ImageVectorUseCase(
     }
     
     
-    // ✅ NOVO: Função para adicionar múltiplas imagens de uma vez
     suspend fun addMultipleImages(
         personID: Long,
         personName: String,
         imageUris: List<Uri>,
     ): Result<Boolean> {
         try {
-            android.util.Log.d("ImageVectorUseCase", "📸 Adicionando ${imageUris.size} imagens para $personName")
-            
+
             var successCount = 0
             for ((index, imageUri) in imageUris.withIndex()) {
-                android.util.Log.d("ImageVectorUseCase", "📸 Processando imagem ${index + 1}/${imageUris.size}: $imageUri")
-                
+
                 val result = addImage(personID, personName, imageUri)
                 if (result.isSuccess) {
                     successCount++
-                    android.util.Log.d("ImageVectorUseCase", "✅ Imagem ${index + 1} adicionada com sucesso")
                 } else {
                     android.util.Log.e("ImageVectorUseCase", "❌ Erro ao adicionar imagem ${index + 1}: ${result.exceptionOrNull()?.message}")
                 }
             }
-            
-            android.util.Log.d("ImageVectorUseCase", "📊 Resultado: $successCount/${imageUris.size} imagens adicionadas")
-            
+
             return if (successCount == imageUris.size) {
                 Result.success(true)
             } else {
@@ -97,24 +97,20 @@ class ImageVectorUseCase(
             }
             
         } catch (e: Exception) {
-            android.util.Log.e("ImageVectorUseCase", "❌ Erro ao adicionar múltiplas imagens: ${e.message}")
             return Result.failure(e)
         }
     }
 
     suspend fun getNearestPersonName(frameBitmap: Bitmap): Pair<RecognitionMetrics?, List<FaceRecognitionResult>> {
         return try {
-            android.util.Log.d("ImageVectorUseCase", "🔍 Iniciando reconhecimento facial...")
-            
+
             val (faceDetectionResult, t1) = try {
                 measureTimedValue { mediapipeFaceDetector.getAllCroppedFaces(frameBitmap) }
             } catch (e: Exception) {
-                android.util.Log.e("ImageVectorUseCase", "❌ Erro na detecção facial: ${e.message}")
                 return Pair(null, listOf())
             }
             
-            android.util.Log.d("ImageVectorUseCase", "📸 Faces detectadas: ${faceDetectionResult.size}")
-            
+
             val faceRecognitionResults = ArrayList<FaceRecognitionResult>()
             var avgT2 = 0L
             var avgT3 = 0L
@@ -128,18 +124,15 @@ class ImageVectorUseCase(
                     val (embedding, t2) = try {
                         measureTimedValue { faceNet.getFaceEmbedding(croppedBitmap) }
                     } catch (e: Exception) {
-                        android.util.Log.e("ImageVectorUseCase", "❌ Erro ao gerar embedding para face $index: ${e.message}")
                         faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
                         continue
                     }
                     
                     avgT2 += t2.toLong(DurationUnit.MILLISECONDS)
-                    android.util.Log.d("ImageVectorUseCase", "✅ Embedding gerado para face $index")
-                    
+
                     val (recognitionResult, t3) = try {
                         measureTimedValue { imagesVectorDB.getNearestEmbeddingPersonName(embedding) }
                     } catch (e: Exception) {
-                        android.util.Log.e("ImageVectorUseCase", "❌ Erro na busca por similaridade para face $index: ${e.message}")
                         faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
                         continue
                     }
@@ -147,7 +140,6 @@ class ImageVectorUseCase(
                     avgT3 += t3.toLong(DurationUnit.MILLISECONDS)
                     
                     if (recognitionResult == null) {
-                        android.util.Log.d("ImageVectorUseCase", "⚠️ Face $index não reconhecida")
                         faceRecognitionResults.add(FaceRecognitionResult("Not recognized", boundingBox))
                         continue
                     }
@@ -174,31 +166,31 @@ class ImageVectorUseCase(
                         0.0f
                     }
 
-                    val similarityThreshold = SIMILARITY_THRESHOLD
-                    
-                    
+                    val similarityThreshold = threshold
+
+                    android.util.Log.d("Similaridade", "${similarityThreshold}")
+
                     if (distance > similarityThreshold) {
-                    val spoofThreshold = getSpoofThreshold()
-                    val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
-                        
+                        val spoofThreshold = getSpoofThreshold()
+                        val isSpoofDetected = spoofResult != null && spoofResult.isSpoof && spoofResult.score > spoofThreshold
+
                         if (isSpoofDetected) {
-                            android.util.Log.w("ImageVectorUseCase", "🚫 SPOOF DETECTADO")
                             faceRecognitionResults.add(
                                 FaceRecognitionResult("SPOOF_DETECTED", boundingBox, spoofResult),
                             )
                         } else {
-                            android.util.Log.d("ImageVectorUseCase", "✅ Pessoa reconhecida: ${recognitionResult.personName} (${(distance * 100).toInt()}%)")
+
                             faceRecognitionResults.add(
                                 FaceRecognitionResult(recognitionResult.personName, boundingBox, spoofResult),
                             )
                         }
                     } else {
-                        android.util.Log.w("ImageVectorUseCase", "⚠️ Similaridade muito baixa (${(distance * 100).toInt()}%) - não reconhecido")
+
                         faceRecognitionResults.add(
                             FaceRecognitionResult("Not recognized", boundingBox, spoofResult),
                         )
                     }
-                    
+
                 } catch (e: Exception) {
                     val (_, boundingBox) = result
                     faceRecognitionResults.add(FaceRecognitionResult("Error", boundingBox))
@@ -251,8 +243,8 @@ class ImageVectorUseCase(
 
     suspend fun checkIfFaceAlreadyExists(
         imageUri: Uri,
-        currentPersonID: Long? = null, // ID da pessoa atual (para permitir atualização da própria face)
-        similarityThreshold: Float = SIMILARITY_THRESHOLD // Limiar de similaridade usado no reconhecimento
+        currentPersonID: Long? = null,
+        similarityThreshold: Float = threshold
     ): Result<FaceAlreadyExistsResult> {
         return try {
 
@@ -307,10 +299,8 @@ class ImageVectorUseCase(
         }
     }
     
-    // ✅ NOVO: Função para obter threshold dinâmico do spoof detection
     private fun getSpoofThreshold(): Float {
         // Threshold mais permissivo para reduzir falsos positivos
-        // Valores possíveis:
         // 0.5f = Muito restritivo (pode bloquear pessoas reais)
         // 0.7f = Moderado
         // 0.8f = Permissivo (recomendado para debugging)
@@ -319,9 +309,8 @@ class ImageVectorUseCase(
     }
 }
 
-// ✅ NOVO: Classe de resultado para verificação de face existente
 data class FaceAlreadyExistsResult(
-    val exists: Boolean, // Se a face já existe
-    val existingFace: FaceImageRecord?, // Face existente (se encontrada)
-    val similarity: Float // Nível de similaridade (0.0 a 1.0)
+    val exists: Boolean,
+    val existingFace: FaceImageRecord?,
+    val similarity: Float
 )
