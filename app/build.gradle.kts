@@ -126,6 +126,9 @@ dependencies {
     // WorkManager for background tasks
     implementation("androidx.work:work-runtime-ktx:2.9.0")
 
+    // Protocol Buffers para backups eficientes
+    implementation("com.google.protobuf:protobuf-javalite:3.25.1")
+
     // Firebase Crashlytics (desabilitado temporariamente)
     // implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
     // implementation("com.google.firebase:firebase-crashlytics-ktx")

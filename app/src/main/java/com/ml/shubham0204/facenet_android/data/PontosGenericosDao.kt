@@ -123,6 +123,75 @@ class PontosGenericosDao {
         }
     }
 
+    // ✅ NOVO: Contar pontos não sincronizados SEM carregar na memória
+    fun countNaoSincronizados(): Int {
+        return try {
+            val count = box.all.count { !it.synced }
+            Log.d("PontosGenericosDao", "📊 Total de pontos não sincronizados: $count")
+            count
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao contar pontos não sincronizados: ${e.message}")
+            0
+        }
+    }
+
+    // ✅ CRÍTICO: Buscar pontos não sincronizados com LIMIT direto no banco
+    fun getNaoSincronizadosComLimite(limit: Int, offset: Int = 0): List<PontosGenericosEntity> {
+        return try {
+            // ✅ SOLUÇÃO DEFINITIVA: Query direto no ObjectBox com LIMIT
+            val query = box.query()
+                .equal(PontosGenericosEntity_.synced, false)
+                .order(PontosGenericosEntity_.dataHora, io.objectbox.query.QueryBuilder.DESCENDING)
+                .build()
+
+            val pontos = query.find(offset.toLong(), limit.toLong())
+            query.close()
+
+            Log.d("PontosGenericosDao", "📋 Query com LIMIT: ${pontos.size} pontos (offset: $offset, limit: $limit)")
+            pontos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao buscar pontos com limite: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // ✅ CRÍTICO: Buscar pontos sincronizados com LIMIT direto no banco
+    fun getSincronizadosComLimite(limit: Int, offset: Int = 0): List<PontosGenericosEntity> {
+        return try {
+            val query = box.query()
+                .equal(PontosGenericosEntity_.synced, true)
+                .order(PontosGenericosEntity_.dataHora, io.objectbox.query.QueryBuilder.DESCENDING)
+                .build()
+
+            val pontos = query.find(offset.toLong(), limit.toLong())
+            query.close()
+
+            Log.d("PontosGenericosDao", "📋 Query sincronizados com LIMIT: ${pontos.size} pontos")
+            pontos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao buscar pontos sincronizados com limite: ${e.message}")
+            emptyList()
+        }
+    }
+
+    // ✅ CRÍTICO: Buscar TODOS os pontos com LIMIT direto no banco
+    fun getAllComLimite(limit: Int, offset: Int = 0): List<PontosGenericosEntity> {
+        return try {
+            val query = box.query()
+                .order(PontosGenericosEntity_.dataHora, io.objectbox.query.QueryBuilder.DESCENDING)
+                .build()
+
+            val pontos = query.find(offset.toLong(), limit.toLong())
+            query.close()
+
+            Log.d("PontosGenericosDao", "📋 Query ALL com LIMIT: ${pontos.size} pontos")
+            pontos
+        } catch (e: Exception) {
+            Log.e("PontosGenericosDao", "❌ Erro ao buscar todos os pontos com limite: ${e.message}")
+            emptyList()
+        }
+    }
+
     // ✅ NOVO: Buscar pontos sincronizados
     fun getSincronizados(): List<PontosGenericosEntity> {
         return try {

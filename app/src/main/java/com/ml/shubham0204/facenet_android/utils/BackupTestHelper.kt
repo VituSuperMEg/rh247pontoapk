@@ -3,18 +3,19 @@ package com.ml.shubham0204.facenet_android.utils
 import android.content.Context
 import android.util.Log
 import com.ml.shubham0204.facenet_android.data.BackupService
+import com.ml.shubham0204.facenet_android.data.ObjectBoxStore
 import java.io.File
 
 /**
  * Helper para testar o sistema de backup e identificar problemas
  */
 class BackupTestHelper(private val context: Context) {
-    
+
     companion object {
         private const val TAG = "BackupTestHelper"
     }
-    
-    private val backupService = BackupService(context)
+
+    private val backupService = BackupService(context, ObjectBoxStore.store)
     private val fileIntegrityManager = FileIntegrityManager()
     
     /**

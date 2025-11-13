@@ -2,6 +2,7 @@ package com.ml.shubham0204.facenet_android.utils
 
 import android.content.Context
 import android.util.Log
+import com.ml.shubham0204.facenet_android.data.ObjectBoxStore
 import java.io.File
 
 /**
@@ -192,7 +193,7 @@ class BackupIntegrityExample(private val context: Context) {
     suspend fun demonstrateBackupProtection() {
         try {
             
-            val backupService = com.ml.shubham0204.facenet_android.data.BackupService(context)
+            val backupService = com.ml.shubham0204.facenet_android.data.BackupService(context, ObjectBoxStore.store)
             
 
             val backupResult = backupService.createBackup()
