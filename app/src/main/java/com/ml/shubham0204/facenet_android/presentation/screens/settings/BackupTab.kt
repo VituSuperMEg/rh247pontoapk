@@ -428,29 +428,17 @@ fun BackupTab() {
                 if (response.isSuccessful) {
                     val responseBody = response.body()
                     if (responseBody != null) {
-                        val tempFile = File(context.cacheDir, "temp_online_backup")
+                        // Preservar extensão do arquivo (.pb ou .json)
+                        val extension = if (onlineBackup.fileName.endsWith(".pb")) ".pb" else ".json"
+                        val tempFile = File(context.cacheDir, "temp_online_backup$extension")
                         tempFile.outputStream().use { output ->
                             responseBody.byteStream().copyTo(output)
                         }
-                        
+
                         // Log para debug
+                        val isBinary = extension == ".pb"
                         android.util.Log.d("BackupTab", "📁 Arquivo baixado: ${tempFile.absolutePath} (${tempFile.length()} bytes)")
-                        
-                        // Ler apenas os primeiros 200 caracteres sem carregar o arquivo inteiro
-                        val firstChars = try {
-                            tempFile.inputStream().use { inputStream ->
-                                val buffer = ByteArray(200)
-                                val bytesRead = inputStream.read(buffer)
-                                if (bytesRead > 0) {
-                                    String(buffer, 0, bytesRead)
-                                } else {
-                                    "Arquivo vazio"
-                                }
-                            }
-                        } catch (e: Exception) {
-                            "Erro ao ler arquivo: ${e.message}"
-                        }
-                        android.util.Log.d("BackupTab", "📄 Primeiros 200 caracteres: $firstChars")
+                        android.util.Log.d("BackupTab", "📦 Formato: ${if (isBinary) "BINÁRIO (.pb)" else "JSON (.json)"}")
                         
                         val result = backupService.restoreBackup(tempFile.absolutePath)
                         result.fold(
@@ -916,14 +904,14 @@ fun BackupTab() {
                             Spacer(modifier = Modifier.width(16.dp))
                             Column {
                                 Text(
-                                    text = "🚀 Binário (.pb) - RECOMENDADO",
+                                    text = "Binário",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "10x mais rápido | 5x menor | Suporta arquivos enormes",
+                                    text = "10x mais rápido",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.White.copy(alpha = 0.9f)
                                 )

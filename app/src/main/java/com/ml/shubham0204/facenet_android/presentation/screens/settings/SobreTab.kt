@@ -42,7 +42,7 @@ fun SimilaritySlider(
         Slider(
             value = value,
             onValueChange = { onValueChange(it) },
-            valueRange = 0f..1f,
+            valueRange = 0.6f..1f,
             steps = 99
         )
     }

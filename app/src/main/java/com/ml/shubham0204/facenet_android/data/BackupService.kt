@@ -184,56 +184,44 @@ class BackupService(
      */
     suspend fun createBackupToCloud(): Result<String> = withContext(Dispatchers.IO) {
         try {
-            Log.d(TAG, "🔒 Iniciando backup PROTEGIDO para nuvem...")
-            
+            Log.d(TAG, "🚀 Iniciando backup BINÁRIO para nuvem...")
+
             // Obter configurações
             val configuracoesDao = ConfiguracoesDao()
             val configuracoes = configuracoesDao.getConfiguracoes()
-            
+
             if (configuracoes == null || configuracoes.entidadeId.isEmpty() || configuracoes.localizacaoId.isEmpty()) {
                 throw Exception("Configurações de entidade ou localização não encontradas")
             }
-            
-            // Gerar nome do arquivo com nomenclatura específica (SEMPRE protegido)
-            val backupFileName = generateBackupFileName(configuracoes).replace(".json", "_protected.json")
-            
+
+            // Gerar nome do arquivo BINÁRIO (.pb)
+            val backupFileName = generateBackupFileName(configuracoes).replace(".json", ".pb")
+
             // Criar arquivo temporário para o backup
             val tempDir = File(context.cacheDir, "temp_backups")
             if (!tempDir.exists()) {
                 tempDir.mkdirs()
             }
             val tempBackupFile = File(tempDir, backupFileName)
-            
-            // Encontrar diretório de banco de dados ObjectBox
-            val objectBoxDir = findObjectBoxDatabaseDirectory()
-            if (objectBoxDir == null || !objectBoxDir.exists()) {
-                throw Exception("Diretório de banco de dados ObjectBox não encontrado")
+
+            // Criar backup binário usando BackupBinarySimpleService
+            val binaryService = BackupBinarySimpleService(context, objectBoxStore)
+            val backupResult = binaryService.createBinaryBackup(tempBackupFile)
+
+            if (backupResult.isFailure) {
+                throw Exception("Falha ao criar backup binário: ${backupResult.exceptionOrNull()?.message}")
             }
-            
-            // Criar arquivo ZIP temporário
-            val tempZipFile = File(tempDir, "temp_backup.zip")
-            createZipFromDirectory(objectBoxDir, tempZipFile)
-            
-            Log.d(TAG, "📁 Arquivo ZIP temporário criado: ${tempZipFile.absolutePath} (${tempZipFile.length()} bytes)")
-            
-            // Criar arquivo protegido a partir do ZIP
-            val integrityResult = fileIntegrityManager.createProtectedFileFromBinary(tempZipFile, tempBackupFile)
-            if (integrityResult.isFailure) {
-                throw Exception("Falha ao criar proteção de integridade: ${integrityResult.exceptionOrNull()?.message}")
-            }
-            
-            // Limpar arquivo ZIP temporário
-            tempZipFile.delete()
-            
-            Log.d(TAG, "🔒 Arquivo protegido criado: ${tempBackupFile.absolutePath} (${tempBackupFile.length()} bytes)")
-            Log.d(TAG, "📊 Diretório original: ${objectBoxDir.absolutePath}")
-            
-            // Preparar upload do arquivo protegido para nuvem
-            val mediaType = "application/json".toMediaTypeOrNull()
+
+            val stats = backupResult.getOrNull()
+            Log.d(TAG, "✅ Backup binário criado: ${tempBackupFile.absolutePath} (${tempBackupFile.length() / 1024}KB)")
+            Log.d(TAG, "   📈 Stats: $stats")
+
+            // Preparar upload do arquivo binário para nuvem
+            val mediaType = "application/octet-stream".toMediaTypeOrNull()
             val requestBody = tempBackupFile.asRequestBody(mediaType)
             val multipartBody = MultipartBody.Part.createFormData(
-                "file", 
-                backupFileName, 
+                "file",
+                backupFileName,
                 requestBody
             )
             
